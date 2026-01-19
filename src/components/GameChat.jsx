@@ -2,13 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
-/**
- * GameChat Component
- * @param {Array} messages - Array of message objects
- * @param {Function} onSendMessage - Callback to send a message
- * @param {Boolean} isCollapsed - Whether chat is minimized
- * @param {Function} onToggleCollapse - Callback to toggle collapse state
- */
 const GameChat = ({ 
   messages = [], 
   onSendMessage, 
@@ -18,10 +11,12 @@ const GameChat = ({
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef(null);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    // Only scroll if we are not collapsed
+    if (!isCollapsed) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isCollapsed]);
 
   const handleSend = (e) => {
     e.preventDefault();
@@ -32,27 +27,27 @@ const GameChat = ({
   };
 
   return (
-    // h-full ensures it fills the animated parent container
-    <div className="flex flex-col h-full bg-gray-900 border-l border-gray-700">
+    <div className="flex flex-col h-full bg-gray-900 border-l border-gray-700 relative">
       
-      {/* Header - Fixed height (approx 48px) */}
+      {/* Header */}
       <button 
         onClick={onToggleCollapse}
         className="h-12 px-3 border-b border-gray-700 bg-gray-800 w-full flex items-center justify-between hover:bg-gray-750 transition-colors focus:outline-none shrink-0"
       >
         <h3 className="text-white font-bold text-sm flex items-center gap-2">
           <span>💬</span> 
-          {isCollapsed ? 'Show Chat & Log' : 'Game Log & Chat'}
+          {isCollapsed ? 'Show Chat' : 'Chat & Log'}
         </h3>
         <span className="text-gray-400 text-xs transform transition-transform duration-300" style={{ transform: isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)' }}>
           ▼
         </span>
       </button>
 
-      {/* Body - Always rendered, clipped by parent when collapsed */}
+      {/* Body */}
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-900/80">
+        
+        {/* Messages Area with Invisible Scrollbar */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-900/80 no-scrollbar">
           {messages.length === 0 && (
             <div className="text-center text-gray-500 text-xs mt-4">
               Game started. Good luck!
@@ -119,6 +114,17 @@ const GameChat = ({
           </div>
         </form>
       </div>
+
+      {/* Standard CSS Style Tag (Works in all browsers/React setups) */}
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;  /* IE and Edge */
+          scrollbar-width: none;  /* Firefox */
+        }
+      `}</style>
     </div>
   );
 };

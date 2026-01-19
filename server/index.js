@@ -1,5 +1,5 @@
 const express = require('express');
-jonst http = require('http');
+const http = require('http');
 const { Server } = require("socket.io");
 const cors = require('cors');
 
@@ -20,7 +20,7 @@ const lobbies = {};
 io.on('connection', (socket) => {
   console.log(`User Connected: ${socket.id}`);
 
-  // 1. GET PUBLIC LOBBIES
+  // 1. PUBLIC LOBBIES LIST
   socket.on('get_public_lobbies', () => {
     const publicList = Object.values(lobbies)
       .filter(l => !l.isPrivate)
@@ -54,7 +54,7 @@ io.on('connection', (socket) => {
     socket.join(lobbyId);
     console.log(`Lobby Created: ${lobbyId}`);
     
-    // Send back the lobbyId and the player's OWN socket ID
+    // Send back the lobbyId AND the player's own Socket ID
     socket.emit('lobby_joined', { lobbyId, isHost: true, mySocketId: socket.id });
 
     if (!isPrivate) io.emit('public_lobbies_update_trigger');
@@ -82,10 +82,10 @@ io.on('connection', (socket) => {
 
     console.log(`${playerName} joined ${lobbyId}`);
 
-    // Tell the joiner they are in, and give them their ID
+    // Notify the joiner (Give them their ID)
     socket.emit('lobby_joined', { lobbyId, isHost: false, mySocketId: socket.id });
 
-    // Tell the HOST to update their game board
+    // Notify the Host (Send the new player's details)
     io.to(lobbyId).emit('player_joined', { 
       newPlayer: { id: socket.id, name: playerName },
       allPlayers: lobby.players 
@@ -93,7 +93,7 @@ io.on('connection', (socket) => {
 
     if (!lobby.isPrivate) io.emit('public_lobbies_update_trigger');
 
-    // Send current game state if exists
+    // Sync Game State
     if (lobby.gameState) {
        socket.emit('game_state_update', lobby.gameState);
     } else {
@@ -119,7 +119,7 @@ io.on('connection', (socket) => {
   socket.on('request_move', ({ lobbyId, action, data }) => {
     const lobby = lobbies[lobbyId];
     if (lobby) {
-      // Forward the SENDER ID so Host knows who asked
+      // Forward to Host with Sender ID validation
       io.to(lobby.hostId).emit('client_move_request', { 
         action, 
         data, 
@@ -128,7 +128,18 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 5. DISCONNECT
+  // 5. CHAT HANDLER
+  socket.on('send_chat', ({ lobbyId, message, playerName }) => {
+    io.to(lobbyId).emit('receive_chat', {
+      id: `msg-${Date.now()}-${Math.random()}`,
+      type: 'CHAT',
+      sender: playerName,
+      text: message,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    });
+  });
+
+  // 6. DISCONNECT
   socket.on('disconnect', () => {
     console.log(`User Disconnected: ${socket.id}`);
     
@@ -145,7 +156,6 @@ io.on('connection', (socket) => {
           if (lobby.hostId === socket.id) {
              lobby.hostId = lobby.players[0].id; 
           }
-          // Notify remaining players
           io.to(id).emit('player_left', { leaverId: socket.id });
           io.to(id).emit('public_lobbies_update_trigger');
         }

@@ -9,7 +9,7 @@ import PlayArea from '../components/PlayArea';
 import GameControls from '../components/GameControls';
 import ScoreBoard from '../components/ScoreBoard';
 import GameChat from '../components/GameChat';
-import { initializeGame, getCardDisplay } from '../utils/deckUtils';
+import { getCardDisplay } from '../utils/deckUtils';
 
 // IMPORTS
 import { 
@@ -18,18 +18,16 @@ import {
   passAction
 } from '../utils/gameLogic';
 import { validatePlay } from '../utils/handEvaluator';
-import { COMBO_NAMES, GAME_STATES } from '../utils/constants'; // Added GAME_STATES
+import { COMBO_NAMES, GAME_STATES } from '../utils/constants';
 import { makeAIDecision } from '../utils/aiPlayer';
 
-// STANDARD IMPORT (Safe for Vite)
-// If this file is missing, the build will fail in the terminal, which is better than a white screen.
-import { soundManager } from '../utils/SoundManager';
+// SAFE AUDIO IMPORT
+import { soundManager } from '../utils/SoundManager'; 
 
 const GameThirteen = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // mySocketId comes from the updated server logic
   const { lobbyId, isHost, playerName, mySocketId } = location.state || {};
 
   const [gameState, setGameState] = useState(null);
@@ -37,8 +35,10 @@ const GameThirteen = () => {
   const [messages, setMessages] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
   
+  // UI State
   const [showSettings, setShowSettings] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false); // RESTORED
   
   // Volume State
   const [volumes, setVolumes] = useState({ master: 50, sfx: 50 });
@@ -49,9 +49,11 @@ const GameThirteen = () => {
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
 
   // --- SAFE AUDIO HELPERS ---
-  // These wrappers ensure we don't crash if soundManager isn't fully ready
   const safePlay = (method) => {
     try {
+      if (soundManager.context && soundManager.context.state === 'suspended') {
+        soundManager.context.resume();
+      }
       if (soundManager && typeof soundManager[method] === 'function') {
         soundManager[method]();
       }
@@ -61,28 +63,27 @@ const GameThirteen = () => {
   // --- MULTIPLAYER SETUP ---
   useEffect(() => {
     if (!lobbyId) {
-      // Redirect to menu if accessed directly without a lobby
       navigate('/'); 
       return;
     }
 
-    // Init Audio
     if (soundManager && soundManager.init) soundManager.init();
 
     // 1. HOST INIT
     if (isHost && !gameState) {
-      const { hands } = initializeGame();
-      const initialState = createGameState(hands, 0);
-      
-      // Setup Host Player
-      if (initialState.players[0]) {
-        initialState.players[0].name = playerName || 'Host';
-        initialState.players[0].type = 'HUMAN';
-        initialState.players[0].socketId = mySocketId; // BIND ID
-      }
-      
-      setGameState(initialState);
-      socket.emit('send_initial_state', { lobbyId, gameState: initialState });
+      import('../utils/deckUtils').then(({ initializeGame }) => {
+          const { hands } = initializeGame();
+          const initialState = createGameState(hands, 0);
+          
+          if (initialState.players[0]) {
+            initialState.players[0].name = playerName || 'Host';
+            initialState.players[0].type = 'HUMAN';
+            initialState.players[0].socketId = mySocketId;
+          }
+          
+          setGameState(initialState);
+          socket.emit('send_initial_state', { lobbyId, gameState: initialState });
+      });
     }
 
     // 2. LISTENERS
@@ -94,15 +95,19 @@ const GameThirteen = () => {
       }
     };
 
+    const handleReceiveChat = (msg) => {
+      const isMe = msg.sender === (playerName || 'Host');
+      const formattedMsg = { ...msg, isMe };
+      setMessages(prev => [...prev, formattedMsg]);
+      if (!isMe) safePlay('playClick');
+    };
+
     const handlePlayerJoined = ({ newPlayer }) => {
       if (isHost) {
         const current = gameStateRef.current;
         if (!current) return;
 
         const updatedPlayers = [...current.players];
-        
-        // Find the first CPU and replace them
-        // Skip Index 0 (Host)
         const slotIndex = updatedPlayers.findIndex((p, idx) => idx > 0 && p.type === 'AI');
         
         if (slotIndex !== -1) {
@@ -110,7 +115,7 @@ const GameThirteen = () => {
             ...updatedPlayers[slotIndex],
             name: newPlayer.name,
             type: 'HUMAN',
-            socketId: newPlayer.id // BIND ID of the new client
+            socketId: newPlayer.id
           };
 
           const newState = { ...current, players: updatedPlayers };
@@ -149,6 +154,7 @@ const GameThirteen = () => {
     };
 
     socket.on('game_state_update', handleStateUpdate);
+    socket.on('receive_chat', handleReceiveChat);
     socket.on('player_joined', handlePlayerJoined);
     socket.on('player_left', handlePlayerLeft);
     socket.on('client_move_request', handleClientMove);
@@ -156,24 +162,22 @@ const GameThirteen = () => {
 
     return () => {
       socket.off('game_state_update', handleStateUpdate);
+      socket.off('receive_chat', handleReceiveChat);
       socket.off('player_joined', handlePlayerJoined);
       socket.off('player_left', handlePlayerLeft);
       socket.off('client_move_request', handleClientMove);
       socket.off('request_sync', handleRequestSync);
     };
-  }, [lobbyId, isHost, mySocketId]); // Added dependencies
+  }, [lobbyId, isHost, mySocketId]);
 
   // --- HOST LOGIC ---
   const handleRemoteAction = (action, data, senderId) => {
     const currentState = gameStateRef.current;
     if (!currentState) return;
 
-    // Security Check: Does the sender match the player slot?
-    // In a real app we'd be stricter, but for MVP we trust the slot index if the ID matches or if it's the first connection
     const player = currentState.players[data.playerIndex];
     if (player.socketId !== senderId) {
-        console.warn(`ID Mismatch: Slot ${player.socketId} vs Sender ${senderId}`);
-        // For MVP resilience, if the slot was AI, we might auto-assign here, but let's rely on join logic.
+       // console.warn("ID Mismatch ignored for MVP resilience");
     }
 
     if (currentState.currentPlayerIndex !== data.playerIndex) return;
@@ -197,7 +201,6 @@ const GameThirteen = () => {
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     
-    // STRICT CHECK: Only run if it is ACTUALLY an AI
     if (currentPlayer.type === 'AI' && !currentPlayer.isEliminated) {
       const timer = setTimeout(() => {
         const decision = makeAIDecision(currentPlayer, gameState.currentPlay, gameState);
@@ -223,19 +226,18 @@ const GameThirteen = () => {
   // --- HELPER: FIND MY INDEX ---
   const getMyPlayerIndex = (state, socketId) => {
     if (!state) return -1;
-    // Find index based on socketId provided by server
     const idx = state.players.findIndex(p => p.socketId === socketId);
     return idx !== -1 ? idx : -1;
   };
 
   // --- ACTIONS ---
   const handlePlay = () => {
-    const myIndex = getMyPlayerIndex(gameState, mySocketId);
-    
-    if (myIndex === -1) {
-      setErrorMessage("You are spectating (or waiting for sync)");
-      return;
+    if (soundManager.context && soundManager.context.state === 'suspended') {
+      soundManager.context.resume();
     }
+
+    const myIndex = getMyPlayerIndex(gameState, mySocketId);
+    if (myIndex === -1) { setErrorMessage("You are spectating"); return; }
     
     const validation = validatePlay(selectedCards, gameState.currentPlay);
     if (!validation.valid) {
@@ -274,6 +276,15 @@ const GameThirteen = () => {
         data: { playerIndex: myIndex } 
       });
     }
+  };
+
+  const handleSendMessage = (text) => {
+    if (!text.trim()) return;
+    socket.emit('send_chat', { 
+      lobbyId, 
+      message: text, 
+      playerName: playerName || (isHost ? 'Host' : 'Guest') 
+    });
   };
 
   // --- SETTINGS HANDLERS ---
@@ -329,11 +340,14 @@ const GameThirteen = () => {
 
   const myIndex = getMyPlayerIndex(gameState, mySocketId);
   const iAmSpectator = myIndex === -1;
-  const viewIndex = iAmSpectator ? 0 : myIndex; // Spectators see Host view
+  const viewIndex = iAmSpectator ? 0 : myIndex;
+
+  const playersList = gameState.players || [];
+  if (playersList.length < 4) return <div>Error: Invalid Player Count</div>;
 
   const rotatedPlayers = [
-    ...gameState.players.slice(viewIndex),
-    ...gameState.players.slice(0, viewIndex)
+    ...playersList.slice(viewIndex),
+    ...playersList.slice(0, viewIndex)
   ];
   
   const bottomPlayer = rotatedPlayers[0]; 
@@ -344,7 +358,7 @@ const GameThirteen = () => {
   const isMyTurn = gameState.currentPlayerIndex === myIndex;
   const canPlay = selectedCards.length > 0 && isMyTurn;
   const canPass = isMyTurn && gameState.currentPlay !== null;
-  const currentPlayerName = gameState.lastPlayedBy !== null ? gameState.players[gameState.lastPlayedBy].name : null;
+  const currentPlayerName = gameState.lastPlayedBy !== null ? playersList[gameState.lastPlayedBy].name : null;
 
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-green-800 to-green-900 overflow-hidden">
@@ -442,19 +456,29 @@ const GameThirteen = () => {
                 canPass={canPass}
                 isPlayerTurn={isMyTurn && !bottomPlayer.isEliminated}
                 selectedCount={selectedCards.length}
-                message={isMyTurn ? "Your turn!" : `Waiting for ${gameState.players[gameState.currentPlayerIndex].name}...`}
+                message={isMyTurn ? "Your turn!" : `Waiting for ${playersList[gameState.currentPlayerIndex].name}...`}
                 errorMessage={errorMessage}
               />
             </div>
           </div>
 
           {/* Sidebar */}
-          <div className="w-80 flex flex-col border-l border-gray-800 bg-gray-900 shrink-0">
+          <div className="w-80 flex flex-col border-l border-gray-800 bg-gray-900 shrink-0 transition-all duration-300">
             <div className="flex-1 min-h-0 border-b border-gray-700 overflow-hidden relative">
               <ScoreBoard players={gameState.players} currentPlayerIndex={gameState.currentPlayerIndex} roundNumber={gameState.roundNumber} />
             </div>
-            <div className="h-[50%] min-h-[48px] overflow-hidden flex flex-col">
-              <GameChat messages={messages} onSendMessage={() => {}} />
+            
+            {/* RESTORED FOLDABLE CHAT CONTAINER */}
+            <div className={`
+              ${isChatCollapsed ? 'h-12' : 'h-[50%]'}
+              min-h-[48px] transition-[height] duration-300 ease-in-out overflow-hidden flex flex-col
+            `}>
+              <GameChat 
+                messages={messages} 
+                onSendMessage={handleSendMessage}
+                isCollapsed={isChatCollapsed} // PASSED PROP
+                onToggleCollapse={() => setIsChatCollapsed(!isChatCollapsed)} // PASSED PROP
+              />
             </div>
           </div>
         </div>
