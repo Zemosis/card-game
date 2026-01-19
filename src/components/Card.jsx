@@ -24,7 +24,6 @@ const Card = ({
 }) => {
   // Size configurations
   const sizeClasses = {
-    // Reduced text sizes to fit better
     small: 'w-12 h-16 text-[10px]', 
     medium: 'w-16 h-24 text-xs',
     large: 'w-20 h-28 text-sm'
