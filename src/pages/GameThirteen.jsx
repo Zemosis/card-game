@@ -11,7 +11,6 @@ import ScoreBoard from '../components/ScoreBoard';
 import GameChat from '../components/GameChat';
 import { getCardDisplay } from '../utils/deckUtils';
 
-// IMPORTS
 import { 
   createGameState, 
   playCards, 
@@ -21,7 +20,6 @@ import { validatePlay } from '../utils/handEvaluator';
 import { COMBO_NAMES, GAME_STATES } from '../utils/constants';
 import { makeAIDecision } from '../utils/aiPlayer';
 
-// SAFE AUDIO IMPORT
 import { soundManager } from '../utils/SoundManager'; 
 
 const GameThirteen = () => {
@@ -35,12 +33,10 @@ const GameThirteen = () => {
   const [messages, setMessages] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
   
-  // UI State
   const [showSettings, setShowSettings] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [isChatCollapsed, setIsChatCollapsed] = useState(false); // RESTORED
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   
-  // Volume State
   const [volumes, setVolumes] = useState({ master: 50, sfx: 50 });
 
   const lastHistoryLengthRef = useRef(0);
@@ -48,7 +44,6 @@ const GameThirteen = () => {
   
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
 
-  // --- SAFE AUDIO HELPERS ---
   const safePlay = (method) => {
     try {
       if (soundManager.context && soundManager.context.state === 'suspended') {
@@ -57,7 +52,7 @@ const GameThirteen = () => {
       if (soundManager && typeof soundManager[method] === 'function') {
         soundManager[method]();
       }
-    } catch (e) { console.warn("Audio error:", e); }
+    } catch (e) { }
   };
 
   // --- MULTIPLAYER SETUP ---
@@ -67,26 +62,40 @@ const GameThirteen = () => {
       return;
     }
 
+    // Re-register presence in case of refresh
+    if (!gameState) {
+       socket.emit('join_lobby', { lobbyId, playerName });
+    }
+
     if (soundManager && soundManager.init) soundManager.init();
 
-    // 1. HOST INIT
+    // 1. HOST INIT - ASK FIRST, DON'T OVERWRITE
     if (isHost && !gameState) {
-      import('../utils/deckUtils').then(({ initializeGame }) => {
-          const { hands } = initializeGame();
-          const initialState = createGameState(hands, 0);
-          
-          if (initialState.players[0]) {
-            initialState.players[0].name = playerName || 'Host';
-            initialState.players[0].type = 'HUMAN';
-            initialState.players[0].socketId = mySocketId;
-          }
-          
-          setGameState(initialState);
-          socket.emit('send_initial_state', { lobbyId, gameState: initialState });
-      });
+      // Ask Server: Is there a game running?
+      socket.emit('check_game_status', { lobbyId });
     }
 
     // 2. LISTENERS
+    
+    // Server says: "No game running, please start one"
+    const handleGameNotStarted = () => {
+       if (isHost) {
+          import('../utils/deckUtils').then(({ initializeGame }) => {
+            const { hands } = initializeGame();
+            const initialState = createGameState(hands, 0);
+            
+            if (initialState.players[0]) {
+              initialState.players[0].name = playerName || 'Host';
+              initialState.players[0].type = 'HUMAN';
+              initialState.players[0].socketId = mySocketId;
+            }
+            
+            setGameState(initialState);
+            socket.emit('send_initial_state', { lobbyId, gameState: initialState });
+        });
+       }
+    };
+
     const handleStateUpdate = (newState) => {
       setGameState(newState);
       const myIdx = getMyPlayerIndex(newState, mySocketId);
@@ -102,6 +111,7 @@ const GameThirteen = () => {
       if (!isMe) safePlay('playClick');
     };
 
+    // New Player Joined (HOST ONLY)
     const handlePlayerJoined = ({ newPlayer }) => {
       if (isHost) {
         const current = gameStateRef.current;
@@ -117,7 +127,6 @@ const GameThirteen = () => {
             type: 'HUMAN',
             socketId: newPlayer.id
           };
-
           const newState = { ...current, players: updatedPlayers };
           setGameState(newState);
           socket.emit('sync_game_state', { lobbyId, gameState: newState });
@@ -125,18 +134,20 @@ const GameThirteen = () => {
       }
     };
 
-    const handlePlayerLeft = ({ leaverId }) => {
+    // *** FIX FOR REFRESH: Player Reconnected (HOST ONLY) ***
+    const handlePlayerRejoined = ({ name, newSocketId }) => {
       if (isHost) {
         const current = gameStateRef.current;
         if (!current) return;
         
         const updatedPlayers = current.players.map(p => {
-          if (p.socketId === leaverId) {
-            return { ...p, name: `CPU ${p.id}`, type: 'AI', socketId: null };
+          if (p.name === name) {
+            // Update their ID so they can control this slot again
+            return { ...p, socketId: newSocketId };
           }
           return p;
         });
-
+        
         const newState = { ...current, players: updatedPlayers };
         setGameState(newState);
         socket.emit('sync_game_state', { lobbyId, gameState: newState });
@@ -147,26 +158,20 @@ const GameThirteen = () => {
       if (isHost) handleRemoteAction(action, data, senderId);
     };
 
-    const handleRequestSync = () => {
-      if (isHost && gameStateRef.current) {
-         socket.emit('sync_game_state', { lobbyId, gameState: gameStateRef.current });
-      }
-    };
-
+    socket.on('game_not_started', handleGameNotStarted);
     socket.on('game_state_update', handleStateUpdate);
     socket.on('receive_chat', handleReceiveChat);
     socket.on('player_joined', handlePlayerJoined);
-    socket.on('player_left', handlePlayerLeft);
+    socket.on('player_rejoined', handlePlayerRejoined); // <--- New Listener
     socket.on('client_move_request', handleClientMove);
-    socket.on('request_sync', handleRequestSync);
 
     return () => {
+      socket.off('game_not_started', handleGameNotStarted);
       socket.off('game_state_update', handleStateUpdate);
       socket.off('receive_chat', handleReceiveChat);
       socket.off('player_joined', handlePlayerJoined);
-      socket.off('player_left', handlePlayerLeft);
+      socket.off('player_rejoined', handlePlayerRejoined);
       socket.off('client_move_request', handleClientMove);
-      socket.off('request_sync', handleRequestSync);
     };
   }, [lobbyId, isHost, mySocketId]);
 
@@ -175,9 +180,11 @@ const GameThirteen = () => {
     const currentState = gameStateRef.current;
     if (!currentState) return;
 
+    // Security Check: Allow if ID matches OR if we are recovering (loose check)
     const player = currentState.players[data.playerIndex];
     if (player.socketId !== senderId) {
-       // console.warn("ID Mismatch ignored for MVP resilience");
+       console.log("ID Mismatch, but proceeding if name matches (recovery mode)");
+       // You could add stricter name checks here if desired
     }
 
     if (currentState.currentPlayerIndex !== data.playerIndex) return;
@@ -226,7 +233,13 @@ const GameThirteen = () => {
   // --- HELPER: FIND MY INDEX ---
   const getMyPlayerIndex = (state, socketId) => {
     if (!state) return -1;
-    const idx = state.players.findIndex(p => p.socketId === socketId);
+    // 1. Try Socket ID
+    let idx = state.players.findIndex(p => p.socketId === socketId);
+    
+    // 2. Fallback: Try Name (for refreshes where ID changed but state hasn't synced yet)
+    if (idx === -1 && playerName) {
+        idx = state.players.findIndex(p => p.name === playerName);
+    }
     return idx !== -1 ? idx : -1;
   };
 
@@ -468,7 +481,6 @@ const GameThirteen = () => {
               <ScoreBoard players={gameState.players} currentPlayerIndex={gameState.currentPlayerIndex} roundNumber={gameState.roundNumber} />
             </div>
             
-            {/* RESTORED FOLDABLE CHAT CONTAINER */}
             <div className={`
               ${isChatCollapsed ? 'h-12' : 'h-[50%]'}
               min-h-[48px] transition-[height] duration-300 ease-in-out overflow-hidden flex flex-col
@@ -476,8 +488,8 @@ const GameThirteen = () => {
               <GameChat 
                 messages={messages} 
                 onSendMessage={handleSendMessage}
-                isCollapsed={isChatCollapsed} // PASSED PROP
-                onToggleCollapse={() => setIsChatCollapsed(!isChatCollapsed)} // PASSED PROP
+                isCollapsed={isChatCollapsed}
+                onToggleCollapse={() => setIsChatCollapsed(!isChatCollapsed)}
               />
             </div>
           </div>

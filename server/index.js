@@ -20,7 +20,7 @@ const lobbies = {};
 io.on('connection', (socket) => {
   console.log(`User Connected: ${socket.id}`);
 
-  // 1. PUBLIC LOBBIES LIST
+  // 1. PUBLIC LOBBIES
   socket.on('get_public_lobbies', () => {
     const publicList = Object.values(lobbies)
       .filter(l => !l.isPrivate)
@@ -53,14 +53,12 @@ io.on('connection', (socket) => {
 
     socket.join(lobbyId);
     console.log(`Lobby Created: ${lobbyId}`);
-    
-    // Send back the lobbyId AND the player's own Socket ID
     socket.emit('lobby_joined', { lobbyId, isHost: true, mySocketId: socket.id });
 
     if (!isPrivate) io.emit('public_lobbies_update_trigger');
   });
 
-  // 3. JOIN LOBBY
+  // 3. JOIN LOBBY (HANDLES NEW JOINS AND REJOINS)
   socket.on('join_lobby', ({ lobbyId, playerName }) => {
     const lobby = lobbies[lobbyId];
 
@@ -69,23 +67,52 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const alreadyIn = lobby.players.find(p => p.id === socket.id);
+    // --- REJOIN LOGIC ---
+    // Check if a player with this name already exists
+    const existingPlayerIndex = lobby.players.findIndex(p => p.name === playerName);
     
-    if (!alreadyIn) {
-      if (lobby.players.length >= lobby.max) {
-        socket.emit('error_message', "Lobby is full");
-        return;
+    if (existingPlayerIndex !== -1) {
+      // It is a REJOIN
+      console.log(`${playerName} Rejoined lobby ${lobbyId}`);
+      
+      // Update the socket ID in the lobby list
+      lobby.players[existingPlayerIndex].id = socket.id;
+      
+      // If the HOST rejoined (refreshed tab), update hostId
+      if (lobby.hostName === playerName) {
+        lobby.hostId = socket.id;
       }
-      lobby.players.push({ id: socket.id, name: playerName });
+
       socket.join(lobbyId);
+      
+      // Tell the user they are back in
+      socket.emit('lobby_joined', { lobbyId, isHost: (lobby.hostName === playerName), mySocketId: socket.id });
+      
+      // *** CRITICAL: Tell the Host to update this player's Socket ID in the Game State ***
+      io.to(lobby.hostId).emit('player_rejoined', { 
+        name: playerName, 
+        newSocketId: socket.id 
+      });
+
+      // Send them the current game state immediately
+      if (lobby.gameState) {
+        socket.emit('game_state_update', lobby.gameState);
+      }
+      return;
     }
 
+    // --- NEW PLAYER LOGIC ---
+    if (lobby.players.length >= lobby.max) {
+      socket.emit('error_message', "Lobby is full");
+      return;
+    }
+
+    lobby.players.push({ id: socket.id, name: playerName });
+    socket.join(lobbyId);
     console.log(`${playerName} joined ${lobbyId}`);
 
-    // Notify the joiner (Give them their ID)
     socket.emit('lobby_joined', { lobbyId, isHost: false, mySocketId: socket.id });
 
-    // Notify the Host (Send the new player's details)
     io.to(lobbyId).emit('player_joined', { 
       newPlayer: { id: socket.id, name: playerName },
       allPlayers: lobby.players 
@@ -93,7 +120,6 @@ io.on('connection', (socket) => {
 
     if (!lobby.isPrivate) io.emit('public_lobbies_update_trigger');
 
-    // Sync Game State
     if (lobby.gameState) {
        socket.emit('game_state_update', lobby.gameState);
     } else {
@@ -101,7 +127,19 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 4. GAMEPLAY HANDLERS
+  // --- GAMEPLAY HANDLERS ---
+  
+  // HOST ASKS: "Should I start a new game or load an old one?"
+  socket.on('check_game_status', ({ lobbyId }) => {
+    if (lobbies[lobbyId] && lobbies[lobbyId].gameState) {
+      // Game exists -> Send it back (Don't create new)
+      socket.emit('game_state_update', lobbies[lobbyId].gameState);
+    } else {
+      // No game -> Tell host to initialize
+      socket.emit('game_not_started');
+    }
+  });
+
   socket.on('send_initial_state', ({ lobbyId, gameState }) => {
     if (lobbies[lobbyId]) {
       lobbies[lobbyId].gameState = gameState;
@@ -119,7 +157,6 @@ io.on('connection', (socket) => {
   socket.on('request_move', ({ lobbyId, action, data }) => {
     const lobby = lobbies[lobbyId];
     if (lobby) {
-      // Forward to Host with Sender ID validation
       io.to(lobby.hostId).emit('client_move_request', { 
         action, 
         data, 
@@ -128,7 +165,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 5. CHAT HANDLER
+  // CHAT
   socket.on('send_chat', ({ lobbyId, message, playerName }) => {
     io.to(lobbyId).emit('receive_chat', {
       id: `msg-${Date.now()}-${Math.random()}`,
@@ -139,29 +176,11 @@ io.on('connection', (socket) => {
     });
   });
 
-  // 6. DISCONNECT
+  // DISCONNECT
   socket.on('disconnect', () => {
     console.log(`User Disconnected: ${socket.id}`);
-    
-    for (const [id, lobby] of Object.entries(lobbies)) {
-      const playerIndex = lobby.players.findIndex(p => p.id === socket.id);
-      
-      if (playerIndex !== -1) {
-        lobby.players.splice(playerIndex, 1);
-        
-        if (lobby.players.length === 0) {
-          delete lobbies[id];
-        } else {
-          // If host left, assign new host
-          if (lobby.hostId === socket.id) {
-             lobby.hostId = lobby.players[0].id; 
-          }
-          io.to(id).emit('player_left', { leaverId: socket.id });
-          io.to(id).emit('public_lobbies_update_trigger');
-        }
-        break;
-      }
-    }
+    // We do NOT remove the player immediately to allow refresh/rejoin.
+    // In a production app, you'd use a timeout to remove them after 60s.
   });
 });
 
