@@ -295,7 +295,17 @@ export const endRound = (gameState, winnerIndex) => {
 export const startNextRound = (gameState, newHands) => {
   // Dealer moves to the left
   const newDealerIndex = (gameState.dealerIndex + 1) % GAME_SETTINGS.NUM_PLAYERS;
-  const startingPlayerIndex = (newDealerIndex + 1) % GAME_SETTINGS.NUM_PLAYERS;
+  
+  // Calculate potential starting player
+  let startingPlayerIndex = (newDealerIndex + 1) % GAME_SETTINGS.NUM_PLAYERS;
+
+  // FIX: Skip eliminated players when determining who starts
+  // We check existing gameState.players because updatedPlayers isn't made yet
+  let loopSafety = 0;
+  while (gameState.players[startingPlayerIndex].isEliminated && loopSafety < GAME_SETTINGS.NUM_PLAYERS) {
+    startingPlayerIndex = (startingPlayerIndex + 1) % GAME_SETTINGS.NUM_PLAYERS;
+    loopSafety++;
+  }
 
   const updatedPlayers = gameState.players.map((player, idx) => ({
     ...player,
