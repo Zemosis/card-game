@@ -16,9 +16,9 @@ const PlayArea = ({
   roundNumber = 1
 }) => {
   return (
-    <div className="w-full h-full flex items-center justify-center p-4">
+    <div className="w-full h-full flex items-center justify-center">
       {/* Green Felt Table Background */}
-      <div className="relative w-full max-w-2xl h-64 bg-gradient-to-br from-green-700 to-green-900 rounded-3xl shadow-2xl border-8 border-amber-900 overflow-hidden">
+      <div className="relative w-full h-full bg-gradient-to-br from-green-700 to-green-900 rounded-2xl shadow-2xl border-4 border-amber-900 overflow-hidden">
         
         {/* Table Pattern */}
         <div className="absolute inset-0 opacity-10">
@@ -26,18 +26,18 @@ const PlayArea = ({
         </div>
 
         {/* Round Number */}
-        <div className="absolute top-4 left-6 bg-amber-900 text-amber-100 px-3 py-1 rounded-full text-sm font-bold shadow-lg">
+        <div className="absolute top-2 left-4 bg-amber-900 text-amber-100 px-2 py-1 rounded-full text-xs font-bold shadow-lg">
           Round {roundNumber}
         </div>
 
         {/* Center Content */}
-        <div className="relative z-10 h-full flex flex-col items-center justify-center gap-4">
+        <div className="relative z-10 h-full flex flex-col items-center justify-center gap-2 p-4">
           
           {/* No Play Yet */}
           {!currentPlay && (
             <div className="text-center text-green-200">
-              <div className="text-4xl mb-2">🃏</div>
-              <div className="text-xl font-semibold">Waiting for first play...</div>
+              <div className="text-2xl mb-1">🃏</div>
+              <div className="text-base font-semibold">Waiting for first play...</div>
             </div>
           )}
 
@@ -46,23 +46,20 @@ const PlayArea = ({
             <div className="text-center animate-fade-in">
               {/* Player Name */}
               {lastPlayerName && (
-                <div className="text-green-200 text-sm font-semibold mb-2">
+                <div className="text-green-200 text-xs font-semibold mb-1">
                   {lastPlayerName} played:
                 </div>
               )}
 
               {/* Combination Type */}
-              <div className="bg-white/90 backdrop-blur px-4 py-2 rounded-lg mb-3 shadow-lg">
-                <div className="text-gray-600 text-xs uppercase tracking-wide mb-1">
-                  Combination
-                </div>
-                <div className="text-gray-900 text-lg font-bold">
+              <div className="bg-white/90 backdrop-blur px-3 py-1 rounded-lg mb-2 shadow-lg">
+                <div className="text-gray-600 text-xs uppercase tracking-wide">
                   {COMBO_NAMES[currentPlay.type]}
                 </div>
               </div>
 
               {/* Cards Display */}
-              <div className="flex gap-2 justify-center items-center flex-wrap">
+              <div className="flex gap-1 justify-center items-center flex-wrap">
                 {currentPlay.cards.map((card, index) => (
                   <div 
                     key={card.id}
@@ -73,7 +70,7 @@ const PlayArea = ({
                   >
                     <Card
                       card={card}
-                      size="medium"
+                      size="small"
                       isPlayable={false}
                     />
                   </div>
@@ -81,7 +78,7 @@ const PlayArea = ({
               </div>
 
               {/* Beat This Message */}
-              <div className="mt-3 text-green-200 text-sm font-semibold">
+              <div className="mt-2 text-green-200 text-xs font-semibold">
                 Beat this or pass!
               </div>
             </div>

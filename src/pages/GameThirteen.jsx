@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Card from '../components/Card';
 import PlayerHand from '../components/PlayerHand';
 import OpponentSection from '../components/OpponentSection';
 import PlayArea from '../components/PlayArea';
@@ -14,7 +13,6 @@ import {
   playCards, 
   passAction, 
   isHumanTurn,
-  endRound,
   startNextRound,
   getWinner,
   getActivePlayers
@@ -200,63 +198,77 @@ const GameThirteen = () => {
   const winner = getWinner(gameState);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-800 to-green-900 p-4">
-      <div className="max-w-7xl mx-auto h-screen flex flex-col">
+    <div className="fixed inset-0 bg-gradient-to-br from-green-800 to-green-900 overflow-hidden">
+      <div className="h-full flex flex-col">
         
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <button
-            onClick={() => navigate('/')}
-            className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-          >
-            ← Main Menu
-          </button>
-          <h1 className="text-3xl font-bold text-white">Game "13"</h1>
+        <div className="flex items-center justify-between p-2 bg-black/20">
+          {/* Left - Settings */}
+          <div className="flex items-center gap-2">
+            <button className="bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg transition-colors">
+              ⚙️
+            </button>
+            <button
+              onClick={() => navigate('/')}
+              className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-lg font-semibold transition-colors text-xs"
+            >
+              ← Menu
+            </button>
+          </div>
+          
+          {/* Center - Title */}
+          <h1 className="text-xl font-bold text-white">Game "13"</h1>
+          
+          {/* Right - New Game */}
           <button
             onClick={startNewGame}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg font-semibold transition-colors text-xs"
           >
             New Game
           </button>
         </div>
 
         {/* Main Game Area */}
-        <div className="flex-1 grid grid-cols-12 gap-4">
-          
-          {/* Left Side - Left Opponent */}
-          <div className="col-span-2 flex items-center">
-            <OpponentSection
-              player={leftOpponent}
-              position="left"
-              isActive={gameState.currentPlayerIndex === 1}
-              hasPassed={leftOpponent.hasPassed}
-            />
-          </div>
-
-          {/* Center Area */}
-          <div className="col-span-8 flex flex-col">
-            
+        <div className="flex-1 flex min-h-0">
+          {/* Left - Game Board */}
+          <div className="flex-1 flex flex-col p-3 min-w-0">
             {/* Top Opponent */}
-            <div className="flex justify-center mb-4">
+            <div className="flex justify-center mb-2">
               <OpponentSection
                 player={topOpponent}
-                position="top"
                 isActive={gameState.currentPlayerIndex === 2}
                 hasPassed={topOpponent.hasPassed}
               />
             </div>
 
-            {/* Play Area */}
-            <div className="flex-1">
-              <PlayArea
-                currentPlay={gameState.currentPlay}
-                lastPlayerName={currentPlayerName}
-                roundNumber={gameState.roundNumber}
+            {/* Middle Row - Left Opponent, Play Area, Right Opponent */}
+            <div className="flex items-center gap-3 flex-1 min-h-0">
+              {/* Left Opponent */}
+              <OpponentSection
+                player={leftOpponent}
+                isActive={gameState.currentPlayerIndex === 1}
+                hasPassed={leftOpponent.hasPassed}
+              />
+
+              {/* Play Area */}
+              <div className="flex-1">
+                <PlayArea
+                  currentPlay={gameState.currentPlay}
+                  lastPlayerName={currentPlayerName}
+                  roundNumber={gameState.roundNumber}
+                />
+              </div>
+
+              {/* Right Opponent */}
+              <OpponentSection
+                player={rightOpponent}
+                isActive={gameState.currentPlayerIndex === 3}
+                hasPassed={rightOpponent.hasPassed}
               />
             </div>
 
             {/* Player Hand */}
-            <div className="mt-4">
+            <div className="mt-2">
               <PlayerHand
                 hand={humanPlayer.hand}
                 selectedCards={selectedCards}
@@ -267,7 +279,7 @@ const GameThirteen = () => {
             </div>
 
             {/* Game Controls */}
-            <div className="mt-4">
+            <div className="mt-1">
               <GameControls
                 onPlay={handlePlay}
                 onPass={handlePass}
@@ -281,14 +293,8 @@ const GameThirteen = () => {
             </div>
           </div>
 
-          {/* Right Side - Right Opponent + Scoreboard */}
-          <div className="col-span-2 flex flex-col gap-4">
-            <OpponentSection
-              player={rightOpponent}
-              position="right"
-              isActive={gameState.currentPlayerIndex === 3}
-              hasPassed={rightOpponent.hasPassed}
-            />
+          {/* Right Sidebar - Scoreboard */}
+          <div className="w-80 bg-gray-900/50 overflow-y-auto">
             <ScoreBoard
               players={gameState.players}
               currentPlayerIndex={gameState.currentPlayerIndex}

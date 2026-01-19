@@ -76,21 +76,21 @@ const PlayerHand = ({
   const comboInfo = getCombinationInfo();
 
   return (
-    <div className="w-full">
+    <div className="w-full bg-gray-900/30 backdrop-blur rounded-lg p-2">
       {/* Controls */}
-      <div className="flex items-center justify-between mb-3 px-2">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between mb-1 px-2">
+        <div className="flex items-center gap-2">
           {showCardCount && (
-            <div className="bg-gray-800 text-white px-3 py-1 rounded-full text-sm font-semibold">
+            <div className="bg-gray-800 text-white px-2 py-0.5 rounded-full text-xs font-semibold border border-gray-600">
               {hand.length} {hand.length === 1 ? 'card' : 'cards'}
             </div>
           )}
           
           {selectedCards.length > 0 && (
-            <div className={`px-3 py-1 rounded-full text-sm font-semibold ${
+            <div className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
               comboInfo?.isValid 
-                ? 'bg-green-100 text-green-700' 
-                : 'bg-red-100 text-red-700'
+                ? 'bg-green-900/80 text-green-200 border-green-500' 
+                : 'bg-red-900/80 text-red-200 border-red-500'
             }`}>
               {selectedCards.length} selected
               {comboInfo && ` • ${comboInfo.text}`}
@@ -100,17 +100,17 @@ const PlayerHand = ({
 
         {/* Selection buttons */}
         {isActive && hand.length > 0 && (
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             <button
               onClick={handleClearSelection}
               disabled={selectedCards.length === 0}
-              className="px-3 py-1 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 text-gray-700 rounded text-sm font-medium transition-colors"
+              className="px-2 py-0.5 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 text-white rounded text-xs font-medium transition-colors border border-gray-600"
             >
               Clear
             </button>
             <button
               onClick={handleSelectAll}
-              className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors"
+              className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-medium transition-colors border border-blue-500"
             >
               Select All
             </button>
@@ -122,30 +122,23 @@ const PlayerHand = ({
       <div className="relative">
         {/* No cards message */}
         {hand.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-gray-400">
             <div className="text-4xl mb-2">🎉</div>
             <div className="text-lg font-semibold">No cards remaining</div>
           </div>
         )}
 
-        {/* Cards with overlap */}
+        {/* Cards with NO overlap - side by side */}
         {hand.length > 0 && (
-          <div className="flex justify-center items-end min-h-32">
-            <div className="relative flex" style={{ 
-              width: Math.min(sortedHand.length * 35 + 65, 800) 
-            }}>
-              {sortedHand.map((card, index) => {
+          <div className="flex justify-center items-end overflow-x-auto" style={{ minHeight: '100px' }}>
+            <div className="flex gap-2">
+              {sortedHand.map((card) => {
                 const isSelected = isCardSelected(card);
-                const leftPosition = index * 35; // Card overlap
 
                 return (
                   <div
                     key={card.id}
-                    className="absolute transition-all duration-200"
-                    style={{ 
-                      left: `${leftPosition}px`,
-                      zIndex: isSelected ? 100 + index : index
-                    }}
+                    className="flex-shrink-0"
                   >
                     <Card
                       card={card}
@@ -164,7 +157,7 @@ const PlayerHand = ({
 
       {/* Inactive overlay */}
       {!isActive && hand.length > 0 && (
-        <div className="text-center mt-2 text-gray-500 text-sm">
+        <div className="text-center mt-2 text-gray-400 text-sm">
           Waiting for your turn...
         </div>
       )}
