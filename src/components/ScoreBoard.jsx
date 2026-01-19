@@ -113,21 +113,6 @@ const ScoreBoard = ({
         })}
       </div>
 
-      {/* Legend */}
-      <div className="mt-3 pt-2 border-t-2 border-gray-700 shrink-0">
-        <div className="text-xs text-gray-400 space-y-0.5">
-          <div className="flex items-center justify-between">
-            <span>🎯 First to empty hand wins the round</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span>❌ Eliminated at {maxScore} points</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span>⚠️ 10+ cards = DOUBLE penalty</span>
-          </div>
-        </div>
-      </div>
-
       {/* Styles to hide scrollbar */}
       <style jsx>{`
         .no-scrollbar::-webkit-scrollbar {
