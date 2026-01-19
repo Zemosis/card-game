@@ -47,7 +47,7 @@ const GameControls = ({
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      {/* Status Message - with semi-transparent background */}
+      {/* Status Message Area */}
       <div className="mb-1 text-center min-h-[30px]">
         {!isPlayerTurn && (
           <div className="bg-gray-800/80 backdrop-blur border-2 border-gray-600 rounded-lg p-1.5">
@@ -59,28 +59,12 @@ const GameControls = ({
 
         {isPlayerTurn && (
           <div className="space-y-1">
-            {/* Main message */}
-            {message && (
-              <div className="bg-blue-900/80 backdrop-blur border-2 border-blue-400 rounded-lg p-1.5">
-                <div className="text-blue-100 text-sm font-semibold">
-                  {message}
-                </div>
-              </div>
-            )}
-
-            {/* Error message */}
+            {/* Error message (Keep this for invalid move feedback) */}
             {errorMessage && (
               <div className="bg-red-900/80 backdrop-blur border-2 border-red-400 rounded-lg p-2 animate-shake">
                 <div className="text-red-100 font-semibold text-sm">
                   ⚠️ {errorMessage}
                 </div>
-              </div>
-            )}
-
-            {/* Selection info */}
-            {selectedCount > 0 && !errorMessage && (
-              <div className="text-white text-sm">
-                {selectedCount} {selectedCount === 1 ? 'card' : 'cards'} selected
               </div>
             )}
           </div>
@@ -135,8 +119,6 @@ const GameControls = ({
           </div>
         </button>
       </div>
-
-      {/* Help Text - Hidden to save space */}
 
       {/* Shake animation for errors */}
       <style jsx>{`
