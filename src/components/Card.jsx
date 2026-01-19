@@ -24,7 +24,7 @@ const Card = ({
 }) => {
   // Size configurations
   const sizeClasses = {
-    small: 'w-12 h-16 text-[10px]', 
+    small: 'w-12 h-16 text-[10px]',
     medium: 'w-16 h-24 text-xs',
     large: 'w-20 h-28 text-sm'
   };
@@ -52,10 +52,10 @@ const Card = ({
   const hoverEffect = isPlayable ? 'hover:scale-105 hover:-translate-y-2 cursor-pointer' : '';
   const opacity = !isPlayable && !isSelected ? 'opacity-70' : 'opacity-100';
 
-  // Handle click
-  const handleClick = () => {
+  // Handle click - Pass the event 'e' up to the parent
+  const handleClick = (e) => {
     if (isPlayable && onClick) {
-      onClick(card);
+      onClick(card, e); // Pass event to detect Shift key
     }
   };
 
@@ -70,7 +70,7 @@ const Card = ({
           border-2 border-blue-900 rounded-lg
           flex items-center justify-center
           shadow-lg
-          relative overflow-hidden
+          relative overflow-hidden select-none
         `}
       >
         {/* Card back pattern */}
@@ -98,7 +98,7 @@ const Card = ({
         flex flex-col justify-between
         shadow-lg transition-all duration-200
         ${isSelected ? 'border-blue-500 ring-2 ring-blue-400' : ''}
-        relative overflow-hidden
+        relative overflow-hidden select-none
       `}
     >
       {/* Top left corner */}

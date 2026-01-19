@@ -1,6 +1,6 @@
 // PLAYER HAND COMPONENT - Interactive Hand Display
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Card from './Card';
 import { sortHand } from '../utils/deckUtils';
 import { identifyCombination } from '../utils/handEvaluator';
@@ -22,24 +22,60 @@ const PlayerHand = ({
   showCardCount = true
 }) => {
   const [sortedHand, setSortedHand] = useState([]);
+  // Track the last clicked card index for range selection
+  const lastSelectedIndex = useRef(-1);
 
   // Sort hand whenever it changes
   useEffect(() => {
     setSortedHand(sortHand(hand));
+    // Reset range anchor when hand changes (e.g. after playing)
+    lastSelectedIndex.current = -1;
   }, [hand]);
 
-  // Toggle card selection
-  const toggleCardSelection = (card) => {
+  // Handle Card Click (Toggle or Shift-Select)
+  const toggleCardSelection = (card, e) => {
     if (!isActive) return;
 
-    const isSelected = selectedCards.some(c => c.id === card.id);
-    
-    if (isSelected) {
-      // Remove from selection
-      onSelectionChange(selectedCards.filter(c => c.id !== card.id));
-    } else {
-      // Add to selection
-      onSelectionChange([...selectedCards, card]);
+    // Prevent default to stop text selection highlighting
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+
+    const currentIndex = sortedHand.findIndex(c => c.id === card.id);
+
+    // --- RANGE SELECTION (SHIFT CLICK) ---
+    if (e && e.shiftKey && lastSelectedIndex.current !== -1) {
+      const start = Math.min(lastSelectedIndex.current, currentIndex);
+      const end = Math.max(lastSelectedIndex.current, currentIndex);
+      
+      // Get all cards in this range
+      const rangeCards = sortedHand.slice(start, end + 1);
+      
+      // Merge with existing selection (using Set to ensure uniqueness)
+      const newSelectionMap = new Map();
+      
+      // Keep existing selected cards
+      selectedCards.forEach(c => newSelectionMap.set(c.id, c));
+      
+      // Add newly ranged cards
+      rangeCards.forEach(c => newSelectionMap.set(c.id, c));
+      
+      onSelectionChange(Array.from(newSelectionMap.values()));
+    } 
+    // --- SINGLE TOGGLE (NORMAL CLICK) ---
+    else {
+      // Update the anchor for the next potential shift-click
+      lastSelectedIndex.current = currentIndex;
+
+      const isSelected = selectedCards.some(c => c.id === card.id);
+      
+      if (isSelected) {
+        // Remove from selection
+        onSelectionChange(selectedCards.filter(c => c.id !== card.id));
+      } else {
+        // Add to selection
+        onSelectionChange([...selectedCards, card]);
+      }
     }
   };
 
@@ -47,12 +83,15 @@ const PlayerHand = ({
   const handleSelectAll = () => {
     if (!isActive) return;
     onSelectionChange([...sortedHand]);
+    // Reset anchor logic
+    lastSelectedIndex.current = -1;
   };
 
   // Clear selection
   const handleClearSelection = () => {
     if (!isActive) return;
     onSelectionChange([]);
+    lastSelectedIndex.current = -1;
   };
 
   // Check if card is selected
@@ -128,14 +167,12 @@ const PlayerHand = ({
           </div>
         )}
 
-        {/* FIXED CONTAINER:
-           1. pt-8: Adds padding to top so selected cards (translate-y-6) don't get cut off.
-           2. minHeight: 140px: Ensures container is tall enough for card + animation.
-           3. pb-4: Adds space at bottom.
+        {/* Fixed Container with select-none to ensure drag/select 
+           doesn't highlight text areas
         */}
         {hand.length > 0 && (
           <div 
-            className="flex justify-center items-end overflow-x-auto pt-8 pb-4 px-4" 
+            className="flex justify-center items-end overflow-x-auto pt-8 pb-4 px-4 select-none" 
             style={{ minHeight: '140px' }}
           >
             <div className="flex gap-2">
