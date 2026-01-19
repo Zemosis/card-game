@@ -1,27 +1,23 @@
 // APP - Main Application Component with Routing
 
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import MainMenu from './pages/MainMenu';
 import GameThirteen from './pages/GameThirteen';
+import LobbySelection from './pages/LobbySelection'; 
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Main Menu - Landing Page */}
-        <Route path="/" element={<MainMenu />} />
-        
-        {/* Game "13" - Main Game */}
-        <Route path="/game-13" element={<GameThirteen />} />
-        
-        {/* Muushig - Coming Soon (Redirect to Main Menu) */}
-        <Route path="/muushig" element={<Navigate to="/" replace />} />
-        
-        {/* 404 - Redirect to Main Menu */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <Router>
+      <div className="app">
+        <Routes>
+          <Route path="/" element={<MainMenu />} />
+          <Route path="/game-13" element={<GameThirteen />} />
+          {/* NEW: Add the route for the lobby */}
+          <Route path="/lobby-13" element={<LobbySelection />} /> 
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
