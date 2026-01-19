@@ -24,9 +24,24 @@ const Card = ({
 }) => {
   // Size configurations
   const sizeClasses = {
-    small: 'w-12 h-16 text-xs',
-    medium: 'w-16 h-24 text-sm',
-    large: 'w-20 h-28 text-base'
+    // Reduced text sizes to fit better
+    small: 'w-12 h-16 text-[10px]', 
+    medium: 'w-16 h-24 text-xs',
+    large: 'w-20 h-28 text-sm'
+  };
+
+  // Dynamic padding based on size
+  const paddingClasses = {
+    small: 'p-0.5',
+    medium: 'p-1.5',
+    large: 'p-2'
+  };
+
+  // Dynamic center symbol size
+  const centerTextClasses = {
+    small: 'text-xl',
+    medium: 'text-3xl',
+    large: 'text-4xl'
   };
 
   // Suit color (red or black)
@@ -75,37 +90,38 @@ const Card = ({
       onClick={handleClick}
       className={`
         ${sizeClasses[size]}
+        ${paddingClasses[size]}
         ${hoverEffect}
         ${selectTransform}
         ${opacity}
         ${className}
         bg-white border-2 border-gray-300 rounded-lg
-        flex flex-col justify-between p-1.5
+        flex flex-col justify-between
         shadow-lg transition-all duration-200
         ${isSelected ? 'border-blue-500 ring-2 ring-blue-400' : ''}
-        relative
+        relative overflow-hidden
       `}
     >
       {/* Top left corner */}
-      <div className={`${colorClass} font-bold leading-none`}>
-        <div className="text-center">{card.rank}</div>
-        <div className="text-center">{card.suit}</div>
+      <div className={`${colorClass} font-bold leading-none flex flex-col items-center`}>
+        <div>{card.rank}</div>
+        <div>{card.suit}</div>
       </div>
 
       {/* Center suit symbol */}
-      <div className={`${colorClass} text-3xl text-center flex-1 flex items-center justify-center`}>
+      <div className={`${colorClass} ${centerTextClasses[size]} text-center flex-1 flex items-center justify-center`}>
         {card.suit}
       </div>
 
       {/* Bottom right corner (rotated) */}
-      <div className={`${colorClass} font-bold leading-none transform rotate-180 text-right`}>
-        <div className="text-center">{card.rank}</div>
-        <div className="text-center">{card.suit}</div>
+      <div className={`${colorClass} font-bold leading-none transform rotate-180 text-right flex flex-col items-center`}>
+        <div>{card.rank}</div>
+        <div>{card.suit}</div>
       </div>
 
       {/* Selection indicator */}
       {isSelected && (
-        <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+        <div className="absolute top-0 right-0 bg-blue-500 text-white rounded-bl-lg w-4 h-4 flex items-center justify-center text-[10px] font-bold z-10">
           ✓
         </div>
       )}

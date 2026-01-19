@@ -128,9 +128,16 @@ const PlayerHand = ({
           </div>
         )}
 
-        {/* Cards with NO overlap - side by side */}
+        {/* FIXED CONTAINER:
+           1. pt-8: Adds padding to top so selected cards (translate-y-6) don't get cut off.
+           2. minHeight: 140px: Ensures container is tall enough for card + animation.
+           3. pb-4: Adds space at bottom.
+        */}
         {hand.length > 0 && (
-          <div className="flex justify-center items-end overflow-x-auto" style={{ minHeight: '100px' }}>
+          <div 
+            className="flex justify-center items-end overflow-x-auto pt-8 pb-4 px-4" 
+            style={{ minHeight: '140px' }}
+          >
             <div className="flex gap-2">
               {sortedHand.map((card) => {
                 const isSelected = isCardSelected(card);

@@ -242,16 +242,18 @@ const GameThirteen = () => {
             </div>
 
             {/* Middle Row - Left Opponent, Play Area, Right Opponent */}
-            <div className="flex items-center gap-3 flex-1 min-h-0">
-              {/* Left Opponent */}
-              <OpponentSection
-                player={leftOpponent}
-                isActive={gameState.currentPlayerIndex === 1}
-                hasPassed={leftOpponent.hasPassed}
-              />
+            <div className="flex items-stretch gap-3 flex-1 min-h-0">
+              {/* Left Opponent - centered vertically */}
+              <div className="flex items-center">
+                <OpponentSection
+                  player={leftOpponent}
+                  isActive={gameState.currentPlayerIndex === 1}
+                  hasPassed={leftOpponent.hasPassed}
+                />
+              </div>
 
-              {/* Play Area */}
-              <div className="flex-1">
+              {/* Play Area - takes all available vertical space */}
+              <div className="flex-1 min-h-0">
                 <PlayArea
                   currentPlay={gameState.currentPlay}
                   lastPlayerName={currentPlayerName}
@@ -259,12 +261,14 @@ const GameThirteen = () => {
                 />
               </div>
 
-              {/* Right Opponent */}
-              <OpponentSection
-                player={rightOpponent}
-                isActive={gameState.currentPlayerIndex === 3}
-                hasPassed={rightOpponent.hasPassed}
-              />
+              {/* Right Opponent - centered vertically */}
+              <div className="flex items-center">
+                <OpponentSection
+                  player={rightOpponent}
+                  isActive={gameState.currentPlayerIndex === 3}
+                  hasPassed={rightOpponent.hasPassed}
+                />
+              </div>
             </div>
 
             {/* Player Hand */}
@@ -309,7 +313,7 @@ const GameThirteen = () => {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-8 max-w-md text-center shadow-2xl">
             <div className="text-6xl mb-4">
-              {winner.id === 0 ? '🎉' : '😔'}
+              {winner.id === 0 ? '🎉' : '😢'}
             </div>
             <h2 className="text-3xl font-bold mb-4">
               {winner.id === 0 ? 'You Win!' : 'Game Over'}
