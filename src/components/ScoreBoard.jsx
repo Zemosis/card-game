@@ -35,17 +35,17 @@ const ScoreBoard = ({
   };
 
   return (
-    <div className="bg-gray-800 h-full p-3 w-full">
+    <div className="bg-gray-800 h-full p-3 w-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3 pb-2 border-b-2 border-gray-700">
+      <div className="flex items-center justify-between mb-3 pb-2 border-b-2 border-gray-700 shrink-0">
         <h2 className="text-lg font-bold text-white">Tournament Score</h2>
         <div className="bg-blue-600 text-white px-2 py-0.5 rounded-full text-xs font-semibold">
           Round {roundNumber}
         </div>
       </div>
 
-      {/* Players List */}
-      <div className="space-y-2">
+      {/* Players List - Scrollable but with hidden scrollbar */}
+      <div className="space-y-2 overflow-y-auto no-scrollbar flex-1">
         {players.map((player, index) => {
           const isActive = index === currentPlayerIndex;
           const scorePercentage = (player.score / maxScore) * 100;
@@ -114,7 +114,7 @@ const ScoreBoard = ({
       </div>
 
       {/* Legend */}
-      <div className="mt-3 pt-2 border-t-2 border-gray-700">
+      <div className="mt-3 pt-2 border-t-2 border-gray-700 shrink-0">
         <div className="text-xs text-gray-400 space-y-0.5">
           <div className="flex items-center justify-between">
             <span>🎯 First to empty hand wins the round</span>
@@ -127,6 +127,17 @@ const ScoreBoard = ({
           </div>
         </div>
       </div>
+
+      {/* Styles to hide scrollbar */}
+      <style jsx>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </div>
   );
 };
