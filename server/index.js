@@ -1,5 +1,5 @@
 const express = require('express');
-const http = require('http');
+jonst http = require('http');
 const { Server } = require("socket.io");
 const cors = require('cors');
 
@@ -8,16 +8,14 @@ app.use(cors());
 
 const server = http.createServer(app);
 
-// Configure Socket.io with CORS to allow client connection
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // Your Vite Frontend URL
+    origin: "http://localhost:5173",
     methods: ["GET", "POST"]
   }
 });
 
-// --- GAME STATE MEMORY ---
-const lobbies = {}; // { lobbyId: { name, hostId, players: [], max: 4, gameState: {} } }
+const lobbies = {};
 
 io.on('connection', (socket) => {
   console.log(`User Connected: ${socket.id}`);
@@ -42,7 +40,6 @@ io.on('connection', (socket) => {
       ? Math.random().toString(36).substring(2, 8).toUpperCase()
       : 'PUB-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    // Create the new lobby object
     lobbies[lobbyId] = {
       id: lobbyId,
       name: lobbyName,
@@ -55,58 +52,56 @@ io.on('connection', (socket) => {
     };
 
     socket.join(lobbyId);
-    console.log(`Lobby Created: ${lobbyName} (${lobbyId}) by ${playerName}`);
+    console.log(`Lobby Created: ${lobbyId}`);
+    
+    // Send back the lobbyId and the player's OWN socket ID
+    socket.emit('lobby_joined', { lobbyId, isHost: true, mySocketId: socket.id });
 
-    // Respond to creator
-    socket.emit('lobby_joined', { lobbyId, isHost: true });
-
-    // Broadcast update to public list listeners
-    if (!isPrivate) {
-      io.emit('public_lobbies_update_trigger');
-    }
-    // Note: No gameState check needed here because the game hasn't started yet!
+    if (!isPrivate) io.emit('public_lobbies_update_trigger');
   });
 
   // 3. JOIN LOBBY
   socket.on('join_lobby', ({ lobbyId, playerName }) => {
-    const lobby = lobbies[lobbyId]; // <--- This defines the 'lobby' variable
+    const lobby = lobbies[lobbyId];
 
     if (!lobby) {
       socket.emit('error_message', "Lobby not found");
       return;
     }
 
-    if (lobby.players.length >= lobby.max) {
-      socket.emit('error_message', "Lobby is full");
-      return;
+    const alreadyIn = lobby.players.find(p => p.id === socket.id);
+    
+    if (!alreadyIn) {
+      if (lobby.players.length >= lobby.max) {
+        socket.emit('error_message', "Lobby is full");
+        return;
+      }
+      lobby.players.push({ id: socket.id, name: playerName });
+      socket.join(lobbyId);
     }
-
-    // Add player
-    lobby.players.push({ id: socket.id, name: playerName });
-    socket.join(lobbyId);
 
     console.log(`${playerName} joined ${lobbyId}`);
 
-    // Notify the joiner
-    socket.emit('lobby_joined', { lobbyId, isHost: false });
-    
-    // Notify the room
-    io.to(lobbyId).emit('player_joined', { players: lobby.players });
+    // Tell the joiner they are in, and give them their ID
+    socket.emit('lobby_joined', { lobbyId, isHost: false, mySocketId: socket.id });
 
-    // Update public lists
-    if (!lobby.isPrivate) {
-      io.emit('public_lobbies_update_trigger');
-    }
+    // Tell the HOST to update their game board
+    io.to(lobbyId).emit('player_joined', { 
+      newPlayer: { id: socket.id, name: playerName },
+      allPlayers: lobby.players 
+    });
 
-    // *** FIX: Send existing game state if joining mid-game ***
+    if (!lobby.isPrivate) io.emit('public_lobbies_update_trigger');
+
+    // Send current game state if exists
     if (lobby.gameState) {
        socket.emit('game_state_update', lobby.gameState);
+    } else {
+       io.to(lobby.hostId).emit('request_sync'); 
     }
   });
 
-  // --- GAMEPLAY HANDLERS ---
-
-  // 4. Host sends the initial game state
+  // 4. GAMEPLAY HANDLERS
   socket.on('send_initial_state', ({ lobbyId, gameState }) => {
     if (lobbies[lobbyId]) {
       lobbies[lobbyId].gameState = gameState;
@@ -114,7 +109,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 5. Host sends an updated state (after a move)
   socket.on('sync_game_state', ({ lobbyId, gameState }) => {
     if (lobbies[lobbyId]) {
       lobbies[lobbyId].gameState = gameState;
@@ -122,23 +116,42 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 6. Client (Player 2/3/4) wants to make a move
   socket.on('request_move', ({ lobbyId, action, data }) => {
     const lobby = lobbies[lobbyId];
     if (lobby) {
-      // Forward this request ONLY to the Host
-      io.to(lobby.hostId).emit('client_move_request', {
-        action,
-        data,
-        senderId: socket.id
+      // Forward the SENDER ID so Host knows who asked
+      io.to(lobby.hostId).emit('client_move_request', { 
+        action, 
+        data, 
+        senderId: socket.id 
       });
     }
   });
 
-  // 7. DISCONNECT
+  // 5. DISCONNECT
   socket.on('disconnect', () => {
     console.log(`User Disconnected: ${socket.id}`);
-    // Optional: Remove player from lobbies logic would go here
+    
+    for (const [id, lobby] of Object.entries(lobbies)) {
+      const playerIndex = lobby.players.findIndex(p => p.id === socket.id);
+      
+      if (playerIndex !== -1) {
+        lobby.players.splice(playerIndex, 1);
+        
+        if (lobby.players.length === 0) {
+          delete lobbies[id];
+        } else {
+          // If host left, assign new host
+          if (lobby.hostId === socket.id) {
+             lobby.hostId = lobby.players[0].id; 
+          }
+          // Notify remaining players
+          io.to(id).emit('player_left', { leaverId: socket.id });
+          io.to(id).emit('public_lobbies_update_trigger');
+        }
+        break;
+      }
+    }
   });
 });
 
