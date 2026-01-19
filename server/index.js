@@ -183,7 +183,8 @@ io.on('connection', (socket) => {
     // In a production app, you'd use a timeout to remove them after 60s.
   });
 });
+const PORT = process.env.PORT || 3001;
 
-server.listen(3001, () => {
-  console.log("SERVER RUNNING ON PORT 3001");
+server.listen(PORT, () => {
+  console.log(`SERVER RUNNING ON PORT ${PORT}`);
 });
