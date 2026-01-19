@@ -13,7 +13,7 @@ const MainMenu = () => {
       description: 'Modified Tien Len - Climb your way to victory by playing combinations. Eliminate opponents to win!',
       emoji: '🎴',
       available: true,
-      route: '/game-13',
+      route: '/lobby-13',
       color: 'from-blue-500 to-purple-600'
     },
     {
