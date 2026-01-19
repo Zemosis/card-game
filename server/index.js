@@ -17,7 +17,6 @@ const io = new Server(server, {
 });
 
 // --- GAME STATE MEMORY ---
-// In a real app, use a database (Redis/MongoDB). For now, JS objects work.
 const lobbies = {}; // { lobbyId: { name, hostId, players: [], max: 4, gameState: {} } }
 
 io.on('connection', (socket) => {
@@ -25,7 +24,6 @@ io.on('connection', (socket) => {
 
   // 1. GET PUBLIC LOBBIES
   socket.on('get_public_lobbies', () => {
-    // Convert lobbies object to array and filter for public ones
     const publicList = Object.values(lobbies)
       .filter(l => !l.isPrivate)
       .map(l => ({
@@ -40,11 +38,11 @@ io.on('connection', (socket) => {
 
   // 2. CREATE LOBBY
   socket.on('create_lobby', ({ lobbyName, playerName, isPrivate }) => {
-    // Generate ID (6 chars for private, longer for public to avoid collision)
-    const lobbyId = isPrivate 
+    const lobbyId = isPrivate
       ? Math.random().toString(36).substring(2, 8).toUpperCase()
       : 'PUB-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
+    // Create the new lobby object
     lobbies[lobbyId] = {
       id: lobbyId,
       name: lobbyName,
@@ -53,24 +51,25 @@ io.on('connection', (socket) => {
       isPrivate: isPrivate,
       players: [{ id: socket.id, name: playerName }],
       max: 4,
-      gameState: null // Placeholder for future game logic
+      gameState: null
     };
 
     socket.join(lobbyId);
     console.log(`Lobby Created: ${lobbyName} (${lobbyId}) by ${playerName}`);
-    
+
     // Respond to creator
     socket.emit('lobby_joined', { lobbyId, isHost: true });
-    
-    // Broadcast update to everyone looking at public list
+
+    // Broadcast update to public list listeners
     if (!isPrivate) {
-      io.emit('public_lobbies_update_trigger'); 
+      io.emit('public_lobbies_update_trigger');
     }
+    // Note: No gameState check needed here because the game hasn't started yet!
   });
 
   // 3. JOIN LOBBY
   socket.on('join_lobby', ({ lobbyId, playerName }) => {
-    const lobby = lobbies[lobbyId];
+    const lobby = lobbies[lobbyId]; // <--- This defines the 'lobby' variable
 
     if (!lobby) {
       socket.emit('error_message', "Lobby not found");
@@ -88,24 +87,58 @@ io.on('connection', (socket) => {
 
     console.log(`${playerName} joined ${lobbyId}`);
 
-    // Notify player they succeeded
+    // Notify the joiner
     socket.emit('lobby_joined', { lobbyId, isHost: false });
-
-    // Notify others in room
-    io.to(lobbyId).emit('player_joined', { 
-      players: lobby.players 
-    });
+    
+    // Notify the room
+    io.to(lobbyId).emit('player_joined', { players: lobby.players });
 
     // Update public lists
     if (!lobby.isPrivate) {
       io.emit('public_lobbies_update_trigger');
     }
+
+    // *** FIX: Send existing game state if joining mid-game ***
+    if (lobby.gameState) {
+       socket.emit('game_state_update', lobby.gameState);
+    }
   });
 
-  // 4. DISCONNECT
+  // --- GAMEPLAY HANDLERS ---
+
+  // 4. Host sends the initial game state
+  socket.on('send_initial_state', ({ lobbyId, gameState }) => {
+    if (lobbies[lobbyId]) {
+      lobbies[lobbyId].gameState = gameState;
+      io.to(lobbyId).emit('game_state_update', gameState);
+    }
+  });
+
+  // 5. Host sends an updated state (after a move)
+  socket.on('sync_game_state', ({ lobbyId, gameState }) => {
+    if (lobbies[lobbyId]) {
+      lobbies[lobbyId].gameState = gameState;
+      io.to(lobbyId).emit('game_state_update', gameState);
+    }
+  });
+
+  // 6. Client (Player 2/3/4) wants to make a move
+  socket.on('request_move', ({ lobbyId, action, data }) => {
+    const lobby = lobbies[lobbyId];
+    if (lobby) {
+      // Forward this request ONLY to the Host
+      io.to(lobby.hostId).emit('client_move_request', {
+        action,
+        data,
+        senderId: socket.id
+      });
+    }
+  });
+
+  // 7. DISCONNECT
   socket.on('disconnect', () => {
     console.log(`User Disconnected: ${socket.id}`);
-    // Cleanup logic (removing players from lobbies) would go here
+    // Optional: Remove player from lobbies logic would go here
   });
 });
 
