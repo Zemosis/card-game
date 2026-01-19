@@ -4,7 +4,14 @@ class SoundManager {
   constructor() {
     this.context = null;
     this.masterGain = null;
+    this.sfxGain = null;
     this.isMuted = false;
+    
+    // Default volumes (0.0 to 1.0)
+    this.volumes = {
+      master: 0.5,
+      sfx: 0.5
+    };
   }
 
   // Initialize Audio Context (must be triggered by user interaction first)
@@ -12,19 +19,42 @@ class SoundManager {
     if (!this.context) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       this.context = new AudioContext();
+      
+      // 1. Create Master Gain (Final Output to Speakers)
       this.masterGain = this.context.createGain();
-      this.masterGain.gain.value = 0.3; // Default volume 30%
+      this.masterGain.gain.value = this.volumes.master;
       this.masterGain.connect(this.context.destination);
+
+      // 2. Create SFX Gain (Feeds into Master)
+      this.sfxGain = this.context.createGain();
+      this.sfxGain.gain.value = this.volumes.sfx;
+      this.sfxGain.connect(this.masterGain);
     }
     if (this.context.state === 'suspended') {
       this.context.resume();
     }
   }
 
+  // Volume Controls
+  setMasterVolume(value) {
+    this.volumes.master = Math.max(0, Math.min(1, value));
+    if (this.masterGain) {
+      // If muted, keep actual gain at 0, but update the stored volume level
+      this.masterGain.gain.value = this.isMuted ? 0 : this.volumes.master;
+    }
+  }
+
+  setSFXVolume(value) {
+    this.volumes.sfx = Math.max(0, Math.min(1, value));
+    if (this.sfxGain) {
+      this.sfxGain.gain.value = this.volumes.sfx;
+    }
+  }
+
   toggleMute() {
     this.isMuted = !this.isMuted;
     if (this.masterGain) {
-      this.masterGain.gain.value = this.isMuted ? 0 : 0.3;
+      this.masterGain.gain.value = this.isMuted ? 0 : this.volumes.master;
     }
     return this.isMuted;
   }
@@ -39,71 +69,66 @@ class SoundManager {
     osc.type = type;
     osc.frequency.setValueAtTime(freq, this.context.currentTime + startTime);
     
+    // Envelope for smooth sound
     gain.gain.setValueAtTime(0.1, this.context.currentTime + startTime);
     gain.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + startTime + duration);
 
     osc.connect(gain);
-    gain.connect(this.masterGain);
+    // CONNECT TO SFX GAIN instead of direct Master
+    // This allows the SFX slider to control this sound
+    if (this.sfxGain) {
+      gain.connect(this.sfxGain);
+    } else {
+      // Fallback if not initialized
+      gain.connect(this.context.destination);
+    }
 
     osc.start(this.context.currentTime + startTime);
     osc.stop(this.context.currentTime + startTime + duration);
   }
 
   // --- GAME SFX ---
+  // (Identical sound definitions as before)
 
-  // Card Snap (Sharp, crisp sound)
   playSnap() {
     if (!this.context || this.isMuted) return;
-    
-    // High frequency impact
     this.playTone(800, 'triangle', 0.1);
-    // Lower body
     this.playTone(200, 'sine', 0.15);
   }
 
-  // Card Deal / Shuffle (Quick "thwip")
   playDeal() {
     if (!this.context || this.isMuted) return;
-    
-    // Quick burst of noise (simulated by rapid random frequency)
     this.playTone(Math.random() * 1000 + 500, 'square', 0.05);
   }
 
-  // Success / Victory Jingle
   playVictory() {
     if (!this.context || this.isMuted) return;
-    
     const now = 0;
-    this.playTone(523.25, 'sine', 0.2, now);       // C5
-    this.playTone(659.25, 'sine', 0.2, now + 0.15); // E5
-    this.playTone(783.99, 'sine', 0.4, now + 0.3);  // G5
-    this.playTone(1046.50, 'square', 0.6, now + 0.45); // C6
+    this.playTone(523.25, 'sine', 0.2, now);
+    this.playTone(659.25, 'sine', 0.2, now + 0.15);
+    this.playTone(783.99, 'sine', 0.4, now + 0.3);
+    this.playTone(1046.50, 'square', 0.6, now + 0.45);
   }
 
-  // Turn Notification (Soft ding)
   playTurnAlert() {
     if (!this.context || this.isMuted) return;
-    this.playTone(880, 'sine', 0.5); // A5
+    this.playTone(880, 'sine', 0.5);
   }
 
-  // Chat Notification (Bubble pop)
   playChat() {
     if (!this.context || this.isMuted) return;
     this.playTone(1200, 'sine', 0.1);
   }
 
-  // Error / Invalid Move (Low buzz)
   playError() {
     if (!this.context || this.isMuted) return;
     this.playTone(150, 'sawtooth', 0.3);
   }
 
-  // Click / Select (Subtle click)
   playClick() {
     if (!this.context || this.isMuted) return;
     this.playTone(1200, 'triangle', 0.05);
   }
 }
 
-// Export singleton instance
 export const soundManager = new SoundManager();
