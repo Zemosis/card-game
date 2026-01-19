@@ -46,23 +46,23 @@ const GameControls = ({
   }, [isPlayerTurn, canPlay, canPass, onPlay, onPass]);
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      {/* Status Message */}
-      <div className="mb-4 text-center min-h-[60px]">
+    <div className="w-full max-w-4xl mx-auto">
+      {/* Status Message - with semi-transparent background */}
+      <div className="mb-1 text-center min-h-[30px]">
         {!isPlayerTurn && (
-          <div className="bg-gray-100 border-2 border-gray-300 rounded-lg p-3">
-            <div className="text-gray-600 text-lg font-semibold">
+          <div className="bg-gray-800/80 backdrop-blur border-2 border-gray-600 rounded-lg p-1.5">
+            <div className="text-white text-sm font-semibold">
               ⏳ Waiting for other players...
             </div>
           </div>
         )}
 
         {isPlayerTurn && (
-          <div className="space-y-2">
+          <div className="space-y-1">
             {/* Main message */}
             {message && (
-              <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-3">
-                <div className="text-blue-700 text-lg font-semibold">
+              <div className="bg-blue-900/80 backdrop-blur border-2 border-blue-400 rounded-lg p-1.5">
+                <div className="text-blue-100 text-sm font-semibold">
                   {message}
                 </div>
               </div>
@@ -70,8 +70,8 @@ const GameControls = ({
 
             {/* Error message */}
             {errorMessage && (
-              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-2 animate-shake">
-                <div className="text-red-700 font-semibold text-sm">
+              <div className="bg-red-900/80 backdrop-blur border-2 border-red-400 rounded-lg p-2 animate-shake">
+                <div className="text-red-100 font-semibold text-sm">
                   ⚠️ {errorMessage}
                 </div>
               </div>
@@ -79,7 +79,7 @@ const GameControls = ({
 
             {/* Selection info */}
             {selectedCount > 0 && !errorMessage && (
-              <div className="text-gray-600 text-sm">
+              <div className="text-white text-sm">
                 {selectedCount} {selectedCount === 1 ? 'card' : 'cards'} selected
               </div>
             )}
@@ -88,13 +88,13 @@ const GameControls = ({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-4 justify-center">
+      <div className="flex gap-2 justify-center">
         {/* Play Button */}
         <button
           onClick={onPlay}
           disabled={!canPlay || !isPlayerTurn}
           className={`
-            px-8 py-4 rounded-xl font-bold text-lg
+            px-5 py-1.5 rounded-lg font-bold text-sm
             transition-all duration-200 transform
             shadow-lg
             ${canPlay && isPlayerTurn
@@ -103,15 +103,13 @@ const GameControls = ({
             }
           `}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span>🃏</span>
             <span>Play Cards</span>
+            {canPlay && isPlayerTurn && (
+              <span className="text-xs opacity-75">(SPACE)</span>
+            )}
           </div>
-          {canPlay && isPlayerTurn && (
-            <div className="text-xs mt-1 opacity-75">
-              Press SPACE
-            </div>
-          )}
         </button>
 
         {/* Pass Button */}
@@ -119,7 +117,7 @@ const GameControls = ({
           onClick={onPass}
           disabled={!canPass || !isPlayerTurn}
           className={`
-            px-8 py-4 rounded-xl font-bold text-lg
+            px-5 py-1.5 rounded-lg font-bold text-sm
             transition-all duration-200 transform
             shadow-lg
             ${canPass && isPlayerTurn
@@ -128,24 +126,17 @@ const GameControls = ({
             }
           `}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span>⏭️</span>
             <span>Pass</span>
+            {canPass && isPlayerTurn && (
+              <span className="text-xs opacity-75">(P)</span>
+            )}
           </div>
-          {canPass && isPlayerTurn && (
-            <div className="text-xs mt-1 opacity-75">
-              Press P
-            </div>
-          )}
         </button>
       </div>
 
-      {/* Help Text */}
-      {isPlayerTurn && (
-        <div className="mt-4 text-center text-gray-500 text-xs">
-          💡 Tip: Select cards from your hand, then click "Play Cards" to play them
-        </div>
-      )}
+      {/* Help Text - Hidden to save space */}
 
       {/* Shake animation for errors */}
       <style jsx>{`
