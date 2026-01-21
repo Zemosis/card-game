@@ -6,11 +6,11 @@ class SoundManager {
     this.masterGain = null;
     this.sfxGain = null;
     this.isMuted = false;
-    
+
     // Default volumes (0.0 to 1.0)
     this.volumes = {
       master: 0.5,
-      sfx: 0.5
+      sfx: 0.5,
     };
   }
 
@@ -19,7 +19,7 @@ class SoundManager {
     if (!this.context) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       this.context = new AudioContext();
-      
+
       // 1. Create Master Gain (Final Output to Speakers)
       this.masterGain = this.context.createGain();
       this.masterGain.gain.value = this.volumes.master;
@@ -30,7 +30,7 @@ class SoundManager {
       this.sfxGain.gain.value = this.volumes.sfx;
       this.sfxGain.connect(this.masterGain);
     }
-    if (this.context.state === 'suspended') {
+    if (this.context.state === "suspended") {
       this.context.resume();
     }
   }
@@ -68,10 +68,13 @@ class SoundManager {
 
     osc.type = type;
     osc.frequency.setValueAtTime(freq, this.context.currentTime + startTime);
-    
+
     // Envelope for smooth sound
     gain.gain.setValueAtTime(0.1, this.context.currentTime + startTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + startTime + duration);
+    gain.gain.exponentialRampToValueAtTime(
+      0.01,
+      this.context.currentTime + startTime + duration,
+    );
 
     osc.connect(gain);
     // CONNECT TO SFX GAIN instead of direct Master
@@ -92,42 +95,42 @@ class SoundManager {
 
   playSnap() {
     if (!this.context || this.isMuted) return;
-    this.playTone(800, 'triangle', 0.1);
-    this.playTone(200, 'sine', 0.15);
+    this.playTone(800, "triangle", 0.1);
+    this.playTone(200, "sine", 0.15);
   }
 
   playDeal() {
     if (!this.context || this.isMuted) return;
-    this.playTone(Math.random() * 1000 + 500, 'square', 0.05);
+    this.playTone(Math.random() * 1000 + 500, "square", 0.05);
   }
 
   playVictory() {
     if (!this.context || this.isMuted) return;
     const now = 0;
-    this.playTone(523.25, 'sine', 0.2, now);
-    this.playTone(659.25, 'sine', 0.2, now + 0.15);
-    this.playTone(783.99, 'sine', 0.4, now + 0.3);
-    this.playTone(1046.50, 'square', 0.6, now + 0.45);
+    this.playTone(523.25, "sine", 0.2, now);
+    this.playTone(659.25, "sine", 0.2, now + 0.15);
+    this.playTone(783.99, "sine", 0.4, now + 0.3);
+    this.playTone(1046.5, "square", 0.6, now + 0.45);
   }
 
   playTurnAlert() {
     if (!this.context || this.isMuted) return;
-    this.playTone(880, 'sine', 0.5);
+    this.playTone(880, "sine", 0.5);
   }
 
   playChat() {
     if (!this.context || this.isMuted) return;
-    this.playTone(1200, 'sine', 0.1);
+    this.playTone(1200, "sine", 0.1);
   }
 
   playError() {
     if (!this.context || this.isMuted) return;
-    this.playTone(150, 'sawtooth', 0.3);
+    this.playTone(150, "sawtooth", 0.3);
   }
 
   playClick() {
     if (!this.context || this.isMuted) return;
-    this.playTone(1200, 'triangle', 0.05);
+    this.playTone(1200, "triangle", 0.05);
   }
 }
 

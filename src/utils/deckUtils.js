@@ -1,6 +1,6 @@
 // DECK UTILITIES - Card Deck Management
 
-import { RANKS, SUITS, RANK_VALUES, SUIT_VALUES } from './constants.js';
+import { RANKS, SUITS, RANK_VALUES, SUIT_VALUES } from "./constants.js";
 
 // CREATE DECK
 /**
@@ -9,7 +9,7 @@ import { RANKS, SUITS, RANK_VALUES, SUIT_VALUES } from './constants.js';
  */
 export const createDeck = () => {
   const deck = [];
-  
+
   for (const suit of SUITS) {
     for (const rank of RANKS) {
       deck.push({
@@ -17,11 +17,11 @@ export const createDeck = () => {
         suit,
         id: `${rank}${suit}`, // Unique identifier (e.g., "A♠")
         rankValue: RANK_VALUES[rank],
-        suitValue: SUIT_VALUES[suit]
+        suitValue: SUIT_VALUES[suit],
       });
     }
   }
-  
+
   return deck;
 };
 
@@ -33,12 +33,12 @@ export const createDeck = () => {
  */
 export const shuffleDeck = (deck) => {
   const shuffled = [...deck]; // Create a copy
-  
+
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-  
+
   return shuffled;
 };
 
@@ -52,7 +52,7 @@ export const shuffleDeck = (deck) => {
  */
 export const dealCards = (deck, numPlayers = 4, cardsPerPlayer = 13) => {
   const hands = Array.from({ length: numPlayers }, () => []);
-  
+
   // Deal cards one at a time to each player (round-robin)
   for (let i = 0; i < cardsPerPlayer; i++) {
     for (let playerIndex = 0; playerIndex < numPlayers; playerIndex++) {
@@ -62,9 +62,9 @@ export const dealCards = (deck, numPlayers = 4, cardsPerPlayer = 13) => {
       }
     }
   }
-  
+
   // Sort each hand
-  return hands.map(hand => sortHand(hand));
+  return hands.map((hand) => sortHand(hand));
 };
 
 // SORT HAND
@@ -127,18 +127,28 @@ export const getCardDisplay = (card) => {
  */
 export const getCardFullName = (card) => {
   const rankNames = {
-    '3': 'Three', '4': 'Four', '5': 'Five', '6': 'Six',
-    '7': 'Seven', '8': 'Eight', '9': 'Nine', '10': 'Ten',
-    'J': 'Jack', 'Q': 'Queen', 'K': 'King', 'A': 'Ace', '2': 'Two'
+    3: "Three",
+    4: "Four",
+    5: "Five",
+    6: "Six",
+    7: "Seven",
+    8: "Eight",
+    9: "Nine",
+    10: "Ten",
+    J: "Jack",
+    Q: "Queen",
+    K: "King",
+    A: "Ace",
+    2: "Two",
   };
-  
+
   const suitNames = {
-    '♦': 'Diamonds',
-    '♣': 'Clubs',
-    '♥': 'Hearts',
-    '♠': 'Spades'
+    "♦": "Diamonds",
+    "♣": "Clubs",
+    "♥": "Hearts",
+    "♠": "Spades",
   };
-  
+
   return `${rankNames[card.rank]} of ${suitNames[card.suit]}`;
 };
 
@@ -182,7 +192,7 @@ export const groupBySuit = (cards) => {
  */
 export const findHighestCard = (cards) => {
   if (!cards || cards.length === 0) return null;
-  
+
   return cards.reduce((highest, card) => {
     return compareCards(card, highest) > 0 ? card : highest;
   }, cards[0]);
@@ -195,7 +205,7 @@ export const findHighestCard = (cards) => {
  */
 export const findLowestCard = (cards) => {
   if (!cards || cards.length === 0) return null;
-  
+
   return cards.reduce((lowest, card) => {
     return compareCards(card, lowest) < 0 ? card : lowest;
   }, cards[0]);
@@ -209,8 +219,8 @@ export const findLowestCard = (cards) => {
  * @returns {Array} New hand without the removed cards
  */
 export const removeCardsFromHand = (hand, cardsToRemove) => {
-  const idsToRemove = new Set(cardsToRemove.map(card => card.id));
-  return hand.filter(card => !idsToRemove.has(card.id));
+  const idsToRemove = new Set(cardsToRemove.map((card) => card.id));
+  return hand.filter((card) => !idsToRemove.has(card.id));
 };
 
 /**
@@ -220,8 +230,8 @@ export const removeCardsFromHand = (hand, cardsToRemove) => {
  * @returns {Boolean} True if hand contains all cards
  */
 export const handContainsCards = (hand, cardsToCheck) => {
-  const handIds = new Set(hand.map(card => card.id));
-  return cardsToCheck.every(card => handIds.has(card.id));
+  const handIds = new Set(hand.map((card) => card.id));
+  return cardsToCheck.every((card) => handIds.has(card.id));
 };
 
 /**
@@ -232,10 +242,10 @@ export const initializeGame = () => {
   const deck = createDeck();
   const shuffledDeck = shuffleDeck(deck);
   const hands = dealCards(shuffledDeck);
-  
+
   return {
     deck: shuffledDeck,
-    hands
+    hands,
   };
 };
 
@@ -254,5 +264,5 @@ export default {
   findLowestCard,
   removeCardsFromHand,
   handContainsCards,
-  initializeGame
+  initializeGame,
 };

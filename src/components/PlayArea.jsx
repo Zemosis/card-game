@@ -1,8 +1,8 @@
 // PLAY AREA - Center Table Display
 
-import React from 'react';
-import Card from './Card';
-import { COMBO_NAMES } from '../utils/constants';
+import React from "react";
+import Card from "./Card";
+import { COMBO_NAMES } from "../utils/constants";
 
 /**
  * PlayArea Component
@@ -10,16 +10,15 @@ import { COMBO_NAMES } from '../utils/constants';
  * @param {String|null} lastPlayerName - Name of player who made the play
  * @param {Number} roundNumber - Current round number
  */
-const PlayArea = ({ 
-  currentPlay = null, 
+const PlayArea = ({
+  currentPlay = null,
   lastPlayerName = null,
-  roundNumber = 1
+  roundNumber = 1,
 }) => {
   return (
     <div className="w-full h-full flex items-center justify-center">
       {/* Green Felt Table Background */}
       <div className="relative w-full h-full bg-gradient-to-br from-green-700 to-green-900 rounded-2xl shadow-2xl border-4 border-amber-900 overflow-hidden">
-        
         {/* Table Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-8 border-4 border-white rounded-2xl"></div>
@@ -32,12 +31,13 @@ const PlayArea = ({
 
         {/* Center Content */}
         <div className="relative z-10 h-full flex flex-col items-center justify-center gap-2 p-4">
-          
           {/* No Play Yet */}
           {!currentPlay && (
             <div className="text-center text-green-200">
               <div className="text-2xl mb-1">🃏</div>
-              <div className="text-base font-semibold">Waiting for first play...</div>
+              <div className="text-base font-semibold">
+                Waiting for first play...
+              </div>
             </div>
           )}
 
@@ -61,18 +61,14 @@ const PlayArea = ({
               {/* Cards Display */}
               <div className="flex gap-1 justify-center items-center flex-wrap">
                 {currentPlay.cards.map((card, index) => (
-                  <div 
+                  <div
                     key={card.id}
                     className="transform transition-all duration-300"
                     style={{
-                      animation: `cardSlideIn 0.3s ease-out ${index * 0.05}s both`
+                      animation: `cardSlideIn 0.3s ease-out ${index * 0.05}s both`,
                     }}
                   >
-                    <Card
-                      card={card}
-                      size="small"
-                      isPlayable={false}
-                    />
+                    <Card card={card} size="small" isPlayable={false} />
                   </div>
                 ))}
               </div>
@@ -86,10 +82,16 @@ const PlayArea = ({
         </div>
 
         {/* Decorative Corner Elements */}
-        <div className="absolute top-2 right-2 text-amber-700 opacity-30">♠</div>
-        <div className="absolute bottom-2 left-2 text-amber-700 opacity-30">♥</div>
+        <div className="absolute top-2 right-2 text-amber-700 opacity-30">
+          ♠
+        </div>
+        <div className="absolute bottom-2 left-2 text-amber-700 opacity-30">
+          ♥
+        </div>
         <div className="absolute top-2 left-2 text-amber-700 opacity-30">♦</div>
-        <div className="absolute bottom-2 right-2 text-amber-700 opacity-30">♣</div>
+        <div className="absolute bottom-2 right-2 text-amber-700 opacity-30">
+          ♣
+        </div>
       </div>
 
       {/* Inline animation styles */}
