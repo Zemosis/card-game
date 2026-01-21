@@ -1,7 +1,7 @@
 // SCOREBOARD - Tournament Score Tracking
 
-import React from 'react';
-import { GAME_SETTINGS } from '../utils/constants';
+import React from "react";
+import { GAME_SETTINGS } from "../utils/constants";
 
 /**
  * ScoreBoard Component
@@ -9,29 +9,29 @@ import { GAME_SETTINGS } from '../utils/constants';
  * @param {Number} currentPlayerIndex - Index of active player
  * @param {Number} roundNumber - Current round number
  */
-const ScoreBoard = ({ 
-  players = [], 
+const ScoreBoard = ({
+  players = [],
   currentPlayerIndex = 0,
-  roundNumber = 1
+  roundNumber = 1,
 }) => {
   const maxScore = GAME_SETTINGS.ELIMINATION_SCORE;
 
   // Get score color based on value
   const getScoreColor = (score) => {
     const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return 'text-red-600';
-    if (percentage >= 60) return 'text-orange-600';
-    if (percentage >= 40) return 'text-yellow-600';
-    return 'text-green-600';
+    if (percentage >= 80) return "text-red-600";
+    if (percentage >= 60) return "text-orange-600";
+    if (percentage >= 40) return "text-yellow-600";
+    return "text-green-600";
   };
 
   // Get progress bar color
   const getProgressColor = (score) => {
     const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return 'bg-red-500';
-    if (percentage >= 60) return 'bg-orange-500';
-    if (percentage >= 40) return 'bg-yellow-500';
-    return 'bg-green-500';
+    if (percentage >= 80) return "bg-red-500";
+    if (percentage >= 60) return "bg-orange-500";
+    if (percentage >= 40) return "bg-yellow-500";
+    return "bg-green-500";
   };
 
   return (
@@ -55,11 +55,12 @@ const ScoreBoard = ({
               key={player.id}
               className={`
                 rounded-lg p-2 transition-all duration-200
-                ${isActive && !player.isEliminated
-                  ? 'bg-yellow-900/50 border-2 border-yellow-400'
-                  : 'bg-gray-700 border-2 border-gray-600'
+                ${
+                  isActive && !player.isEliminated
+                    ? "bg-yellow-900/50 border-2 border-yellow-400"
+                    : "bg-gray-700 border-2 border-gray-600"
                 }
-                ${player.isEliminated ? 'opacity-50' : ''}
+                ${player.isEliminated ? "opacity-50" : ""}
               `}
             >
               {/* Player Name and Status */}
@@ -89,7 +90,9 @@ const ScoreBoard = ({
               {/* Score Display */}
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-gray-400">Score:</span>
-                <span className={`text-sm font-bold ${getScoreColor(player.score)}`}>
+                <span
+                  className={`text-sm font-bold ${getScoreColor(player.score)}`}
+                >
                   {player.score} / {maxScore}
                 </span>
               </div>

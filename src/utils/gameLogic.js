@@ -1,8 +1,8 @@
 // GAME LOGIC - Core Game Rules & Turn Management
 
-import { GAME_SETTINGS, PLAYER_TYPES, GAME_STATES } from './constants.js';
-import { removeCardsFromHand } from './deckUtils.js';
-import { validatePlay } from './handEvaluator.js';
+import { GAME_SETTINGS, PLAYER_TYPES, GAME_STATES } from "./constants.js";
+import { removeCardsFromHand } from "./deckUtils.js";
+import { validatePlay } from "./handEvaluator.js";
 
 // GAME STATE INITIALIZATION
 
@@ -19,21 +19,23 @@ export const createGameState = (hands, startingPlayer = 0) => {
     score: 0,
     isEliminated: false,
     type: index === 0 ? PLAYER_TYPES.HUMAN : PLAYER_TYPES.AI,
-    name: index === 0 ? 'You' : `CPU ${index}`,
+    name: index === 0 ? "You" : `CPU ${index}`,
     hasPassed: false,
-    lastPlay: null
+    lastPlay: null,
   }));
 
   return {
     players,
     currentPlayerIndex: startingPlayer,
-    dealerIndex: (startingPlayer - 1 + GAME_SETTINGS.NUM_PLAYERS) % GAME_SETTINGS.NUM_PLAYERS,
+    dealerIndex:
+      (startingPlayer - 1 + GAME_SETTINGS.NUM_PLAYERS) %
+      GAME_SETTINGS.NUM_PLAYERS,
     currentPlay: null,
     lastPlayedBy: null,
     roundNumber: 1,
     gameState: GAME_STATES.PLAYING,
     passCount: 0,
-    moveHistory: []
+    moveHistory: [],
   };
 };
 
@@ -67,8 +69,8 @@ export const getNextPlayerIndex = (gameState) => {
  * @returns {Boolean} True if round should reset
  */
 export const shouldResetRound = (gameState) => {
-  const activePlayers = gameState.players.filter(p => !p.isEliminated);
-  const playersWhoHaventPassed = activePlayers.filter(p => !p.hasPassed);
+  const activePlayers = gameState.players.filter((p) => !p.isEliminated);
+  const playersWhoHaventPassed = activePlayers.filter((p) => !p.hasPassed);
 
   // If only one player left who hasn't passed, or if last player just won the trick
   return playersWhoHaventPassed.length <= 1;
@@ -83,10 +85,10 @@ export const resetRound = (gameState) => {
   // Last player who played gets to lead
   const leadPlayer = gameState.lastPlayedBy ?? gameState.currentPlayerIndex;
 
-  const updatedPlayers = gameState.players.map(player => ({
+  const updatedPlayers = gameState.players.map((player) => ({
     ...player,
     hasPassed: false,
-    lastPlay: null
+    lastPlay: null,
   }));
 
   return {
@@ -98,8 +100,8 @@ export const resetRound = (gameState) => {
     passCount: 0,
     moveHistory: [
       ...gameState.moveHistory,
-      { type: 'ROUND_RESET', leadPlayer }
-    ]
+      { type: "ROUND_RESET", leadPlayer },
+    ],
   };
 };
 
@@ -121,7 +123,7 @@ export const playCards = (gameState, selectedCards) => {
     return {
       success: false,
       newState: gameState,
-      error: validation.reason
+      error: validation.reason,
     };
   }
 
@@ -135,12 +137,12 @@ export const playCards = (gameState, selectedCards) => {
   const updatedPlayer = {
     ...currentPlayer,
     hand: updatedHand,
-    lastPlay: validation.combination
+    lastPlay: validation.combination,
   };
 
   // Update players array
   const updatedPlayers = gameState.players.map((p, idx) =>
-    idx === gameState.currentPlayerIndex ? updatedPlayer : p
+    idx === gameState.currentPlayerIndex ? updatedPlayer : p,
   );
 
   // Create new game state
@@ -153,12 +155,12 @@ export const playCards = (gameState, selectedCards) => {
     moveHistory: [
       ...gameState.moveHistory,
       {
-        type: 'PLAY',
+        type: "PLAY",
         playerIndex: gameState.currentPlayerIndex,
         cards: selectedCards,
-        combination: validation.combination
-      }
-    ]
+        combination: validation.combination,
+      },
+    ],
   };
 
   // If player won, end the round
@@ -166,7 +168,7 @@ export const playCards = (gameState, selectedCards) => {
     return {
       success: true,
       newState: endRound(newState, gameState.currentPlayerIndex),
-      playerWon: true
+      playerWon: true,
     };
   }
 
@@ -181,7 +183,7 @@ export const playCards = (gameState, selectedCards) => {
   return {
     success: true,
     newState,
-    playerWon: false
+    playerWon: false,
   };
 };
 
@@ -196,12 +198,12 @@ export const passAction = (gameState) => {
   // Update player to passed state
   const updatedPlayer = {
     ...currentPlayer,
-    hasPassed: true
+    hasPassed: true,
   };
 
   // Update players array
   const updatedPlayers = gameState.players.map((p, idx) =>
-    idx === gameState.currentPlayerIndex ? updatedPlayer : p
+    idx === gameState.currentPlayerIndex ? updatedPlayer : p,
   );
 
   let newState = {
@@ -211,10 +213,10 @@ export const passAction = (gameState) => {
     moveHistory: [
       ...gameState.moveHistory,
       {
-        type: 'PASS',
-        playerIndex: gameState.currentPlayerIndex
-      }
-    ]
+        type: "PASS",
+        playerIndex: gameState.currentPlayerIndex,
+      },
+    ],
   };
 
   // Move to next player
@@ -242,7 +244,7 @@ export const endRound = (gameState, winnerIndex) => {
     if (idx === winnerIndex) {
       return {
         ...player,
-        hand: []
+        hand: [],
       };
     }
 
@@ -262,12 +264,12 @@ export const endRound = (gameState, winnerIndex) => {
       ...player,
       score: newScore,
       isEliminated,
-      hand: [] // Clear hand for next round
+      hand: [], // Clear hand for next round
     };
   });
 
   // Check if game is over (only one player left)
-  const activePlayers = updatedPlayers.filter(p => !p.isEliminated);
+  const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
   const gameOver = activePlayers.length === 1;
 
   return {
@@ -278,11 +280,15 @@ export const endRound = (gameState, winnerIndex) => {
     moveHistory: [
       ...gameState.moveHistory,
       {
-        type: 'ROUND_END',
+        type: "ROUND_END",
         winnerIndex,
-        scores: updatedPlayers.map(p => ({ id: p.id, score: p.score, eliminated: p.isEliminated }))
-      }
-    ]
+        scores: updatedPlayers.map((p) => ({
+          id: p.id,
+          score: p.score,
+          eliminated: p.isEliminated,
+        })),
+      },
+    ],
   };
 };
 
@@ -294,24 +300,15 @@ export const endRound = (gameState, winnerIndex) => {
  */
 export const startNextRound = (gameState, newHands) => {
   // Dealer moves to the left
-  const newDealerIndex = (gameState.dealerIndex + 1) % GAME_SETTINGS.NUM_PLAYERS;
-  
-  // Calculate potential starting player
-  let startingPlayerIndex = (newDealerIndex + 1) % GAME_SETTINGS.NUM_PLAYERS;
-
-  // FIX: Skip eliminated players when determining who starts
-  // We check existing gameState.players because updatedPlayers isn't made yet
-  let loopSafety = 0;
-  while (gameState.players[startingPlayerIndex].isEliminated && loopSafety < GAME_SETTINGS.NUM_PLAYERS) {
-    startingPlayerIndex = (startingPlayerIndex + 1) % GAME_SETTINGS.NUM_PLAYERS;
-    loopSafety++;
-  }
+  const newDealerIndex =
+    (gameState.dealerIndex + 1) % GAME_SETTINGS.NUM_PLAYERS;
+  const startingPlayerIndex = (newDealerIndex + 1) % GAME_SETTINGS.NUM_PLAYERS;
 
   const updatedPlayers = gameState.players.map((player, idx) => ({
     ...player,
     hand: player.isEliminated ? [] : newHands[idx],
     hasPassed: false,
-    lastPlay: null
+    lastPlay: null,
   }));
 
   return {
@@ -326,8 +323,12 @@ export const startNextRound = (gameState, newHands) => {
     passCount: 0,
     moveHistory: [
       ...gameState.moveHistory,
-      { type: 'NEW_ROUND', roundNumber: gameState.roundNumber + 1, dealer: newDealerIndex }
-    ]
+      {
+        type: "NEW_ROUND",
+        roundNumber: gameState.roundNumber + 1,
+        dealer: newDealerIndex,
+      },
+    ],
   };
 };
 
@@ -340,7 +341,9 @@ export const startNextRound = (gameState, newHands) => {
  */
 export const isHumanTurn = (gameState) => {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  return currentPlayer.type === PLAYER_TYPES.HUMAN && !currentPlayer.isEliminated;
+  return (
+    currentPlayer.type === PLAYER_TYPES.HUMAN && !currentPlayer.isEliminated
+  );
 };
 
 /**
@@ -349,7 +352,7 @@ export const isHumanTurn = (gameState) => {
  * @returns {Array} Active players
  */
 export const getActivePlayers = (gameState) => {
-  return gameState.players.filter(p => !p.isEliminated);
+  return gameState.players.filter((p) => !p.isEliminated);
 };
 
 /**
@@ -359,7 +362,7 @@ export const getActivePlayers = (gameState) => {
  */
 export const getWinner = (gameState) => {
   if (gameState.gameState !== GAME_STATES.GAME_OVER) return null;
-  
+
   const activePlayers = getActivePlayers(gameState);
   return activePlayers.length === 1 ? activePlayers[0] : null;
 };
@@ -385,5 +388,5 @@ export default {
   isHumanTurn,
   getActivePlayers,
   getWinner,
-  isHumanEliminated
+  isHumanEliminated,
 };

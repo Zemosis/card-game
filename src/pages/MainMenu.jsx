@@ -1,36 +1,37 @@
 // MAIN MENU - Landing Page with Game Selection
 
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from "react";
+import { useNavigate } from "react-router-dom";
 
 const MainMenu = () => {
   const navigate = useNavigate();
 
   const games = [
     {
-      id: '13',
+      id: "13",
       title: 'Game "13"',
-      description: 'Modified Tien Len - Climb your way to victory by playing combinations. Eliminate opponents to win!',
-      emoji: '🎴',
+      description:
+        "Modified Tien Len - Climb your way to victory by playing combinations. Eliminate opponents to win!",
+      emoji: "🎴",
       available: true,
-      route: '/lobby-13',
-      color: 'from-blue-500 to-purple-600'
+      route: "/lobby-13",
+      color: "from-blue-500 to-purple-600",
     },
     {
-      id: 'muushig',
-      title: 'Muushig',
-      description: 'Coming soon! Traditional Mongolian card game with unique rules and strategy.',
-      emoji: '🃏',
+      id: "muushig",
+      title: "Muushig",
+      description:
+        "Coming soon! Traditional Mongolian card game with unique rules and strategy.",
+      emoji: "🃏",
       available: false,
-      route: '/muushig',
-      color: 'from-green-500 to-teal-600'
-    }
+      route: "/muushig",
+      color: "from-green-500 to-teal-600",
+    },
   ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-8">
       <div className="max-w-6xl w-full">
-        
         {/* Header */}
         <div className="text-center mb-12 animate-fade-in">
           <h1 className="text-6xl font-bold text-white mb-4 drop-shadow-lg">
@@ -56,9 +57,10 @@ const MainMenu = () => {
                   w-full h-full p-8 rounded-2xl
                   bg-white shadow-2xl
                   transition-all duration-300 transform
-                  ${game.available 
-                    ? 'hover:scale-105 hover:shadow-3xl cursor-pointer active:scale-95' 
-                    : 'opacity-60 cursor-not-allowed'
+                  ${
+                    game.available
+                      ? "hover:scale-105 hover:shadow-3xl cursor-pointer active:scale-95"
+                      : "opacity-60 cursor-not-allowed"
                   }
                 `}
               >
@@ -68,10 +70,12 @@ const MainMenu = () => {
                 </div>
 
                 {/* Game Title */}
-                <h2 className={`
+                <h2
+                  className={`
                   text-3xl font-bold mb-4 bg-gradient-to-r ${game.color}
                   bg-clip-text text-transparent
-                `}>
+                `}
+                >
                   {game.title}
                 </h2>
 
@@ -83,11 +87,13 @@ const MainMenu = () => {
                 {/* Status Badge */}
                 <div className="flex justify-center">
                   {game.available ? (
-                    <span className={`
+                    <span
+                      className={`
                       px-6 py-2 rounded-full font-bold text-white
                       bg-gradient-to-r ${game.color}
                       shadow-lg
-                    `}>
+                    `}
+                    >
                       Play Now →
                     </span>
                   ) : (
@@ -133,7 +139,8 @@ const MainMenu = () => {
         }
 
         @keyframes bounce-slow {
-          0%, 100% {
+          0%,
+          100% {
             transform: translateY(0);
           }
           50% {

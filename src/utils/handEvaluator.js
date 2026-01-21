@@ -1,16 +1,12 @@
 // HAND EVALUATOR - Combination Validation & Comparison
 
-import { 
-  COMBO_TYPES, 
-  POKER_COMBO_STRENGTH, 
-  RANK_VALUES 
-} from './constants.js';
-import { 
-  groupByRank, 
-  groupBySuit, 
-  sortHand, 
-  compareCards 
-} from './deckUtils.js';
+import { COMBO_TYPES, POKER_COMBO_STRENGTH, RANK_VALUES } from "./constants.js";
+import {
+  groupByRank,
+  groupBySuit,
+  sortHand,
+  compareCards,
+} from "./deckUtils.js";
 
 // COMBINATION DETECTION
 
@@ -31,7 +27,7 @@ export const identifyCombination = (cards) => {
       type: COMBO_TYPES.SINGLE,
       rank: sorted[0].rankValue,
       highCard: sorted[0],
-      cards: sorted
+      cards: sorted,
     };
   }
 
@@ -65,16 +61,16 @@ export const identifyCombination = (cards) => {
  */
 const validatePair = (cards) => {
   if (cards.length !== 2) return null;
-  
+
   if (cards[0].rank === cards[1].rank) {
     return {
       type: COMBO_TYPES.PAIR,
       rank: cards[0].rankValue,
       highCard: cards[1], // Higher suit
-      cards
+      cards,
     };
   }
-  
+
   return null;
 };
 
@@ -83,16 +79,16 @@ const validatePair = (cards) => {
  */
 const validateTriple = (cards) => {
   if (cards.length !== 3) return null;
-  
+
   if (cards[0].rank === cards[1].rank && cards[1].rank === cards[2].rank) {
     return {
       type: COMBO_TYPES.TRIPLE,
       rank: cards[0].rankValue,
       highCard: cards[2], // Highest suit
-      cards
+      cards,
     };
   }
-  
+
   return null;
 };
 
@@ -101,18 +97,18 @@ const validateTriple = (cards) => {
  */
 const validateFourOfAKind = (cards) => {
   if (cards.length !== 4) return null;
-  
-  const allSameRank = cards.every(card => card.rank === cards[0].rank);
-  
+
+  const allSameRank = cards.every((card) => card.rank === cards[0].rank);
+
   if (allSameRank) {
     return {
       type: COMBO_TYPES.FOUR_OF_A_KIND,
       rank: cards[0].rankValue,
       highCard: cards[3], // Highest suit
-      cards
+      cards,
     };
   }
-  
+
   return null;
 };
 
@@ -127,15 +123,15 @@ const validate5CardHand = (cards) => {
   const isFlush = checkFlush(cards);
   const straightInfo = checkStraight(cards);
   const isStraight = straightInfo !== null;
-  
+
   // Royal Flush: A-K-Q-J-10 of same suit
-  if (isFlush && isStraight && straightInfo.highRank === RANK_VALUES['A']) {
+  if (isFlush && isStraight && straightInfo.highRank === RANK_VALUES["A"]) {
     return {
       type: COMBO_TYPES.ROYAL_FLUSH,
       rank: straightInfo.highRank,
       highCard: cards[4],
       strength: POKER_COMBO_STRENGTH[COMBO_TYPES.ROYAL_FLUSH],
-      cards
+      cards,
     };
   }
 
@@ -146,7 +142,7 @@ const validate5CardHand = (cards) => {
       rank: straightInfo.highRank,
       highCard: cards[4],
       strength: POKER_COMBO_STRENGTH[COMBO_TYPES.STRAIGHT_FLUSH],
-      cards
+      cards,
     };
   }
 
@@ -159,7 +155,7 @@ const validate5CardHand = (cards) => {
       pairRank: fullHouse.pairRank,
       highCard: fullHouse.highCard,
       strength: POKER_COMBO_STRENGTH[COMBO_TYPES.FULL_HOUSE],
-      cards
+      cards,
     };
   }
 
@@ -170,7 +166,7 @@ const validate5CardHand = (cards) => {
       rank: cards[4].rankValue, // Highest card
       highCard: cards[4],
       strength: POKER_COMBO_STRENGTH[COMBO_TYPES.FLUSH],
-      cards
+      cards,
     };
   }
 
@@ -181,7 +177,7 @@ const validate5CardHand = (cards) => {
       rank: straightInfo.highRank,
       highCard: straightInfo.highCard,
       strength: POKER_COMBO_STRENGTH[COMBO_TYPES.STRAIGHT],
-      cards
+      cards,
     };
   }
 
@@ -195,7 +191,7 @@ const validate5CardHand = (cards) => {
  */
 const checkFlush = (cards) => {
   const firstSuit = cards[0].suit;
-  return cards.every(card => card.suit === firstSuit);
+  return cards.every((card) => card.suit === firstSuit);
 };
 
 /**
@@ -204,17 +200,17 @@ const checkFlush = (cards) => {
  */
 const checkStraight = (cards) => {
   const sorted = sortHand(cards);
-  
+
   // Check for consecutive ranks
   for (let i = 0; i < sorted.length - 1; i++) {
     if (sorted[i + 1].rankValue !== sorted[i].rankValue + 1) {
       return null;
     }
   }
-  
+
   return {
     highRank: sorted[4].rankValue,
-    highCard: sorted[4]
+    highCard: sorted[4],
   };
 };
 
@@ -224,26 +220,26 @@ const checkStraight = (cards) => {
 const checkFullHouse = (cards) => {
   const grouped = groupByRank(cards);
   const ranks = Object.keys(grouped);
-  
+
   if (ranks.length !== 2) return null;
-  
-  const counts = ranks.map(rank => grouped[rank].length).sort();
-  
+
+  const counts = ranks.map((rank) => grouped[rank].length).sort();
+
   // Must have exactly 2 and 3 cards of different ranks
   if (counts[0] === 2 && counts[1] === 3) {
-    const tripleRank = ranks.find(rank => grouped[rank].length === 3);
-    const pairRank = ranks.find(rank => grouped[rank].length === 2);
-    
+    const tripleRank = ranks.find((rank) => grouped[rank].length === 3);
+    const pairRank = ranks.find((rank) => grouped[rank].length === 2);
+
     const tripleCards = grouped[tripleRank];
     const highCard = tripleCards[tripleCards.length - 1];
-    
+
     return {
       tripleRank: RANK_VALUES[tripleRank],
       pairRank: RANK_VALUES[pairRank],
-      highCard
+      highCard,
     };
   }
-  
+
   return null;
 };
 
@@ -309,7 +305,10 @@ const compare5CardHands = (combo1, combo2) => {
   }
 
   // For Full House: also check pair rank
-  if (combo1.type === COMBO_TYPES.FULL_HOUSE && combo1.pairRank !== combo2.pairRank) {
+  if (
+    combo1.type === COMBO_TYPES.FULL_HOUSE &&
+    combo1.pairRank !== combo2.pairRank
+  ) {
     return combo1.pairRank > combo2.pairRank;
   }
 
@@ -332,8 +331,8 @@ export const validatePlay = (selectedCards, currentPlay) => {
   if (!combo) {
     return {
       valid: false,
-      reason: 'Invalid combination',
-      combination: null
+      reason: "Invalid combination",
+      combination: null,
     };
   }
 
@@ -341,8 +340,8 @@ export const validatePlay = (selectedCards, currentPlay) => {
   if (!currentPlay) {
     return {
       valid: true,
-      reason: 'Valid play',
-      combination: combo
+      reason: "Valid play",
+      combination: combo,
     };
   }
 
@@ -352,15 +351,15 @@ export const validatePlay = (selectedCards, currentPlay) => {
   if (!beats) {
     return {
       valid: false,
-      reason: 'Must play a stronger combination',
-      combination: combo
+      reason: "Must play a stronger combination",
+      combination: combo,
     };
   }
 
   return {
     valid: true,
-    reason: 'Valid play',
-    combination: combo
+    reason: "Valid play",
+    combination: combo,
   };
 };
 
@@ -421,5 +420,5 @@ export default {
   identifyCombination,
   canBeatCombination,
   validatePlay,
-  findValidPlays
+  findValidPlays,
 };

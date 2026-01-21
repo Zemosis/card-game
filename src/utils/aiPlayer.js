@@ -1,18 +1,18 @@
 // AI PLAYER - Decision Making & Strategy
 
-import { COMBO_TYPES, RANK_VALUES } from './constants.js';
-import { 
-  groupByRank, 
-  groupBySuit, 
+import { COMBO_TYPES, RANK_VALUES } from "./constants.js";
+import {
+  groupByRank,
+  groupBySuit,
   sortHand,
   findLowestCard,
-  findHighestCard 
-} from './deckUtils.js';
-import { 
-  identifyCombination, 
+  findHighestCard,
+} from "./deckUtils.js";
+import {
+  identifyCombination,
   validatePlay,
-  findValidPlays 
-} from './handEvaluator.js';
+  findValidPlays,
+} from "./handEvaluator.js";
 
 // AI DECISION MAKING
 
@@ -35,7 +35,7 @@ export const makeAIDecision = (player, currentPlay, gameState) => {
   const validPlays = findValidPlaysFromHand(hand, currentPlay);
 
   if (validPlays.length === 0) {
-    return { action: 'pass', cards: null };
+    return { action: "pass", cards: null };
   }
 
   // Decide whether to play or pass strategically
@@ -43,19 +43,19 @@ export const makeAIDecision = (player, currentPlay, gameState) => {
     player,
     validPlays,
     currentPlay,
-    gameState
+    gameState,
   );
 
   if (!shouldPlay) {
-    return { action: 'pass', cards: null };
+    return { action: "pass", cards: null };
   }
 
   // Select best play from valid options
   const selectedPlay = selectBestPlay(validPlays, hand, gameState);
 
   return {
-    action: 'play',
-    cards: selectedPlay.cards
+    action: "play",
+    cards: selectedPlay.cards,
   };
 };
 
@@ -69,31 +69,31 @@ const leadPlay = (hand, gameState) => {
 
   // If only one card left, play it
   if (cardsLeft === 1) {
-    return { action: 'play', cards: hand };
+    return { action: "play", cards: hand };
   }
 
   // Try to find pairs, triples, or four-of-a-kind (efficient plays)
   const groups = groupByRank(hand);
-  
+
   // Look for pairs/triples/quads starting from lowest
-  for (const rank of Object.keys(groups).sort((a, b) => 
-    RANK_VALUES[a] - RANK_VALUES[b]
+  for (const rank of Object.keys(groups).sort(
+    (a, b) => RANK_VALUES[a] - RANK_VALUES[b],
   )) {
     const group = groups[rank];
-    
+
     // Play four of a kind (powerful, get rid of 4 cards)
     if (group.length === 4) {
-      return { action: 'play', cards: group };
+      return { action: "play", cards: group };
     }
-    
+
     // Play triple
     if (group.length === 3) {
-      return { action: 'play', cards: group };
+      return { action: "play", cards: group };
     }
-    
+
     // Play pair (if less than 8 cards left, be more aggressive)
     if (group.length === 2 && cardsLeft < 8) {
-      return { action: 'play', cards: group };
+      return { action: "play", cards: group };
     }
   }
 
@@ -101,13 +101,13 @@ const leadPlay = (hand, gameState) => {
   if (cardsLeft >= 5) {
     const fiveCardPlay = findBest5CardCombo(hand);
     if (fiveCardPlay) {
-      return { action: 'play', cards: fiveCardPlay };
+      return { action: "play", cards: fiveCardPlay };
     }
   }
 
   // Default: play lowest single card
   const lowestCard = findLowestCard(hand);
-  return { action: 'play', cards: [lowestCard] };
+  return { action: "play", cards: [lowestCard] };
 };
 
 // FIND VALID PLAYS FROM HAND
@@ -186,17 +186,20 @@ const findValidPlaysFromHand = (hand, currentPlay) => {
  */
 const findBest5CardCombo = (hand) => {
   const combos = findAll5CardCombos(hand);
-  
+
   if (combos.length === 0) return null;
 
   // Prefer straights and flushes (easier to make)
   for (const combo of combos) {
     const identified = identifyCombination(combo);
-    if (identified && [
-      COMBO_TYPES.STRAIGHT,
-      COMBO_TYPES.FLUSH,
-      COMBO_TYPES.FULL_HOUSE
-    ].includes(identified.type)) {
+    if (
+      identified &&
+      [
+        COMBO_TYPES.STRAIGHT,
+        COMBO_TYPES.FLUSH,
+        COMBO_TYPES.FULL_HOUSE,
+      ].includes(identified.type)
+    ) {
       return combo;
     }
   }
@@ -211,7 +214,7 @@ const findAll5CardCombos = (hand) => {
   if (hand.length < 5) return [];
 
   const combos = [];
-  
+
   // Check for straights
   const straights = findStraights(hand);
   combos.push(...straights);
@@ -308,7 +311,12 @@ const findFullHouses = (hand) => {
 /**
  * Evaluates whether AI should play or pass strategically
  */
-const evaluatePlayingStrategy = (player, validPlays, currentPlay, gameState) => {
+const evaluatePlayingStrategy = (
+  player,
+  validPlays,
+  currentPlay,
+  gameState,
+) => {
   const hand = player.hand;
   const cardsLeft = hand.length;
 
@@ -321,8 +329,10 @@ const evaluatePlayingStrategy = (player, validPlays, currentPlay, gameState) => 
   if (cardsLeft <= 5) {
     // Play if we have a strong play
     const bestPlay = validPlays[0];
-    if (bestPlay.type === COMBO_TYPES.FOUR_OF_A_KIND || 
-        bestPlay.type === COMBO_TYPES.TRIPLE) {
+    if (
+      bestPlay.type === COMBO_TYPES.FOUR_OF_A_KIND ||
+      bestPlay.type === COMBO_TYPES.TRIPLE
+    ) {
       return true;
     }
     // 50% chance to play otherwise
@@ -336,7 +346,7 @@ const evaluatePlayingStrategy = (player, validPlays, currentPlay, gameState) => 
   }
 
   // If we have many high-value cards, be conservative
-  const highCards = hand.filter(card => card.rankValue >= 9).length;
+  const highCards = hand.filter((card) => card.rankValue >= 9).length;
   if (highCards >= 5) {
     // 30% chance to play
     return Math.random() > 0.7;
@@ -390,7 +400,7 @@ export const evaluateHandStrength = (hand) => {
   }
 
   // Add value for high cards
-  const highCards = hand.filter(card => card.rankValue >= 10).length;
+  const highCards = hand.filter((card) => card.rankValue >= 10).length;
   strength += highCards * 2;
 
   return strength;
@@ -398,5 +408,5 @@ export const evaluateHandStrength = (hand) => {
 
 export default {
   makeAIDecision,
-  evaluateHandStrength
+  evaluateHandStrength,
 };

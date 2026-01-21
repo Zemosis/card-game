@@ -1,6 +1,6 @@
 // GAME CONTROLS - Player Action Buttons
 
-import React, { useEffect } from 'react';
+import React, { useEffect } from "react";
 
 /**
  * GameControls Component
@@ -13,36 +13,35 @@ import React, { useEffect } from 'react';
  * @param {String} message - Status message to display
  * @param {String} errorMessage - Error message if any
  */
-const GameControls = ({ 
+const GameControls = ({
   onPlay,
   onPass,
   canPlay = false,
   canPass = true,
   isPlayerTurn = false,
   selectedCount = 0,
-  message = '',
-  errorMessage = ''
+  message = "",
+  errorMessage = "",
 }) => {
-  
   // Keyboard shortcuts
   useEffect(() => {
     if (!isPlayerTurn) return;
 
     const handleKeyPress = (e) => {
       // Space bar to play
-      if (e.code === 'Space' && canPlay) {
+      if (e.code === "Space" && canPlay) {
         e.preventDefault();
         onPlay();
       }
       // P key to pass
-      if (e.key.toLowerCase() === 'p' && canPass) {
+      if (e.key.toLowerCase() === "p" && canPass) {
         e.preventDefault();
         onPass();
       }
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
   }, [isPlayerTurn, canPlay, canPass, onPlay, onPass]);
 
   return (
@@ -81,9 +80,10 @@ const GameControls = ({
             px-5 py-1.5 rounded-lg font-bold text-sm
             transition-all duration-200 transform
             shadow-lg
-            ${canPlay && isPlayerTurn
-              ? 'bg-green-500 hover:bg-green-600 text-white hover:scale-105 active:scale-95 cursor-pointer'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            ${
+              canPlay && isPlayerTurn
+                ? "bg-green-500 hover:bg-green-600 text-white hover:scale-105 active:scale-95 cursor-pointer"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
             }
           `}
         >
@@ -104,9 +104,10 @@ const GameControls = ({
             px-5 py-1.5 rounded-lg font-bold text-sm
             transition-all duration-200 transform
             shadow-lg
-            ${canPass && isPlayerTurn
-              ? 'bg-yellow-500 hover:bg-yellow-600 text-white hover:scale-105 active:scale-95 cursor-pointer'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            ${
+              canPass && isPlayerTurn
+                ? "bg-yellow-500 hover:bg-yellow-600 text-white hover:scale-105 active:scale-95 cursor-pointer"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
             }
           `}
         >
@@ -123,9 +124,16 @@ const GameControls = ({
       {/* Shake animation for errors */}
       <style jsx>{`
         @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-10px); }
-          75% { transform: translateX(10px); }
+          0%,
+          100% {
+            transform: translateX(0);
+          }
+          25% {
+            transform: translateX(-10px);
+          }
+          75% {
+            transform: translateX(10px);
+          }
         }
 
         .animate-shake {

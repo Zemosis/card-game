@@ -1,10 +1,10 @@
 // PLAYER HAND COMPONENT - Interactive Hand Display
 
-import React, { useState, useEffect, useRef } from 'react';
-import Card from './Card';
-import { sortHand } from '../utils/deckUtils';
-import { identifyCombination } from '../utils/handEvaluator';
-import { COMBO_NAMES } from '../utils/constants';
+import React, { useState, useEffect, useRef } from "react";
+import Card from "./Card";
+import { sortHand } from "../utils/deckUtils";
+import { identifyCombination } from "../utils/handEvaluator";
+import { COMBO_NAMES } from "../utils/constants";
 
 /**
  * PlayerHand Component
@@ -14,12 +14,12 @@ import { COMBO_NAMES } from '../utils/constants';
  * @param {Boolean} isActive - Whether player can interact
  * @param {Boolean} showCardCount - Show card count badge
  */
-const PlayerHand = ({ 
-  hand = [], 
-  selectedCards = [], 
+const PlayerHand = ({
+  hand = [],
+  selectedCards = [],
   onSelectionChange,
   isActive = true,
-  showCardCount = true
+  showCardCount = true,
 }) => {
   const [sortedHand, setSortedHand] = useState([]);
   // Track the last clicked card index for range selection
@@ -41,37 +41,37 @@ const PlayerHand = ({
       e.preventDefault();
     }
 
-    const currentIndex = sortedHand.findIndex(c => c.id === card.id);
+    const currentIndex = sortedHand.findIndex((c) => c.id === card.id);
 
     // --- RANGE SELECTION (SHIFT CLICK) ---
     if (e && e.shiftKey && lastSelectedIndex.current !== -1) {
       const start = Math.min(lastSelectedIndex.current, currentIndex);
       const end = Math.max(lastSelectedIndex.current, currentIndex);
-      
+
       // Get all cards in this range
       const rangeCards = sortedHand.slice(start, end + 1);
-      
+
       // Merge with existing selection (using Set to ensure uniqueness)
       const newSelectionMap = new Map();
-      
+
       // Keep existing selected cards
-      selectedCards.forEach(c => newSelectionMap.set(c.id, c));
-      
+      selectedCards.forEach((c) => newSelectionMap.set(c.id, c));
+
       // Add newly ranged cards
-      rangeCards.forEach(c => newSelectionMap.set(c.id, c));
-      
+      rangeCards.forEach((c) => newSelectionMap.set(c.id, c));
+
       onSelectionChange(Array.from(newSelectionMap.values()));
-    } 
+    }
     // --- SINGLE TOGGLE (NORMAL CLICK) ---
     else {
       // Update the anchor for the next potential shift-click
       lastSelectedIndex.current = currentIndex;
 
-      const isSelected = selectedCards.some(c => c.id === card.id);
-      
+      const isSelected = selectedCards.some((c) => c.id === card.id);
+
       if (isSelected) {
         // Remove from selection
-        onSelectionChange(selectedCards.filter(c => c.id !== card.id));
+        onSelectionChange(selectedCards.filter((c) => c.id !== card.id));
       } else {
         // Add to selection
         onSelectionChange([...selectedCards, card]);
@@ -96,19 +96,19 @@ const PlayerHand = ({
 
   // Check if card is selected
   const isCardSelected = (card) => {
-    return selectedCards.some(c => c.id === card.id);
+    return selectedCards.some((c) => c.id === card.id);
   };
 
   // Get current combination info
   const getCombinationInfo = () => {
     if (selectedCards.length === 0) return null;
-    
+
     const combo = identifyCombination(selectedCards);
-    if (!combo) return { text: 'Invalid Combination', isValid: false };
-    
-    return { 
-      text: COMBO_NAMES[combo.type] || 'Valid Combination', 
-      isValid: true 
+    if (!combo) return { text: "Invalid Combination", isValid: false };
+
+    return {
+      text: COMBO_NAMES[combo.type] || "Valid Combination",
+      isValid: true,
     };
   };
 
@@ -121,16 +121,18 @@ const PlayerHand = ({
         <div className="flex items-center gap-2">
           {showCardCount && (
             <div className="bg-gray-800 text-white px-2 py-0.5 rounded-full text-xs font-semibold border border-gray-600">
-              {hand.length} {hand.length === 1 ? 'card' : 'cards'}
+              {hand.length} {hand.length === 1 ? "card" : "cards"}
             </div>
           )}
-          
+
           {selectedCards.length > 0 && (
-            <div className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
-              comboInfo?.isValid 
-                ? 'bg-green-900/80 text-green-200 border-green-500' 
-                : 'bg-red-900/80 text-red-200 border-red-500'
-            }`}>
+            <div
+              className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                comboInfo?.isValid
+                  ? "bg-green-900/80 text-green-200 border-green-500"
+                  : "bg-red-900/80 text-red-200 border-red-500"
+              }`}
+            >
               {selectedCards.length} selected
               {comboInfo && ` • ${comboInfo.text}`}
             </div>
@@ -171,19 +173,16 @@ const PlayerHand = ({
            doesn't highlight text areas
         */}
         {hand.length > 0 && (
-          <div 
-            className="flex justify-center items-end overflow-x-auto pt-8 pb-4 px-4 select-none" 
-            style={{ minHeight: '140px' }}
+          <div
+            className="flex justify-center items-end overflow-x-auto pt-8 pb-4 px-4 select-none"
+            style={{ minHeight: "140px" }}
           >
             <div className="flex gap-2">
               {sortedHand.map((card) => {
                 const isSelected = isCardSelected(card);
 
                 return (
-                  <div
-                    key={card.id}
-                    className="flex-shrink-0"
-                  >
+                  <div key={card.id} className="flex-shrink-0">
                     <Card
                       card={card}
                       isSelected={isSelected}
