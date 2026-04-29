@@ -21,10 +21,10 @@ const MainMenu = () => {
       id: "muushig",
       title: "Muushig",
       description:
-        "Coming soon! Traditional Mongolian card game with unique rules and strategy.",
+        "Traditional Mongolian card game with unique rules and strategy. Currently in development — preview available!",
       emoji: "🃏",
-      available: false,
-      route: "/muushig",
+      available: true,
+      route: "/game-muushig",
       color: "from-green-500 to-teal-600",
     },
   ];
