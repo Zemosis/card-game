@@ -3,8 +3,9 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import MainMenu from "./pages/MainMenu";
-import GameThirteen from "./pages/GameThirteen";
-import LobbySelection from "./pages/LobbySelection";
+import GameThirteen from "./pages/thirteen/GameThirteen";
+import LobbySelection from "./pages/thirteen/LobbySelection";
+import GameMuushig from "./pages/muushig/GameMuushig";
 
 function App() {
   return (
@@ -12,9 +13,11 @@ function App() {
       <div className="app">
         <Routes>
           <Route path="/" element={<MainMenu />} />
-          <Route path="/game-13" element={<GameThirteen />} />
-          {/* NEW: Add the route for the lobby */}
+          {/* Game 13 */}
           <Route path="/lobby-13" element={<LobbySelection />} />
+          <Route path="/game-13" element={<GameThirteen />} />
+          {/* Muushig */}
+          <Route path="/game-muushig" element={<GameMuushig />} />
         </Routes>
       </div>
     </Router>
