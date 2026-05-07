@@ -571,7 +571,7 @@ const GameThirteen = () => {
         {/* TABLE */}
         <div className="relative flex flex-col min-h-0 px-6 py-2">
           {/* Top opponent */}
-          <div className="flex justify-center">
+          <div className="flex justify-center relative z-10">
             <OpponentSection
               player={topPlayer}
               isActive={gameState.currentPlayerIndex === topPlayer.id}
