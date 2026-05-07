@@ -9,7 +9,7 @@ import PlayArea from "../../components/thirteen/PlayArea";
 import GameControls from "../../components/thirteen/GameControls";
 import ScoreBoard from "../../components/thirteen/ScoreBoard";
 import GameChat from "../../components/thirteen/GameChat";
-import { getCardDisplay } from "../../utils/deckUtils";
+import { getCardDisplay, initializeGame } from "../../utils/deckUtils";
 
 import { createGameState, playCards, passAction } from "../../utils/gameLogic";
 import { validatePlay } from "../../utils/handEvaluator";
@@ -72,7 +72,7 @@ const GameThirteen = () => {
     if (soundManager && soundManager.init) soundManager.init();
 
     const initLocalGame = () => {
-      import("../../utils/deckUtils").then(({ initializeGame }) => {
+      {
         const { hands } = initializeGame();
         const initialState = createGameState(hands, 0, aiDifficulty);
 
@@ -87,7 +87,7 @@ const GameThirteen = () => {
         if (!isSoloGame) {
           socket.emit("send_initial_state", { lobbyId, gameState: initialState });
         }
-      });
+      }
     };
 
     if (isHost && !gameState) {
