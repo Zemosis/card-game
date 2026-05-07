@@ -310,9 +310,9 @@ const LobbySelection = () => {
 
           {/* Create Lobby */}
           <PixelPanel accent="cyan" title="⚔ HOST A TABLE ⚔">
-            <div className="p-1.5 flex flex-col gap-1.5">
+            <div className="p-1.5 flex flex-col gap-1">
               <div>
-                <div className="font-pixel-display text-[9px] text-bone/60 mb-1.5">
+                <div className="font-pixel-display text-[9px] text-bone/60 mb-1">
                   LOBBY NAME
                 </div>
                 <input
@@ -326,7 +326,7 @@ const LobbySelection = () => {
                   }}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <PixelButton
                   color="cyan"
                   size="md"
@@ -424,7 +424,7 @@ const LobbySelection = () => {
                 no server
               </span>
             </div>
-            <div className="p-1.5 flex gap-1.5">
+            <div className="p-1 flex gap-1.5">
               {[
                 {
                   l: "EASY",
@@ -456,7 +456,7 @@ const LobbySelection = () => {
                       setSelectedDifficulty(d.l);
                       handleQuickStart(d.l);
                     }}
-                    className="pixel-btn font-pixel-display text-[9px] flex-1 py-2 flex flex-col items-center gap-0.5"
+                    className="pixel-btn font-pixel-display text-[9px] flex-1 py-1.5 flex flex-col items-center gap-0.5"
                     style={{
                       backgroundColor: active ? d.c : "#0a0712",
                       borderColor: active ? d.bd : "#1f1a3d",
