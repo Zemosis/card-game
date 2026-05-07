@@ -28,6 +28,7 @@ const GameThirteen = () => {
     playerName,
     mySocketId,
     myPlayerIndex: fixedPlayerIndex,
+    aiDifficulty = "MEDIUM",
   } = location.state || {};
 
   const [gameState, setGameState] = useState(null);
@@ -73,7 +74,7 @@ const GameThirteen = () => {
     const initLocalGame = () => {
       import("../../utils/deckUtils").then(({ initializeGame }) => {
         const { hands } = initializeGame();
-        const initialState = createGameState(hands, 0);
+        const initialState = createGameState(hands, 0, aiDifficulty);
 
         if (initialState.players[0]) {
           initialState.players[0].name = playerName || "Host";
@@ -580,7 +581,7 @@ const GameThirteen = () => {
           </div>
 
           {/* Middle row: left + table + right */}
-          <div className="flex-1 flex items-center justify-between gap-6 my-2 min-h-0">
+          <div className="flex-1 flex items-center justify-between gap-6 mt-12 mb-2 min-h-0">
             <OpponentSection
               player={leftPlayer}
               isActive={gameState.currentPlayerIndex === leftPlayer.id}

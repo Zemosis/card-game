@@ -1,136 +1,464 @@
-// AI PLAYER - Decision Making & Strategy
-
 import { COMBO_TYPES, RANK_VALUES } from "./constants.js";
 import {
   groupByRank,
   groupBySuit,
   sortHand,
   findLowestCard,
-  findHighestCard,
 } from "./deckUtils.js";
 import {
   identifyCombination,
   validatePlay,
-  findValidPlays,
 } from "./handEvaluator.js";
 
-// AI DECISION MAKING
+// ============================================================
+// ENTRY POINT
+// ============================================================
 
-/**
- * Main AI decision function - decides whether to play or pass
- * @param {Object} player - AI player object
- * @param {Object|null} currentPlay - Current combination on table
- * @param {Object} gameState - Complete game state
- * @returns {Object} { action: 'play'|'pass', cards: Array|null }
- */
 export const makeAIDecision = (player, currentPlay, gameState) => {
+  const difficulty = gameState.aiDifficulty || "MEDIUM";
+
+  switch (difficulty) {
+    case "EASY":
+      return makeEasyDecision(player, currentPlay, gameState);
+    case "HARD":
+      return makeHardDecision(player, currentPlay, gameState);
+    default:
+      return makeMediumDecision(player, currentPlay, gameState);
+  }
+};
+
+// ============================================================
+// EASY — "The Fumbler"
+// Always plays if it can. Leads with lowest single. No strategy.
+// ============================================================
+
+const makeEasyDecision = (player, currentPlay) => {
   const hand = player.hand;
 
-  // If leading (no current play), play lowest safe combination
   if (!currentPlay) {
-    return leadPlay(hand, gameState);
+    return easyLeadPlay(hand);
   }
 
-  // Try to find a play that beats current combination
+  return easyRespondPlay(hand, currentPlay);
+};
+
+const easyLeadPlay = (hand) => {
+  const lowestCard = findLowestCard(hand);
+  return { action: "play", cards: [lowestCard] };
+};
+
+const easyRespondPlay = (hand, currentPlay) => {
   const validPlays = findValidPlaysFromHand(hand, currentPlay);
 
   if (validPlays.length === 0) {
     return { action: "pass", cards: null };
   }
 
-  // Decide whether to play or pass strategically
-  const shouldPlay = evaluatePlayingStrategy(
-    player,
-    validPlays,
-    currentPlay,
-    gameState,
-  );
-
-  if (!shouldPlay) {
-    return { action: "pass", cards: null };
-  }
-
-  // Select best play from valid options
-  const selectedPlay = selectBestPlay(validPlays, hand, gameState);
-
-  return {
-    action: "play",
-    cards: selectedPlay.cards,
-  };
+  validPlays.sort((a, b) => a.rank - b.rank);
+  return { action: "play", cards: validPlays[0].cards };
 };
 
-// LEADING PLAY (When AI starts the trick)
+// ============================================================
+// MEDIUM — "The Competent Player"
+// Deterministic rules, pair preservation, 2s management.
+// ============================================================
 
-/**
- * AI decides what to play when leading
- */
-const leadPlay = (hand, gameState) => {
-  const cardsLeft = hand.length;
+const makeMediumDecision = (player, currentPlay, gameState) => {
+  const hand = player.hand;
 
-  // If only one card left, play it
-  if (cardsLeft === 1) {
+  if (!currentPlay) {
+    return mediumLeadPlay(hand, gameState);
+  }
+
+  return mediumRespondPlay(hand, currentPlay, gameState);
+};
+
+const mediumLeadPlay = (hand, gameState) => {
+  if (hand.length === 1) {
     return { action: "play", cards: hand };
   }
 
-  // Try to find pairs, triples, or four-of-a-kind (efficient plays)
   const groups = groupByRank(hand);
-
-  // Look for pairs/triples/quads starting from lowest
-  for (const rank of Object.keys(groups).sort(
+  const ranksAsc = Object.keys(groups).sort(
     (a, b) => RANK_VALUES[a] - RANK_VALUES[b],
-  )) {
+  );
+
+  for (const rank of ranksAsc) {
+    if (RANK_VALUES[rank] >= 12) continue; // save 2s
+
     const group = groups[rank];
 
-    // Play four of a kind (powerful, get rid of 4 cards)
     if (group.length === 4) {
       return { action: "play", cards: group };
     }
-
-    // Play triple
     if (group.length === 3) {
       return { action: "play", cards: group };
     }
+  }
 
-    // Play pair (if less than 8 cards left, be more aggressive)
-    if (group.length === 2 && cardsLeft < 8) {
-      return { action: "play", cards: group };
+  for (const rank of ranksAsc) {
+    if (RANK_VALUES[rank] >= 12) continue;
+    if (groups[rank].length === 2) {
+      return { action: "play", cards: groups[rank] };
     }
   }
 
-  // Check for 5-card combinations (straights, flushes, etc.)
-  if (cardsLeft >= 5) {
-    const fiveCardPlay = findBest5CardCombo(hand);
-    if (fiveCardPlay) {
-      return { action: "play", cards: fiveCardPlay };
+  if (hand.length >= 5) {
+    const fiveCard = findBest5CardCombo(hand);
+    if (fiveCard) {
+      return { action: "play", cards: fiveCard };
     }
   }
 
-  // Default: play lowest single card
-  const lowestCard = findLowestCard(hand);
-  return { action: "play", cards: [lowestCard] };
+  // lowest single that isn't part of a pair and isn't a 2
+  const sorted = sortHand(hand);
+  for (const card of sorted) {
+    if (card.rankValue >= 12) continue;
+    if (groups[card.rank].length === 1) {
+      return { action: "play", cards: [card] };
+    }
+  }
+
+  // fallback: lowest single even if part of pair (but not a 2)
+  for (const card of sorted) {
+    if (card.rankValue >= 12) continue;
+    return { action: "play", cards: [card] };
+  }
+
+  // only 2s left
+  return { action: "play", cards: [sorted[0]] };
 };
 
-// FIND VALID PLAYS FROM HAND
+const mediumRespondPlay = (hand, currentPlay, gameState) => {
+  const validPlays = findValidPlaysFromHand(hand, currentPlay);
 
-/**
- * Finds all valid plays that can beat current combination
- */
+  if (validPlays.length === 0) {
+    return { action: "pass", cards: null };
+  }
+
+  validPlays.sort((a, b) => a.rank - b.rank);
+
+  const opponentDanger = isOpponentDangerous(gameState);
+
+  if (hand.length <= 3) {
+    return { action: "play", cards: validPlays[0].cards };
+  }
+
+  // filter out plays that use only Aces/2s
+  const cheapPlays = validPlays.filter(
+    (p) => !p.cards.every((c) => c.rankValue >= 11),
+  );
+
+  if (cheapPlays.length > 0) {
+    return { action: "play", cards: cheapPlays[0].cards };
+  }
+
+  // only expensive plays remain — play if opponent is dangerous
+  if (opponentDanger) {
+    return { action: "play", cards: validPlays[0].cards };
+  }
+
+  return { action: "pass", cards: null };
+};
+
+const isOpponentDangerous = (gameState) => {
+  return gameState.players.some(
+    (p) =>
+      p.type !== "HUMAN" &&
+      !p.isEliminated &&
+      p.hand.length > 0 &&
+      p.hand.length <= 3,
+  );
+};
+
+// ============================================================
+// HARD — "The Card Counter"
+// Card tracking, hand decomposition, strategic play/pass.
+// ============================================================
+
+const makeHardDecision = (player, currentPlay, gameState) => {
+  const hand = player.hand;
+  const tracker = buildCardTracker(gameState, hand);
+  const plan = decomposeHand(hand);
+
+  if (!currentPlay) {
+    return hardLeadPlay(hand, gameState, tracker, plan);
+  }
+
+  return hardRespondPlay(hand, currentPlay, gameState, tracker, plan);
+};
+
+const hardLeadPlay = (hand, gameState, tracker, plan) => {
+  if (hand.length === 1) {
+    return { action: "play", cards: hand };
+  }
+
+  // endgame: play unbeatable cards to chain leads
+  if (hand.length <= 5) {
+    const unbeatables = findUnbeatableCards(hand, tracker);
+    if (unbeatables.length > 0) {
+      // play lowest non-unbeatable card first (save unbeatables for control)
+      const expendable = hand.filter(
+        (c) => !unbeatables.some((u) => u.id === c.id),
+      );
+      if (expendable.length > 0) {
+        const lowest = findLowestCard(expendable);
+        return { action: "play", cards: [lowest] };
+      }
+      // all cards are unbeatable — play lowest
+      return { action: "play", cards: [findLowestCard(hand)] };
+    }
+  }
+
+  // lead from planned combos (largest first to shed cards faster)
+  const plannedMulti = plan.plays.filter((p) => p.cards.length > 1);
+  plannedMulti.sort((a, b) => {
+    if (b.cards.length !== a.cards.length) return b.cards.length - a.cards.length;
+    const aMin = Math.min(...a.cards.map((c) => c.rankValue));
+    const bMin = Math.min(...b.cards.map((c) => c.rankValue));
+    return aMin - bMin;
+  });
+
+  for (const combo of plannedMulti) {
+    // don't lead with combos that contain 2s unless endgame
+    if (combo.cards.some((c) => c.rankValue >= 12) && hand.length > 5) continue;
+    return { action: "play", cards: combo.cards };
+  }
+
+  // lead with lowest single that isn't in a planned multi-card combo and isn't a 2
+  const plannedMultiCardIds = new Set(
+    plannedMulti.flatMap((p) => p.cards.map((c) => c.id)),
+  );
+  const freeSingles = sortHand(
+    hand.filter((c) => !plannedMultiCardIds.has(c.id) && c.rankValue < 12),
+  );
+
+  if (freeSingles.length > 0) {
+    return { action: "play", cards: [freeSingles[0]] };
+  }
+
+  // fallback: lowest single not a 2
+  const sorted = sortHand(hand);
+  for (const card of sorted) {
+    if (card.rankValue < 12) {
+      return { action: "play", cards: [card] };
+    }
+  }
+
+  return { action: "play", cards: [sorted[0]] };
+};
+
+const hardRespondPlay = (hand, currentPlay, gameState, tracker, plan) => {
+  const validPlays = findValidPlaysFromHand(hand, currentPlay);
+
+  if (validPlays.length === 0) {
+    return { action: "pass", cards: null };
+  }
+
+  validPlays.sort((a, b) => a.rank - b.rank);
+
+  // always play with ≤3 cards
+  if (hand.length <= 3) {
+    return { action: "play", cards: validPlays[0].cards };
+  }
+
+  // always block dangerous opponents
+  const dangerousOpponents = gameState.players.filter(
+    (p, i) =>
+      i !== gameState.currentPlayerIndex &&
+      !p.isEliminated &&
+      p.hand.length > 0 &&
+      p.hand.length <= 3,
+  );
+
+  if (dangerousOpponents.length > 0) {
+    return { action: "play", cards: validPlays[0].cards };
+  }
+
+  // classify plays as "free" or "costly"
+  const plannedMultiCardIds = new Set(
+    plan.plays
+      .filter((p) => p.cards.length > 1)
+      .flatMap((p) => p.cards.map((c) => c.id)),
+  );
+
+  const freePlays = validPlays.filter(
+    (p) => !p.cards.some((c) => plannedMultiCardIds.has(c.id)),
+  );
+
+  if (freePlays.length > 0) {
+    return { action: "play", cards: freePlays[0].cards };
+  }
+
+  // costly play — check if we have an unbeatable card to reclaim lead
+  const unbeatables = findUnbeatableCards(hand, tracker);
+  if (unbeatables.length > 0) {
+    // worth spending a combo if we can get lead back with an unbeatable
+    return { action: "play", cards: validPlays[0].cards };
+  }
+
+  // pass to preserve hand structure
+  return { action: "pass", cards: null };
+};
+
+// ============================================================
+// HARD MODE HELPERS
+// ============================================================
+
+const buildCardTracker = (gameState, playerHand) => {
+  const playedCards = new Set();
+
+  for (const move of gameState.moveHistory) {
+    if (move.action === "play" && move.cards) {
+      for (const card of move.cards) {
+        playedCards.add(card.id);
+      }
+    }
+  }
+
+  const handIds = new Set(playerHand.map((c) => c.id));
+
+  const remainingHighCards = [];
+  for (const rank of ["A", "2"]) {
+    for (const suit of ["♦", "♣", "♥", "♠"]) {
+      const id = `${rank}${suit}`;
+      if (!playedCards.has(id) && !handIds.has(id)) {
+        remainingHighCards.push({ rank, suit, id, rankValue: RANK_VALUES[rank] });
+      }
+    }
+  }
+
+  const opponentCardCounts = gameState.players.map((p) => p.hand.length);
+
+  return { playedCards, remainingHighCards, opponentCardCounts };
+};
+
+const decomposeHand = (hand) => {
+  const plays = [];
+  const used = new Set();
+
+  const groups = groupByRank(hand);
+  const ranksDesc = Object.keys(groups).sort(
+    (a, b) => RANK_VALUES[b] - RANK_VALUES[a],
+  );
+
+  // extract quads
+  for (const rank of ranksDesc) {
+    if (groups[rank].length === 4 && !groups[rank].some((c) => used.has(c.id))) {
+      plays.push({ type: COMBO_TYPES.FOUR_OF_A_KIND, cards: groups[rank] });
+      groups[rank].forEach((c) => used.add(c.id));
+    }
+  }
+
+  // extract triples
+  for (const rank of ranksDesc) {
+    const available = groups[rank].filter((c) => !used.has(c.id));
+    if (available.length >= 3) {
+      const triple = available.slice(0, 3);
+      plays.push({ type: COMBO_TYPES.TRIPLE, cards: triple });
+      triple.forEach((c) => used.add(c.id));
+    }
+  }
+
+  // extract pairs
+  for (const rank of ranksDesc) {
+    const available = groups[rank].filter((c) => !used.has(c.id));
+    if (available.length >= 2) {
+      const pair = available.slice(0, 2);
+      plays.push({ type: COMBO_TYPES.PAIR, cards: pair });
+      pair.forEach((c) => used.add(c.id));
+    }
+  }
+
+  // check remaining for straights
+  const remaining = hand.filter((c) => !used.has(c.id));
+  if (remaining.length >= 5) {
+    const straights = findStraights(remaining);
+    if (straights.length > 0) {
+      const straight = straights[0];
+      plays.push({ type: COMBO_TYPES.STRAIGHT, cards: straight });
+      straight.forEach((c) => used.add(c.id));
+    }
+  }
+
+  // check remaining for flushes
+  const remaining2 = hand.filter((c) => !used.has(c.id));
+  if (remaining2.length >= 5) {
+    const flushes = findFlushes(remaining2);
+    if (flushes.length > 0) {
+      const flush = flushes[0];
+      plays.push({ type: COMBO_TYPES.FLUSH, cards: flush });
+      flush.forEach((c) => used.add(c.id));
+    }
+  }
+
+  // remaining singles
+  const leftover = hand.filter((c) => !used.has(c.id));
+  for (const card of sortHand(leftover)) {
+    plays.push({ type: COMBO_TYPES.SINGLE, cards: [card] });
+  }
+
+  return { plays, totalPlays: plays.length };
+};
+
+const findUnbeatableCards = (hand, tracker) => {
+  const unbeatables = [];
+
+  for (const card of hand) {
+    let isHighest = true;
+
+    // check if any unplayed card not in our hand can beat this as a single
+    for (let rv = card.rankValue + 1; rv <= 12; rv++) {
+      const rank = Object.keys(RANK_VALUES).find((k) => RANK_VALUES[k] === rv);
+      if (!rank) continue;
+      for (const suit of ["♦", "♣", "♥", "♠"]) {
+        const id = `${rank}${suit}`;
+        if (!tracker.playedCards.has(id) && !hand.some((c) => c.id === id)) {
+          isHighest = false;
+          break;
+        }
+      }
+      if (!isHighest) break;
+    }
+
+    // also check same rank higher suit
+    if (isHighest) {
+      for (const suit of ["♦", "♣", "♥", "♠"]) {
+        const suitVal = { "♦": 0, "♣": 1, "♥": 2, "♠": 3 }[suit];
+        if (suitVal > card.suitValue) {
+          const id = `${card.rank}${suit}`;
+          if (!tracker.playedCards.has(id) && !hand.some((c) => c.id === id)) {
+            isHighest = false;
+            break;
+          }
+        }
+      }
+    }
+
+    if (isHighest) {
+      unbeatables.push(card);
+    }
+  }
+
+  return unbeatables;
+};
+
+// ============================================================
+// SHARED UTILITIES
+// ============================================================
+
 const findValidPlaysFromHand = (hand, currentPlay) => {
   const targetLength = currentPlay.cards.length;
   const possiblePlays = [];
 
-  // Generate combinations of the same length
   if (targetLength === 1) {
-    // Single cards that beat current
     for (const card of hand) {
-      const combo = identifyCombination([card]);
       const validation = validatePlay([card], currentPlay);
       if (validation.valid) {
-        possiblePlays.push(combo);
+        possiblePlays.push(identifyCombination([card]));
       }
     }
   } else if (targetLength === 2) {
-    // Pairs
     const groups = groupByRank(hand);
     for (const rank of Object.keys(groups)) {
       if (groups[rank].length >= 2) {
@@ -142,7 +470,6 @@ const findValidPlaysFromHand = (hand, currentPlay) => {
       }
     }
   } else if (targetLength === 3) {
-    // Triples
     const groups = groupByRank(hand);
     for (const rank of Object.keys(groups)) {
       if (groups[rank].length >= 3) {
@@ -154,7 +481,6 @@ const findValidPlaysFromHand = (hand, currentPlay) => {
       }
     }
   } else if (targetLength === 4) {
-    // Four of a kind
     const groups = groupByRank(hand);
     for (const rank of Object.keys(groups)) {
       if (groups[rank].length === 4) {
@@ -166,7 +492,6 @@ const findValidPlaysFromHand = (hand, currentPlay) => {
       }
     }
   } else if (targetLength === 5) {
-    // 5-card combinations
     const fiveCardCombos = findAll5CardCombos(hand);
     for (const combo of fiveCardCombos) {
       const validation = validatePlay(combo, currentPlay);
@@ -179,26 +504,17 @@ const findValidPlaysFromHand = (hand, currentPlay) => {
   return possiblePlays;
 };
 
-// 5-CARD COMBINATION FINDING
-
-/**
- * Finds best 5-card combination in hand
- */
 const findBest5CardCombo = (hand) => {
   const combos = findAll5CardCombos(hand);
-
   if (combos.length === 0) return null;
 
-  // Prefer straights and flushes (easier to make)
   for (const combo of combos) {
     const identified = identifyCombination(combo);
     if (
       identified &&
-      [
-        COMBO_TYPES.STRAIGHT,
-        COMBO_TYPES.FLUSH,
-        COMBO_TYPES.FULL_HOUSE,
-      ].includes(identified.type)
+      [COMBO_TYPES.STRAIGHT, COMBO_TYPES.FLUSH, COMBO_TYPES.FULL_HOUSE].includes(
+        identified.type,
+      )
     ) {
       return combo;
     }
@@ -207,32 +523,16 @@ const findBest5CardCombo = (hand) => {
   return combos[0];
 };
 
-/**
- * Finds all possible 5-card combinations
- */
 const findAll5CardCombos = (hand) => {
   if (hand.length < 5) return [];
 
   const combos = [];
-
-  // Check for straights
-  const straights = findStraights(hand);
-  combos.push(...straights);
-
-  // Check for flushes
-  const flushes = findFlushes(hand);
-  combos.push(...flushes);
-
-  // Check for full houses
-  const fullHouses = findFullHouses(hand);
-  combos.push(...fullHouses);
-
+  combos.push(...findStraights(hand));
+  combos.push(...findFlushes(hand));
+  combos.push(...findFullHouses(hand));
   return combos;
 };
 
-/**
- * Finds straight combinations
- */
 const findStraights = (hand) => {
   const sorted = sortHand(hand);
   const straights = [];
@@ -256,16 +556,12 @@ const findStraights = (hand) => {
   return straights;
 };
 
-/**
- * Finds flush combinations
- */
 const findFlushes = (hand) => {
   const groups = groupBySuit(hand);
   const flushes = [];
 
   for (const suit of Object.keys(groups)) {
     if (groups[suit].length >= 5) {
-      // Take lowest 5 cards of same suit
       const sorted = sortHand(groups[suit]);
       flushes.push(sorted.slice(0, 5));
     }
@@ -274,9 +570,6 @@ const findFlushes = (hand) => {
   return flushes;
 };
 
-/**
- * Finds full house combinations
- */
 const findFullHouses = (hand) => {
   const groups = groupByRank(hand);
   const fullHouses = [];
@@ -293,10 +586,8 @@ const findFullHouses = (hand) => {
     }
   }
 
-  // Combine triples with pairs
   for (const triple of triples) {
     for (const pair of pairs) {
-      // Make sure they're different ranks
       if (triple[0].rank !== pair[0].rank) {
         fullHouses.push([...triple, ...pair]);
       }
@@ -306,92 +597,10 @@ const findFullHouses = (hand) => {
   return fullHouses;
 };
 
-// STRATEGIC DECISION MAKING
-
-/**
- * Evaluates whether AI should play or pass strategically
- */
-const evaluatePlayingStrategy = (
-  player,
-  validPlays,
-  currentPlay,
-  gameState,
-) => {
-  const hand = player.hand;
-  const cardsLeft = hand.length;
-
-  // Always play if only 1-2 cards left
-  if (cardsLeft <= 2) {
-    return true;
-  }
-
-  // If close to winning (3-5 cards), be more aggressive
-  if (cardsLeft <= 5) {
-    // Play if we have a strong play
-    const bestPlay = validPlays[0];
-    if (
-      bestPlay.type === COMBO_TYPES.FOUR_OF_A_KIND ||
-      bestPlay.type === COMBO_TYPES.TRIPLE
-    ) {
-      return true;
-    }
-    // 50% chance to play otherwise
-    return Math.random() > 0.5;
-  }
-
-  // If current play is weak (single low card), consider playing
-  if (currentPlay.type === COMBO_TYPES.SINGLE && currentPlay.rank < 6) {
-    // 60% chance to play
-    return Math.random() > 0.4;
-  }
-
-  // If we have many high-value cards, be conservative
-  const highCards = hand.filter((card) => card.rankValue >= 9).length;
-  if (highCards >= 5) {
-    // 30% chance to play
-    return Math.random() > 0.7;
-  }
-
-  // Default: 50-50 decision
-  return Math.random() > 0.5;
-};
-
-/**
- * Selects the best play from valid options
- */
-const selectBestPlay = (validPlays, hand, gameState) => {
-  const cardsLeft = hand.length;
-
-  // If close to winning, play to empty hand
-  if (cardsLeft <= 5) {
-    // Prefer plays that leave fewer cards
-    validPlays.sort((a, b) => b.cards.length - a.cards.length);
-    return validPlays[0];
-  }
-
-  // Otherwise, play lowest value combination
-  validPlays.sort((a, b) => {
-    // Prefer lower rank
-    if (a.rank !== b.rank) {
-      return a.rank - b.rank;
-    }
-    // If same rank, prefer single over pair, etc.
-    return a.cards.length - b.cards.length;
-  });
-
-  return validPlays[0];
-};
-
-// UTILITY FUNCTIONS
-
-/**
- * Evaluates hand strength (for future advanced AI)
- */
 export const evaluateHandStrength = (hand) => {
   const groups = groupByRank(hand);
   let strength = 0;
 
-  // Count pairs, triples, quads
   for (const rank of Object.keys(groups)) {
     const count = groups[rank].length;
     if (count === 4) strength += 10;
@@ -399,7 +608,6 @@ export const evaluateHandStrength = (hand) => {
     else if (count === 2) strength += 3;
   }
 
-  // Add value for high cards
   const highCards = hand.filter((card) => card.rankValue >= 10).length;
   strength += highCards * 2;
 

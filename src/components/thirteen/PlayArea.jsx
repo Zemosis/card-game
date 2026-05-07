@@ -11,12 +11,13 @@ const PlayArea = ({
 }) => {
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div className="relative" style={{ width: "100%", maxWidth: 480 }}>
+      <div className="relative" style={{ width: "100%", maxWidth: 800 }}>
         {/* Felt mat */}
         <div
-          className="relative felt-bg"
+          className="relative felt-bg flex flex-col items-center justify-center"
           style={{
             padding: 20,
+            height: 260,
             border: "4px solid #2e0f1d",
             boxShadow:
               "0 0 0 4px #0a0712, " +
@@ -40,17 +41,6 @@ const PlayArea = ({
 
           {!currentPlay && (
             <div className="text-center py-4">
-              <div
-                style={{
-                  fontSize: 32,
-                  fontFamily: "'Press Start 2P', monospace",
-                  color: "#463a78",
-                  textShadow: "2px 2px 0 #0a0712",
-                  marginBottom: 12,
-                }}
-              >
-                🃏
-              </div>
               <div className="font-pixel-display text-[10px] text-bone/50 tracking-wider">
                 WAITING FOR FIRST PLAY...
               </div>

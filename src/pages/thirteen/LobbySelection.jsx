@@ -18,6 +18,7 @@ const LobbySelection = () => {
   const [error, setError] = useState("");
   const [publicLobbies, setPublicLobbies] = useState([]);
   const [selectedLobby, setSelectedLobby] = useState(null);
+  const [selectedDifficulty, setSelectedDifficulty] = useState("MEDIUM");
 
   useEffect(() => {
     socket.emit("get_public_lobbies");
@@ -47,7 +48,7 @@ const LobbySelection = () => {
     };
   }, [navigate, playerName]);
 
-  const handleQuickStart = () => {
+  const handleQuickStart = (difficulty) => {
     if (!playerName.trim()) {
       setError("Enter a name first!");
       return;
@@ -60,6 +61,7 @@ const LobbySelection = () => {
         playerName: playerName.trim(),
         mySocketId: socket.id || `solo-${Date.now()}`,
         myPlayerIndex: 0,
+        aiDifficulty: difficulty || selectedDifficulty,
       },
     });
   };
@@ -320,7 +322,6 @@ const LobbySelection = () => {
                   bd: "#c89820",
                   tx: "#1a1024",
                   skulls: 2,
-                  active: true,
                 },
                 {
                   l: "HARD",
@@ -329,29 +330,35 @@ const LobbySelection = () => {
                   tx: "#3a0e1a",
                   skulls: 3,
                 },
-              ].map((d) => (
-                <button
-                  key={d.l}
-                  onClick={handleQuickStart}
-                  className="pixel-btn font-pixel-display text-[9px] flex-1 py-2 flex flex-col items-center gap-0.5"
-                  style={{
-                    backgroundColor: d.active ? d.c : "#0a0712",
-                    borderColor: d.active ? d.bd : "#1f1a3d",
-                    color: d.active ? d.tx : d.c,
-                    boxShadow: d.active
-                      ? "inset 0 2px 0 0 rgba(255,255,255,0.18), inset 0 -2px 0 0 rgba(0,0,0,0.4), 0 4px 0 0 #0a0712"
-                      : "inset 0 2px 0 0 rgba(255,255,255,0.04), 0 2px 0 0 #0a0712",
-                  }}
-                >
-                  <span>{d.l}</span>
-                  <span style={{ fontSize: 8, letterSpacing: 1 }}>
-                    {"☠".repeat(d.skulls)}
-                    <span style={{ opacity: 0.25 }}>
-                      {"☠".repeat(3 - d.skulls)}
+              ].map((d) => {
+                const active = d.l === selectedDifficulty;
+                return (
+                  <button
+                    key={d.l}
+                    onClick={() => {
+                      setSelectedDifficulty(d.l);
+                      handleQuickStart(d.l);
+                    }}
+                    className="pixel-btn font-pixel-display text-[9px] flex-1 py-2 flex flex-col items-center gap-0.5"
+                    style={{
+                      backgroundColor: active ? d.c : "#0a0712",
+                      borderColor: active ? d.bd : "#1f1a3d",
+                      color: active ? d.tx : d.c,
+                      boxShadow: active
+                        ? "inset 0 2px 0 0 rgba(255,255,255,0.18), inset 0 -2px 0 0 rgba(0,0,0,0.4), 0 4px 0 0 #0a0712"
+                        : "inset 0 2px 0 0 rgba(255,255,255,0.04), 0 2px 0 0 #0a0712",
+                    }}
+                  >
+                    <span>{d.l}</span>
+                    <span style={{ fontSize: 8, letterSpacing: 1 }}>
+                      {"☠".repeat(d.skulls)}
+                      <span style={{ opacity: 0.25 }}>
+                        {"☠".repeat(3 - d.skulls)}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

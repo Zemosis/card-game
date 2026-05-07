@@ -12,7 +12,7 @@ import { validatePlay } from "./handEvaluator.js";
  * @param {Number} startingPlayer - Index of player who starts (dealer's left)
  * @returns {Object} Complete game state
  */
-export const createGameState = (hands, startingPlayer = 0) => {
+export const createGameState = (hands, startingPlayer = 0, aiDifficulty) => {
   const players = hands.map((hand, index) => ({
     id: index,
     hand: hand,
@@ -36,6 +36,7 @@ export const createGameState = (hands, startingPlayer = 0) => {
     gameState: GAME_STATES.PLAYING,
     passCount: 0,
     moveHistory: [],
+    aiDifficulty: aiDifficulty || "MEDIUM",
   };
 };
 

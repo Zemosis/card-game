@@ -73,11 +73,9 @@ const PlayerHand = ({
       {/* Status bar above hand */}
       <div className="flex items-center justify-between mb-2 px-2">
         <div className="flex items-center gap-3">
-          {isActive && (
-            <div className="font-pixel-display text-[10px] text-glow-gold">
-              YOUR TURN
-            </div>
-          )}
+          <div className="font-pixel-display text-[10px] text-glow-gold" style={{ opacity: isActive ? 1 : 0.5 }}>
+            {isActive ? "YOUR TURN" : "WAITING"}
+          </div>
           <div className="font-pixel-body text-base text-bone/70">
             {showCardCount && <>{sortedHand.length} cards</>}
             {selectedCards.length > 0 && (
@@ -98,11 +96,10 @@ const PlayerHand = ({
             )}
           </div>
         </div>
-        {isActive && hand.length > 0 && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" style={{ visibility: hand.length > 0 ? "visible" : "hidden", opacity: isActive ? 1 : 0.5 }}>
             <button
               onClick={handleClearSelection}
-              disabled={selectedCards.length === 0}
+              disabled={selectedCards.length === 0 || !isActive}
               className="pixel-btn font-pixel-display text-[9px] px-2.5 py-1.5"
               style={{
                 backgroundColor: "#1f1a3d",
@@ -114,6 +111,7 @@ const PlayerHand = ({
             </button>
             <button
               onClick={handleSelectAll}
+              disabled={!isActive}
               className="pixel-btn font-pixel-display text-[9px] px-2.5 py-1.5"
               style={{
                 backgroundColor: "#463a78",
@@ -124,7 +122,6 @@ const PlayerHand = ({
               ALL
             </button>
           </div>
-        )}
       </div>
 
       {/* Hand fan */}
@@ -169,11 +166,9 @@ const PlayerHand = ({
         </div>
       )}
 
-      {!isActive && hand.length > 0 && (
-        <div className="text-center font-pixel-body text-sm text-bone/50 mt-1">
-          Waiting for your turn...
-        </div>
-      )}
+      <div className="text-center font-pixel-body text-sm mt-1" style={{ visibility: !isActive && hand.length > 0 ? "visible" : "hidden", color: "rgba(234,216,177,0.5)" }}>
+        Waiting for your turn...
+      </div>
     </div>
   );
 };

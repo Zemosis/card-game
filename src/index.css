@@ -251,7 +251,6 @@ html, body, #root { height: 100%; }
   font-family: 'Press Start 2P', monospace;
   font-size: 9px;
   line-height: 1;
-  color: #1a1024;
 }
 .pixel-card.large .corner { font-size: 11px; }
 .pixel-card.small .corner { font-size: 7px; }
@@ -273,7 +272,6 @@ html, body, #root { height: 100%; }
   align-items: center;
   justify-content: center;
   font-family: 'Press Start 2P', monospace;
-  color: #1a1024;
 }
 .pixel-card.large .center-suit { font-size: 32px; }
 .pixel-card .center-suit { font-size: 22px; }
