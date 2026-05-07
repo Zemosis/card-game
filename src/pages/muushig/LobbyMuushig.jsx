@@ -149,10 +149,10 @@ const LobbyMuushig = () => {
       {/* MAIN GRID */}
       <div className="flex-1 grid grid-cols-[400px_1fr] gap-3 p-3 min-h-0">
         {/* LEFT — actions */}
-        <div className="flex flex-col gap-2 min-h-0">
+        <div className="flex flex-col gap-1.5 min-h-0">
           {/* Player Card */}
           <PixelPanel accent="gold" title="✦ ADVENTURER ✦">
-            <div className="p-2 flex items-center gap-3">
+            <div className="p-1.5 flex items-center gap-3">
               <div style={{ position: "relative" }}>
                 <PixelAvatar variant="me" size={48} />
                 <div
@@ -167,9 +167,6 @@ const LobbyMuushig = () => {
                 </div>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-pixel-display text-[10px] text-bone/60 mb-1">
-                  CALLSIGN
-                </div>
                 <input
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
@@ -190,7 +187,7 @@ const LobbyMuushig = () => {
 
           {/* Create Lobby */}
           <PixelPanel accent="cyan" title="⚔ HOST A TABLE ⚔">
-            <div className="p-2 flex flex-col gap-2">
+            <div className="p-1.5 flex flex-col gap-1.5">
               <div>
                 <div className="font-pixel-display text-[9px] text-bone/60 mb-1.5">
                   LOBBY NAME
@@ -227,8 +224,8 @@ const LobbyMuushig = () => {
 
           {/* Join via Code */}
           <PixelPanel accent="rose" title="✉ JOIN BY CODE ✉">
-            <div className="p-2">
-              <div className="flex gap-1.5 mb-2">
+            <div className="p-1.5">
+              <div className="flex gap-1.5 mb-1.5">
                 {codeChars.map((ch, i) => (
                   <div
                     key={i}
@@ -304,7 +301,7 @@ const LobbyMuushig = () => {
                 no server
               </span>
             </div>
-            <div className="p-2 flex gap-1.5">
+            <div className="p-1.5 flex gap-1.5">
               {[
                 {
                   l: "EASY",

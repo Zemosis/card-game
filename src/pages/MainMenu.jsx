@@ -7,10 +7,14 @@ import {
   PixelButton,
   PixelAvatar,
 } from "../components/PixelCard";
+import { useAuth } from "../hooks/useAuth";
+import LoginModal from "../components/auth/LoginModal";
 
 const MainMenu = () => {
   const navigate = useNavigate();
   const [hovered, setHovered] = useState(null);
+  const [showLogin, setShowLogin] = useState(false);
+  const { identity, isGuest, signOut } = useAuth();
 
   return (
     <div className="relative w-full h-screen starfield font-pixel-body text-parchment overflow-hidden flex flex-col">
@@ -64,20 +68,27 @@ const MainMenu = () => {
               boxShadow: "inset 0 2px 0 0 rgba(255,255,255,0.06)",
             }}
           >
-            <PixelAvatar variant="me" size={24} />
+            <PixelAvatar variant={isGuest ? identity.avatar : identity.avatar || "me"} size={24} />
             <div>
               <div className="font-pixel-display text-[8px] text-bone uppercase">
-                Guest
+                {isGuest ? "Guest" : "Player"}
               </div>
               <div className="font-pixel-body text-xs text-parchment leading-none">
-                Wanderer #4719
+                {identity.name} #{identity.tag}
               </div>
             </div>
           </div>
-          <PixelButton color="gold" size="md" onClick={() => {}}>
-            <span>☻</span>
-            <span className="ml-2">Sign In</span>
-          </PixelButton>
+          {isGuest ? (
+            <PixelButton color="gold" size="md" onClick={() => setShowLogin(true)}>
+              <span>☻</span>
+              <span className="ml-2">Sign In</span>
+            </PixelButton>
+          ) : (
+            <PixelButton color="dusk" size="md" onClick={signOut}>
+              <span>◄</span>
+              <span className="ml-2">Sign Out</span>
+            </PixelButton>
+          )}
           <button
             className="pixel-btn font-pixel-display text-xs px-4 py-2.5 uppercase relative"
             style={{
@@ -219,6 +230,8 @@ const MainMenu = () => {
           </div>
         </div>
       </div>
+
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
     </div>
   );
 };

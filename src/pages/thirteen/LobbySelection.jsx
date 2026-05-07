@@ -8,17 +8,70 @@ import {
   PixelPanel,
   PixelAvatar,
 } from "../../components/PixelCard";
+import { useAuth } from "../../hooks/useAuth";
+import AvatarPicker from "../../components/auth/AvatarPicker";
 
 const LobbySelection = () => {
   const navigate = useNavigate();
+  const { identity, isGuest, updateProfile } = useAuth();
 
-  const [playerName, setPlayerName] = useState("Wanderer #4719");
+  const [editName, setEditName] = useState(identity.name);
+  const [editTag, setEditTag] = useState(identity.tag);
+  const [editAvatar, setEditAvatar] = useState(identity.avatar);
+  const [profileDirty, setProfileDirty] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const playerName = `${identity.name} #${identity.tag}`;
   const [lobbyName, setLobbyName] = useState("Khuzur's Hideout");
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState("");
   const [publicLobbies, setPublicLobbies] = useState([]);
   const [selectedLobby, setSelectedLobby] = useState(null);
   const [selectedDifficulty, setSelectedDifficulty] = useState("MEDIUM");
+
+  useEffect(() => {
+    setEditName(identity.name);
+    setEditTag(identity.tag);
+    setEditAvatar(identity.avatar);
+    setProfileDirty(false);
+  }, [identity.name, identity.tag, identity.avatar]);
+
+  function handleNameChange(val) {
+    const clean = val.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+    setEditName(clean);
+    setProfileDirty(true);
+  }
+
+  function handleTagChange(val) {
+    const clean = val.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
+    setEditTag(clean);
+    setProfileDirty(true);
+  }
+
+  function handleAvatarChange(v) {
+    setEditAvatar(v);
+    setProfileDirty(true);
+  }
+
+  async function handleSaveProfile() {
+    if (!editName.trim() || !editTag.trim()) {
+      setError("Name and tag cannot be empty");
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      await updateProfile({
+        username: editName,
+        tag: editTag,
+        avatar: editAvatar,
+      });
+      setProfileDirty(false);
+    } catch (err) {
+      setError(err.message || "Failed to save profile");
+    } finally {
+      setSavingProfile(false);
+    }
+  }
 
   useEffect(() => {
     socket.emit("get_public_lobbies");
@@ -118,9 +171,10 @@ const LobbySelection = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <PixelAvatar variant="me" size={32} />
+          <PixelAvatar variant={identity.avatar} size={32} />
           <span className="font-pixel-body text-base text-bone">
-            {playerName}
+            {identity.name}{" "}
+            <span className="text-bone/60">#{identity.tag}</span>
           </span>
           <button
             className="pixel-btn font-pixel-display"
@@ -152,48 +206,111 @@ const LobbySelection = () => {
       {/* MAIN GRID */}
       <div className="flex-1 grid grid-cols-[400px_1fr] gap-3 p-3 min-h-0">
         {/* LEFT — actions */}
-        <div className="flex flex-col gap-2 min-h-0">
+        <div className="flex flex-col gap-1.5 min-h-0">
           {/* Player Card */}
           <PixelPanel accent="gold" title="✦ ADVENTURER ✦">
-            <div className="p-2 flex items-center gap-3">
-              <div style={{ position: "relative" }}>
-                <PixelAvatar variant="me" size={48} />
-                <div
-                  className="absolute -bottom-1 -right-1 font-pixel-display text-[8px] px-1.5 py-1"
-                  style={{
-                    backgroundColor: "#f4c430",
-                    color: "#1a1024",
-                    border: "2px solid #0a0712",
-                  }}
-                >
-                  Lv.7
+            <div className="p-1.5 flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <div style={{ position: "relative" }}>
+                  <PixelAvatar variant={isGuest ? identity.avatar : editAvatar} size={48} />
+                  <div
+                    className="absolute -bottom-1 -right-1 font-pixel-display text-[8px] px-1.5 py-1"
+                    style={{
+                      backgroundColor: "#f4c430",
+                      color: "#1a1024",
+                      border: "2px solid #0a0712",
+                    }}
+                  >
+                    Lv.{isGuest ? "1" : "7"}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={isGuest ? identity.name : editName}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                      disabled={isGuest}
+                      maxLength={6}
+                      placeholder="NAME"
+                      className="flex-1 min-w-0 font-pixel-display text-sm px-2 py-2 text-parchment uppercase"
+                      style={{
+                        backgroundColor: "#0a0712",
+                        border: isGuest
+                          ? "3px solid #1a1024"
+                          : "3px solid #1f1a3d",
+                        boxShadow: "inset 0 2px 0 0 rgba(0,0,0,0.5)",
+                        opacity: isGuest ? 0.6 : 1,
+                        letterSpacing: "0.12em",
+                      }}
+                    />
+                    <span
+                      className="font-pixel-display text-sm text-gold"
+                      style={{ textShadow: "1px 1px 0 #000" }}
+                    >
+                      #
+                    </span>
+                    <input
+                      value={isGuest ? identity.tag : editTag}
+                      onChange={(e) => handleTagChange(e.target.value)}
+                      disabled={isGuest}
+                      maxLength={4}
+                      placeholder="ID"
+                      className="font-pixel-display text-sm px-2 py-2 text-parchment uppercase"
+                      style={{
+                        width: 86,
+                        backgroundColor: "#0a0712",
+                        border: isGuest
+                          ? "3px solid #1a1024"
+                          : "3px solid #1f1a3d",
+                        boxShadow: "inset 0 2px 0 0 rgba(0,0,0,0.5)",
+                        opacity: isGuest ? 0.6 : 1,
+                        letterSpacing: "0.2em",
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 mt-2 font-pixel-body text-sm">
+                    <span className="text-glow-gold">★ {isGuest ? "0" : "1,247"} EXP</span>
+                    <span className="text-glow-cyan">◆ {isGuest ? "0" : "28"} W</span>
+                  </div>
                 </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-pixel-display text-[10px] text-bone/60 mb-1">
-                  CALLSIGN
-                </div>
-                <input
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  className="w-full font-pixel-display text-sm px-2 py-2 text-parchment uppercase"
+
+              {isGuest ? (
+                <div
+                  className="font-pixel-body text-sm text-center py-1"
                   style={{
                     backgroundColor: "#0a0712",
-                    border: "3px solid #1f1a3d",
-                    boxShadow: "inset 0 2px 0 0 rgba(0,0,0,0.5)",
+                    border: "2px solid #1f1a3d",
+                    color: "#463a78",
                   }}
-                />
-                <div className="flex items-center gap-3 mt-2 font-pixel-body text-sm">
-                  <span className="text-glow-gold">★ 1,247 EXP</span>
-                  <span className="text-glow-cyan">◆ 28 W</span>
+                >
+                  Sign in from the menu to customize your profile
                 </div>
-              </div>
+              ) : (
+                <>
+                  <AvatarPicker
+                    selected={editAvatar}
+                    onSelect={handleAvatarChange}
+                  />
+                  {profileDirty && (
+                    <PixelButton
+                      color="gold"
+                      size="sm"
+                      onClick={handleSaveProfile}
+                      disabled={savingProfile}
+                      className="w-full"
+                    >
+                      {savingProfile ? "SAVING..." : "✦ SAVE PROFILE"}
+                    </PixelButton>
+                  )}
+                </>
+              )}
             </div>
           </PixelPanel>
 
           {/* Create Lobby */}
           <PixelPanel accent="cyan" title="⚔ HOST A TABLE ⚔">
-            <div className="p-2 flex flex-col gap-2">
+            <div className="p-1.5 flex flex-col gap-1.5">
               <div>
                 <div className="font-pixel-display text-[9px] text-bone/60 mb-1.5">
                   LOBBY NAME
@@ -230,8 +347,8 @@ const LobbySelection = () => {
 
           {/* Join via Code */}
           <PixelPanel accent="rose" title="✉ JOIN BY CODE ✉">
-            <div className="p-2">
-              <div className="flex gap-1.5 mb-2">
+            <div className="p-1.5">
+              <div className="flex gap-1.5 mb-1.5">
                 {codeChars.map((ch, i) => (
                   <div
                     key={i}
@@ -307,7 +424,7 @@ const LobbySelection = () => {
                 no server
               </span>
             </div>
-            <div className="p-2 flex gap-1.5">
+            <div className="p-1.5 flex gap-1.5">
               {[
                 {
                   l: "EASY",
