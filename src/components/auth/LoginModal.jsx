@@ -5,8 +5,14 @@ import AvatarPicker from "./AvatarPicker";
 
 const TABS = ["SIGN IN", "SIGN UP"];
 
+const OAUTH_PROVIDERS = [
+  { id: "google", label: "GOOGLE", icon: "G", color: "#ea4335", border: "#b8291e" },
+  { id: "discord", label: "DISCORD", icon: "D", color: "#5865f2", border: "#3a45c4" },
+  { id: "facebook", label: "FACEBOOK", icon: "F", color: "#1877f2", border: "#1058b5" },
+];
+
 export default function LoginModal({ onClose }) {
-  const { signIn, signUp, updateProfile } = useAuth();
+  const { signIn, signUp, signInWithOAuth, updateProfile } = useAuth();
   const [tab, setTab] = useState(0);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,6 +25,17 @@ export default function LoginModal({ onClose }) {
   const [setupName, setSetupName] = useState("");
   const [setupTag, setSetupTag] = useState("");
   const [setupAvatar, setSetupAvatar] = useState(1);
+
+  async function handleOAuth(provider) {
+    setError("");
+    setBusy(true);
+    try {
+      await signInWithOAuth(provider);
+    } catch (err) {
+      setError(err.message || `${provider} sign in failed`);
+      setBusy(false);
+    }
+  }
 
   async function handleSignIn(e) {
     e.preventDefault();
@@ -343,6 +360,37 @@ export default function LoginModal({ onClose }) {
                     ? "► SIGN IN"
                     : "► CREATE ACCOUNT"}
               </PixelButton>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 my-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: "#1f1a3d" }} />
+                <span className="font-pixel-display text-[8px] text-bone/40">
+                  OR
+                </span>
+                <div className="flex-1 h-px" style={{ backgroundColor: "#1f1a3d" }} />
+              </div>
+
+              {/* OAuth buttons */}
+              <div className="flex gap-2">
+                {OAUTH_PROVIDERS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleOAuth(p.id)}
+                    disabled={busy}
+                    className="flex-1 pixel-btn font-pixel-display text-[9px] py-2.5 flex items-center justify-center gap-1.5"
+                    style={{
+                      backgroundColor: p.color,
+                      borderColor: p.border,
+                      color: "#fff",
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: "bold" }}>
+                      {p.icon}
+                    </span>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
 
               <div className="font-pixel-body text-sm text-bone/50 text-center mt-1">
                 {tab === 0

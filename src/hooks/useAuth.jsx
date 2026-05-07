@@ -65,6 +65,15 @@ export function AuthProvider({ children }) {
     return data;
   }
 
+  async function signInWithOAuth(provider) {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) throw error;
+    return data;
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     setSession(null);
@@ -103,6 +112,7 @@ export function AuthProvider({ children }) {
         identity,
         signIn,
         signUp,
+        signInWithOAuth,
         signOut,
         updateProfile,
         fetchProfile,
