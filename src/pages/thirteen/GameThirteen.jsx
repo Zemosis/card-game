@@ -457,27 +457,12 @@ const GameThirteen = () => {
           >
             ◄ EXIT
           </button>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="pixel-btn font-pixel-display"
-            style={{
-              backgroundColor: "#463a78",
-              borderColor: "#2a234d",
-              color: "#ead8b1",
-              width: 36,
-              height: 36,
-              padding: 0,
-              fontSize: 12,
-            }}
-          >
-            ⚙
-          </button>
           <div className="font-pixel-display text-[10px] text-bone/60 ml-2">
             LOBBY <span className="text-glow-cyan">#{lobbyId}</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-6">
           <div
             className="flex flex-col items-center px-3 py-1"
             style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}
@@ -503,12 +488,16 @@ const GameThirteen = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 font-pixel-body text-sm">
+            <span style={{ color: "#9bd14f" }}>●●●</span>
+            <span className="text-bone/70">22ms</span>
+          </div>
           <button
-            onClick={handleToggleMute}
+            onClick={() => setShowSettings(!showSettings)}
             className="pixel-btn font-pixel-display"
             style={{
-              backgroundColor: "#1f1a3d",
-              borderColor: "#0a0712",
+              backgroundColor: "#463a78",
+              borderColor: "#2a234d",
               color: "#ead8b1",
               width: 36,
               height: 36,
@@ -516,7 +505,7 @@ const GameThirteen = () => {
               fontSize: 12,
             }}
           >
-            {isMuted ? "◊" : "♪"}
+            ⚙
           </button>
         </div>
       </div>
@@ -524,7 +513,7 @@ const GameThirteen = () => {
       {/* SETTINGS MODAL */}
       {showSettings && (
         <div
-          className="absolute top-16 left-4 z-50 p-4"
+          className="absolute top-16 right-4 z-50 p-4"
           style={{
             backgroundColor: "#1f1a3d",
             border: "4px solid #0a0712",

@@ -54,12 +54,11 @@ const GameMuushig = () => {
       <div className="relative flex items-center justify-between px-5 py-3 z-10" style={{ backgroundColor: "rgba(10,7,18,0.85)", borderBottom: "4px solid #0a0712" }}>
         <div className="flex items-center gap-3">
           <button onClick={() => navigate("/")} className="pixel-btn font-pixel-display text-[10px] px-3 py-2" style={{ backgroundColor: "#7a1530", borderColor: "#3a0a18", color: "#ead8b1" }}>◄ EXIT</button>
-          <button className="pixel-btn font-pixel-display" style={{ backgroundColor: "#463a78", borderColor: "#2a234d", color: "#ead8b1", width: 36, height: 36, padding: 0, fontSize: 12 }}>⚙</button>
           <div className="font-pixel-display text-[10px] text-bone/60 ml-2">
             LOBBY <span className="text-glow-cyan">#JADE12</span>
           </div>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-6">
           <div className="flex flex-col items-center px-3 py-1" style={{ backgroundColor: "#0a0712", border: "3px solid #1a3a2c" }}>
             <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">ROUND</div>
             <div className="font-pixel-display text-sm text-glow-gold">4</div>
@@ -78,7 +77,7 @@ const GameMuushig = () => {
             <span style={{ color: "#9bd14f" }}>●●●</span>
             <span className="text-bone/70">22ms</span>
           </div>
-          <button className="pixel-btn font-pixel-display" style={{ backgroundColor: "#1f1a3d", borderColor: "#0a0712", color: "#ead8b1", width: 36, height: 36, padding: 0, fontSize: 12 }}>♪</button>
+          <button className="pixel-btn font-pixel-display" style={{ backgroundColor: "#463a78", borderColor: "#2a234d", color: "#ead8b1", width: 36, height: 36, padding: 0, fontSize: 12 }}>⚙</button>
         </div>
       </div>
 
