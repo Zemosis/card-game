@@ -1,4 +1,4 @@
-// LOBBY SELECTION - Pixel Retro Style
+// LOBBY MUUSHIG - Pixel Retro Style
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -9,29 +9,29 @@ import {
   PixelAvatar,
 } from "../../components/PixelCard";
 
-const LobbySelection = () => {
+const LobbyMuushig = () => {
   const navigate = useNavigate();
 
   const [playerName, setPlayerName] = useState("Wanderer #4719");
-  const [lobbyName, setLobbyName] = useState("Khuzur's Hideout");
+  const [lobbyName, setLobbyName] = useState("Ger of the Steppe");
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState("");
   const [publicLobbies, setPublicLobbies] = useState([]);
   const [selectedLobby, setSelectedLobby] = useState(null);
 
   useEffect(() => {
-    socket.emit("get_public_lobbies");
+    socket.emit("get_public_lobbies_muushig");
 
-    socket.on("public_lobbies_update", (lobbies) => {
+    socket.on("public_lobbies_muushig_update", (lobbies) => {
       setPublicLobbies(lobbies);
     });
 
-    socket.on("public_lobbies_update_trigger", () => {
-      socket.emit("get_public_lobbies");
+    socket.on("public_lobbies_muushig_update_trigger", () => {
+      socket.emit("get_public_lobbies_muushig");
     });
 
-    socket.on("lobby_joined", (data) => {
-      navigate("/game-13", { state: { ...data, playerName } });
+    socket.on("lobby_joined_muushig", (data) => {
+      navigate("/game-muushig", { state: { ...data, playerName } });
     });
 
     socket.on("error_message", (msg) => {
@@ -40,9 +40,9 @@ const LobbySelection = () => {
     });
 
     return () => {
-      socket.off("public_lobbies_update");
-      socket.off("public_lobbies_update_trigger");
-      socket.off("lobby_joined");
+      socket.off("public_lobbies_muushig_update");
+      socket.off("public_lobbies_muushig_update_trigger");
+      socket.off("lobby_joined_muushig");
       socket.off("error_message");
     };
   }, [navigate, playerName]);
@@ -53,7 +53,7 @@ const LobbySelection = () => {
       return;
     }
     const lobbyId = `SOLO-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-    navigate("/game-13", {
+    navigate("/game-muushig", {
       state: {
         lobbyId,
         isHost: true,
@@ -69,8 +69,8 @@ const LobbySelection = () => {
       setError("Enter a name first!");
       return;
     }
-    socket.emit("create_lobby", {
-      lobbyName: lobbyName || `${playerName}'s Lobby`,
+    socket.emit("create_lobby_muushig", {
+      lobbyName: lobbyName || `${playerName}'s Ger`,
       playerName,
       isPrivate,
     });
@@ -81,7 +81,7 @@ const LobbySelection = () => {
       setError("Enter a name first!");
       return;
     }
-    socket.emit("join_lobby", { lobbyId, playerName });
+    socket.emit("join_lobby_muushig", { lobbyId, playerName });
   };
 
   const handleJoinPrivate = () => {
@@ -93,7 +93,7 @@ const LobbySelection = () => {
       setError("Enter a name first!");
       return;
     }
-    socket.emit("join_lobby", { lobbyId: joinCode, playerName });
+    socket.emit("join_lobby_muushig", { lobbyId: joinCode, playerName });
   };
 
   const codeChars = (joinCode + "      ").slice(0, 6).split("");
@@ -111,7 +111,7 @@ const LobbySelection = () => {
           </PixelButton>
           <div className="flex items-center gap-2 font-pixel-display text-[10px] tracking-wider">
             <span className="text-bone/60">DECK ▸</span>
-            <span className="text-glow-gold">THIRTEEN</span>
+            <span style={{ color: "#9bd14f", textShadow: "2px 2px 0 #000, 0 0 8px rgba(155,209,79,0.5)" }}>MUUSHIG</span>
             <span className="text-bone/60">▸ LOBBY</span>
           </div>
         </div>
@@ -137,7 +137,6 @@ const LobbySelection = () => {
         </div>
       </div>
 
-      {/* Error message */}
       {error && (
         <div
           className="font-pixel-display text-[10px] text-center py-2"
@@ -159,8 +158,8 @@ const LobbySelection = () => {
                 <div
                   className="absolute -bottom-1 -right-1 font-pixel-display text-[8px] px-1.5 py-1"
                   style={{
-                    backgroundColor: "#f4c430",
-                    color: "#1a1024",
+                    backgroundColor: "#9bd14f",
+                    color: "#1a3a0e",
                     border: "2px solid #0a0712",
                   }}
                 >
@@ -367,7 +366,7 @@ const LobbySelection = () => {
               }}
             >
               <div className="flex items-center gap-3">
-                <span className="font-pixel-display text-[11px] tracking-wider text-glow-gold">
+                <span className="font-pixel-display text-[11px] tracking-wider" style={{ color: "#9bd14f", textShadow: "2px 2px 0 #000, 0 0 8px rgba(155,209,79,0.5)" }}>
                   ⚑ PUBLIC TABLES
                 </span>
                 <span className="font-pixel-body text-sm text-bone/70">
@@ -375,7 +374,7 @@ const LobbySelection = () => {
                 </span>
               </div>
               <button
-                onClick={() => socket.emit("get_public_lobbies")}
+                onClick={() => socket.emit("get_public_lobbies_muushig")}
                 className="pixel-btn font-pixel-display text-[9px] px-2.5 py-1.5"
                 style={{
                   backgroundColor: "#463a78",
@@ -429,13 +428,13 @@ const LobbySelection = () => {
                       gridTemplateColumns: "2fr 1.4fr 0.7fr 0.8fr",
                       backgroundColor:
                         selectedLobby === lobby.id
-                          ? "#2e1a3a"
+                          ? "#1a3a1a"
                           : i % 2 === 1
                             ? "#1a1530"
                             : "transparent",
                       borderLeft:
                         selectedLobby === lobby.id
-                          ? "4px solid #f4c430"
+                          ? "4px solid #9bd14f"
                           : "4px solid transparent",
                       borderBottom: "1px solid #1f1a3d",
                     }}
@@ -465,11 +464,11 @@ const LobbySelection = () => {
                             width: 10,
                             height: 14,
                             backgroundColor:
-                              j < lobby.current ? "#f4c430" : "#2a234d",
+                              j < lobby.current ? "#9bd14f" : "#2a234d",
                             border: "1px solid #0a0712",
                             boxShadow:
                               j < lobby.current
-                                ? "inset 0 1px 0 #ffe066"
+                                ? "inset 0 1px 0 #c8ff80"
                                 : "none",
                           }}
                         />
@@ -533,4 +532,4 @@ const LobbySelection = () => {
   );
 };
 
-export default LobbySelection;
+export default LobbyMuushig;

@@ -1,18 +1,7 @@
-// GAME CONTROLS - Player Action Buttons
+// GAME CONTROLS - Pixel Retro Action Buttons
 
 import React, { useEffect } from "react";
 
-/**
- * GameControls Component
- * @param {Function} onPlay - Callback when player clicks "Play Cards"
- * @param {Function} onPass - Callback when player clicks "Pass"
- * @param {Boolean} canPlay - Whether play button should be enabled
- * @param {Boolean} canPass - Whether pass button should be enabled
- * @param {Boolean} isPlayerTurn - Whether it's the player's turn
- * @param {Number} selectedCount - Number of cards selected
- * @param {String} message - Status message to display
- * @param {String} errorMessage - Error message if any
- */
 const GameControls = ({
   onPlay,
   onPass,
@@ -23,17 +12,14 @@ const GameControls = ({
   message = "",
   errorMessage = "",
 }) => {
-  // Keyboard shortcuts
   useEffect(() => {
     if (!isPlayerTurn) return;
 
     const handleKeyPress = (e) => {
-      // Space bar to play
       if (e.code === "Space" && canPlay) {
         e.preventDefault();
         onPlay();
       }
-      // P key to pass
       if (e.key.toLowerCase() === "p" && canPass) {
         e.preventDefault();
         onPass();
@@ -45,101 +31,47 @@ const GameControls = ({
   }, [isPlayerTurn, canPlay, canPass, onPlay, onPass]);
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
-      {/* Status Message Area */}
-      <div className="mb-1 text-center min-h-[30px]">
-        {!isPlayerTurn && (
-          <div className="bg-gray-800/80 backdrop-blur border-2 border-gray-600 rounded-lg p-1.5">
-            <div className="text-white text-sm font-semibold">
-              ⏳ Waiting for other players...
-            </div>
+    <div className="flex items-center justify-between gap-3 mt-1 px-2">
+      {/* Status */}
+      <div className="flex-1 flex items-center gap-3 px-3 py-2"
+        style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}
+      >
+        {errorMessage ? (
+          <div className="font-pixel-display text-[10px]" style={{ color: "#e85a7a" }}>
+            ⚠ {errorMessage}
           </div>
-        )}
-
-        {isPlayerTurn && (
-          <div className="space-y-1">
-            {/* Error message (Keep this for invalid move feedback) */}
-            {errorMessage && (
-              <div className="bg-red-900/80 backdrop-blur border-2 border-red-400 rounded-lg p-2 animate-shake">
-                <div className="text-red-100 font-semibold text-sm">
-                  ⚠️ {errorMessage}
-                </div>
-              </div>
-            )}
+        ) : (
+          <div className="font-pixel-body text-sm text-bone/70">
+            {message}
           </div>
         )}
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-2 justify-center">
-        {/* Play Button */}
-        <button
-          onClick={onPlay}
-          disabled={!canPlay || !isPlayerTurn}
-          className={`
-            px-5 py-1.5 rounded-lg font-bold text-sm
-            transition-all duration-200 transform
-            shadow-lg
-            ${
-              canPlay && isPlayerTurn
-                ? "bg-green-500 hover:bg-green-600 text-white hover:scale-105 active:scale-95 cursor-pointer"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }
-          `}
-        >
-          <div className="flex items-center gap-1.5">
-            <span>🃏</span>
-            <span>Play Cards</span>
-            {canPlay && isPlayerTurn && (
-              <span className="text-xs opacity-75">(SPACE)</span>
-            )}
-          </div>
-        </button>
-
-        {/* Pass Button */}
-        <button
-          onClick={onPass}
-          disabled={!canPass || !isPlayerTurn}
-          className={`
-            px-5 py-1.5 rounded-lg font-bold text-sm
-            transition-all duration-200 transform
-            shadow-lg
-            ${
-              canPass && isPlayerTurn
-                ? "bg-yellow-500 hover:bg-yellow-600 text-white hover:scale-105 active:scale-95 cursor-pointer"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }
-          `}
-        >
-          <div className="flex items-center gap-1.5">
-            <span>⏭️</span>
-            <span>Pass</span>
-            {canPass && isPlayerTurn && (
-              <span className="text-xs opacity-75">(P)</span>
-            )}
-          </div>
-        </button>
-      </div>
-
-      {/* Shake animation for errors */}
-      <style jsx>{`
-        @keyframes shake {
-          0%,
-          100% {
-            transform: translateX(0);
-          }
-          25% {
-            transform: translateX(-10px);
-          }
-          75% {
-            transform: translateX(10px);
-          }
-        }
-
-        .animate-shake {
-          animation: shake 0.3s ease-in-out;
-        }
-      `}</style>
+      {/* Buttons */}
+      <button
+        onClick={onPass}
+        disabled={!canPass || !isPlayerTurn}
+        className="pixel-btn font-pixel-display text-sm px-6 py-3"
+        style={{
+          backgroundColor: "#7a1530",
+          borderColor: "#3a0a18",
+          color: "#ead8b1",
+        }}
+      >
+        ✕ PASS {canPass && isPlayerTurn && <span className="text-[8px] ml-1">(P)</span>}
+      </button>
+      <button
+        onClick={onPlay}
+        disabled={!canPlay || !isPlayerTurn}
+        className={`pixel-btn font-pixel-display text-sm px-8 py-3 ${canPlay && isPlayerTurn ? "pulse-gold" : ""}`}
+        style={{
+          backgroundColor: "#f4c430",
+          borderColor: "#c89820",
+          color: "#1a1024",
+        }}
+      >
+        ► PLAY {canPlay && isPlayerTurn && <span className="text-[8px] ml-1">(SPACE)</span>}
+      </button>
     </div>
   );
 };

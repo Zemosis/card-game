@@ -1,73 +1,138 @@
-// OPPONENT SECTION - Compact CPU Player Display
+// OPPONENT SECTION - Pixel Retro Style
 
 import React from "react";
-import Card from "../Card";
+import { PixelAvatar, CardFan } from "../PixelCard";
 
-/**
- * OpponentSection Component
- * @param {Object}  player   - Player object { name, hand, isEliminated }
- * @param {Boolean} isActive  - Whether it's their turn
- * @param {Boolean} hasPassed - Whether they passed this round
- * @param {String}  cardBack  - Back colour for face-down cards (e.g. 'red', 'green', 'purple')
- */
 const OpponentSection = ({
   player,
   isActive = false,
   hasPassed = false,
-  cardBack = "red",
+  position = "top",
 }) => {
   const { name, hand, isEliminated } = player;
   const cardCount = hand.length;
+  const fanCount = Math.min(cardCount, 7);
 
-  const activeRing = isActive && !isEliminated ? "ring-2 ring-yellow-400" : "";
+  // Fan rotation: cards face toward center
+  const fanRotate = {
+    top: "rotate(180deg)",
+    left: "rotate(90deg)",
+    right: "rotate(-90deg)",
+  }[position];
+
+  // Layout direction so cards sit between avatar and table center
+  const layout = {
+    top: { flexDirection: "column", align: "items-center" },
+    left: { flexDirection: "row", align: "items-center" },
+    right: { flexDirection: "row-reverse", align: "items-center" },
+  }[position];
 
   return (
     <div
-      className={`flex items-center gap-2 ${isEliminated ? "opacity-40" : ""}`}
+      className="relative"
+      style={{ minWidth: position === "top" ? 320 : 220 }}
     >
-      {/* Avatar */}
       <div
-        className={`
-          w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm
-          ${isActive && !isEliminated ? "bg-yellow-500" : "bg-blue-600"}
-          ${activeRing}
-          transition-all duration-300
-        `}
+        className={`flex ${layout.align} gap-3`}
+        style={{ flexDirection: layout.flexDirection }}
       >
-        {name.slice(-1)}
-      </div>
-
-      {/* Name + status */}
-      <div className="flex flex-col">
-        <div className="flex items-center gap-1">
-          <span className="font-bold text-white text-sm">{name}</span>
-          {isActive && !isEliminated && (
-            <span className="text-yellow-400 text-xs">⚡</span>
-          )}
-          {isEliminated && (
-            <span className="bg-red-500 text-white px-1 rounded text-xs">OUT</span>
-          )}
-          {hasPassed && !isEliminated && (
-            <span className="bg-gray-400 text-white px-1 rounded text-xs">PASS</span>
-          )}
-        </div>
-        <div className="text-white/80 text-xs">{cardCount} cards</div>
-      </div>
-
-      {/* Face-down card display (up to 2 cards + overflow badge) */}
-      {!isEliminated && cardCount > 0 && (
-        <div className="flex items-center -space-x-3 ml-1">
-          <Card faceDown={true} size="small" cardBack={cardBack} />
-          {cardCount > 1 && (
-            <Card faceDown={true} size="small" cardBack={cardBack} />
-          )}
-          {cardCount > 2 && (
-            <div className="w-12 h-16 bg-gray-700 rounded border-2 border-gray-600 flex items-center justify-center text-white text-xs font-bold z-10">
-              +{cardCount - 2}
+        {/* Avatar block */}
+        <div
+          className="relative"
+          style={{
+            backgroundColor: "#14102a",
+            border: `4px solid ${isActive ? "#f4c430" : "#0a0712"}`,
+            padding: "8px 10px",
+            minWidth: 200,
+            boxShadow: isActive
+              ? "0 0 0 4px #0a0712, 0 0 16px rgba(244,196,48,0.5), inset 0 4px 0 rgba(255,255,255,0.06)"
+              : "0 0 0 4px #0a0712, inset 0 4px 0 rgba(255,255,255,0.04)",
+            animation: isActive
+              ? "pulse-glow 1.6s ease-in-out infinite"
+              : "none",
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <PixelAvatar
+              variant={((player.id || 0) % 5) + 1}
+              size={40}
+              active={isActive}
+              eliminated={isEliminated}
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <div className="font-pixel-display text-[10px] text-parchment truncate">
+                  {name}
+                </div>
+                {isActive && !isEliminated && (
+                  <span
+                    className="font-pixel-display text-[7px] px-1 blink"
+                    style={{ backgroundColor: "#f4c430", color: "#1a1024" }}
+                  >
+                    TURN
+                  </span>
+                )}
+                {hasPassed && !isEliminated && (
+                  <span
+                    className="font-pixel-display text-[7px] px-1"
+                    style={{ backgroundColor: "#463a78", color: "#ead8b1" }}
+                  >
+                    PASS
+                  </span>
+                )}
+                {isEliminated && (
+                  <span
+                    className="font-pixel-display text-[7px] px-1"
+                    style={{ backgroundColor: "#7a1530", color: "#ead8b1" }}
+                  >
+                    OUT
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="font-pixel-body text-xs text-bone/70">
+                  {player.type === "AI" ? "CPU" : "Human"}
+                </span>
+              </div>
             </div>
-          )}
+          </div>
+
+          {/* Card count bar */}
+          <div className="mt-2 flex items-center gap-2">
+            <div className="font-pixel-display text-[9px] text-glow-cyan">
+              {cardCount}
+            </div>
+            <div
+              className="flex-1 h-2"
+              style={{
+                backgroundColor: "#0a0712",
+                border: "1px solid #1f1a3d",
+              }}
+            >
+              <div
+                style={{
+                  width: `${(cardCount / 13) * 100}%`,
+                  height: "100%",
+                  background: "linear-gradient(90deg, #5fd4d6, #f4c430)",
+                }}
+              />
+            </div>
+            <span className="font-pixel-body text-xs text-bone/60">cards</span>
+          </div>
         </div>
-      )}
+
+        {/* Card fan */}
+        {!isEliminated && cardCount > 0 && (
+          <div
+            style={{
+              transform: fanRotate,
+              transformOrigin: "center",
+            }}
+          >
+            <CardFan count={fanCount} size="small" spread={30} />
+          </div>
+        )}
+      </div>
     </div>
   );
 };

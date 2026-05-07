@@ -1,4 +1,4 @@
-// GAME THIRTEEN - Multiplayer Version
+// GAME THIRTEEN - Multiplayer Version with Pixel Retro UI
 
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -27,7 +27,7 @@ const GameThirteen = () => {
     isHost,
     playerName,
     mySocketId,
-    myPlayerIndex: fixedPlayerIndex, // set for solo/quick-start games
+    myPlayerIndex: fixedPlayerIndex,
   } = location.state || {};
 
   const [gameState, setGameState] = useState(null);
@@ -59,7 +59,6 @@ const GameThirteen = () => {
     } catch (e) {}
   };
 
-  // Solo games use a SOLO- prefix lobby ID and run entirely client-side.
   const isSoloGame = lobbyId?.startsWith("SOLO-");
 
   // --- MULTIPLAYER SETUP ---
@@ -71,7 +70,6 @@ const GameThirteen = () => {
 
     if (soundManager && soundManager.init) soundManager.init();
 
-    // Shared helper: build the initial game state for the host player
     const initLocalGame = () => {
       import("../../utils/deckUtils").then(({ initializeGame }) => {
         const { hands } = initializeGame();
@@ -85,33 +83,25 @@ const GameThirteen = () => {
 
         setGameState(initialState);
 
-        // Sync to server only for real multiplayer lobbies
         if (!isSoloGame) {
           socket.emit("send_initial_state", { lobbyId, gameState: initialState });
         }
       });
     };
 
-    // 1. HOST INIT
     if (isHost && !gameState) {
       if (isSoloGame) {
-        // Solo mode: initialise locally, never touch the socket
         initLocalGame();
       } else if (socket.connected) {
-        // Multiplayer: re-register and ask server if a game is in progress
         socket.emit("join_lobby", { lobbyId, playerName });
         socket.emit("check_game_status", { lobbyId });
       } else {
         initLocalGame();
       }
     } else if (!isHost && !isSoloGame && !gameState) {
-      // Client joining a multiplayer lobby
       socket.emit("join_lobby", { lobbyId, playerName });
     }
 
-    // 2. LISTENERS
-
-    // Server says: "No game running, please start one"
     const handleGameNotStarted = () => {
       if (isHost) initLocalGame();
     };
@@ -131,7 +121,6 @@ const GameThirteen = () => {
       if (!isMe) safePlay("playClick");
     };
 
-    // New Player Joined (HOST ONLY)
     const handlePlayerJoined = ({ newPlayer }) => {
       if (isHost) {
         const current = gameStateRef.current;
@@ -156,7 +145,6 @@ const GameThirteen = () => {
       }
     };
 
-    // *** FIX FOR REFRESH: Player Reconnected (HOST ONLY) ***
     const handlePlayerRejoined = ({ name, newSocketId }) => {
       if (isHost) {
         const current = gameStateRef.current;
@@ -164,7 +152,6 @@ const GameThirteen = () => {
 
         const updatedPlayers = current.players.map((p) => {
           if (p.name === name) {
-            // Update their ID so they can control this slot again
             return { ...p, socketId: newSocketId };
           }
           return p;
@@ -184,7 +171,7 @@ const GameThirteen = () => {
     socket.on("game_state_update", handleStateUpdate);
     socket.on("receive_chat", handleReceiveChat);
     socket.on("player_joined", handlePlayerJoined);
-    socket.on("player_rejoined", handlePlayerRejoined); // <--- New Listener
+    socket.on("player_rejoined", handlePlayerRejoined);
     socket.on("client_move_request", handleClientMove);
 
     return () => {
@@ -202,13 +189,9 @@ const GameThirteen = () => {
     const currentState = gameStateRef.current;
     if (!currentState) return;
 
-    // Security Check: Allow if ID matches OR if we are recovering (loose check)
     const player = currentState.players[data.playerIndex];
     if (player.socketId !== senderId) {
-      console.log(
-        "ID Mismatch, but proceeding if name matches (recovery mode)",
-      );
-      // You could add stricter name checks here if desired
+      console.log("ID Mismatch, proceeding if name matches (recovery mode)");
     }
 
     if (currentState.currentPlayerIndex !== data.playerIndex) return;
@@ -263,18 +246,11 @@ const GameThirteen = () => {
 
   // --- HELPER: FIND MY INDEX ---
   const getMyPlayerIndex = (state, socketId) => {
-    // Fast path: index was pinned at navigation time (solo / quick-start games).
-    // This avoids any socket-ID mismatch that causes moves to be blocked.
     if (fixedPlayerIndex !== undefined && fixedPlayerIndex >= 0) {
       return fixedPlayerIndex;
     }
-
     if (!state) return -1;
-
-    // 1. Try Socket ID match
     let idx = state.players.findIndex((p) => p.socketId === socketId);
-
-    // 2. Fallback: name match (handles refresh where socket ID rotated)
     if (idx === -1 && playerName) {
       idx = state.players.findIndex((p) => p.name === playerName);
     }
@@ -408,8 +384,10 @@ const GameThirteen = () => {
   // --- RENDER ---
   if (!gameState)
     return (
-      <div className="text-white flex justify-center items-center h-screen">
-        Loading Game...
+      <div className="flex items-center justify-center h-full starfield">
+        <div className="font-pixel-display text-[14px] text-glow-gold blink">
+          LOADING GAME...
+        </div>
       </div>
     );
 
@@ -418,7 +396,12 @@ const GameThirteen = () => {
   const viewIndex = iAmSpectator ? 0 : myIndex;
 
   const playersList = gameState.players || [];
-  if (playersList.length < 4) return <div>Error: Invalid Player Count</div>;
+  if (playersList.length < 4)
+    return (
+      <div className="flex items-center justify-center h-full starfield font-pixel-display text-rose">
+        Error: Invalid Player Count
+      </div>
+    );
 
   const rotatedPlayers = [
     ...playersList.slice(viewIndex),
@@ -439,182 +422,240 @@ const GameThirteen = () => {
       : null;
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-green-800 to-green-900 overflow-hidden">
-      <div className="h-full flex flex-col">
-        {/* HEADER */}
-        <div className="flex items-center justify-between p-2 bg-black/20 shrink-0 relative z-20">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg transition-colors"
-            >
-              ⚙️
-            </button>
-            <div className="text-white font-bold px-2">Lobby: {lobbyId}</div>
-            <button
-              onClick={() => navigate("/")}
-              className="bg-white/20 text-white px-3 py-1 rounded text-xs"
-            >
-              Exit
-            </button>
-          </div>
-          <h1 className="text-xl font-bold text-white">
-            Game "13"{" "}
-            {iAmSpectator ? "(SPECTATOR)" : isHost ? "(HOST)" : "(CLIENT)"}
-          </h1>
-          <div className="w-20"></div>
+    <div
+      className="relative w-full h-full font-pixel-body text-parchment overflow-hidden flex flex-col"
+      style={{ position: "fixed", inset: 0 }}
+    >
+      {/* TABLE BACKDROP */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, #2e0f1d 0%, #14102a 60%, #0a0712 100%)",
+        }}
+      />
+      <div className="absolute inset-0 dither-shadow opacity-40 pointer-events-none" />
 
-          {/* SETTINGS MODAL */}
-          {showSettings && (
-            <div className="absolute top-14 left-2 bg-gray-800 border-2 border-gray-600 text-white p-4 rounded-xl shadow-2xl w-64 animate-fade-in z-50">
-              <div className="flex justify-between items-center mb-4 border-b border-gray-600 pb-2">
-                <h3 className="font-bold">Settings</h3>
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="text-gray-400 hover:text-white"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="mb-4">
-                <div className="flex justify-between mb-1">
-                  <label className="text-xs text-gray-400 font-bold">
-                    Master Volume
-                  </label>
-                  <span className="text-xs text-blue-400">
-                    {volumes.master}%
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={volumes.master}
-                  onChange={(e) => handleVolumeChange("master", e.target.value)}
-                  className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                />
-              </div>
-              <div className="mb-4">
-                <div className="flex justify-between mb-1">
-                  <label className="text-xs text-gray-400 font-bold">
-                    Sound Effects
-                  </label>
-                  <span className="text-xs text-blue-400">{volumes.sfx}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={volumes.sfx}
-                  onChange={(e) => handleVolumeChange("sfx", e.target.value)}
-                  className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                />
-              </div>
-              <button
-                onClick={handleToggleMute}
-                className={`w-full py-2 rounded font-bold text-sm transition-colors ${isMuted ? "bg-red-500 text-white" : "bg-gray-700 hover:bg-gray-600"}`}
-              >
-                {isMuted ? "Unmute All" : "Mute All"}
-              </button>
-            </div>
-          )}
+      {/* HEADER BAR */}
+      <div
+        className="relative flex items-center justify-between px-5 py-3 z-10"
+        style={{
+          backgroundColor: "rgba(10,7,18,0.85)",
+          borderBottom: "4px solid #0a0712",
+          backdropFilter: "blur(2px)",
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate("/")}
+            className="pixel-btn font-pixel-display text-[10px] px-3 py-2"
+            style={{
+              backgroundColor: "#7a1530",
+              borderColor: "#3a0a18",
+              color: "#ead8b1",
+            }}
+          >
+            ◄ EXIT
+          </button>
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className="pixel-btn font-pixel-display"
+            style={{
+              backgroundColor: "#463a78",
+              borderColor: "#2a234d",
+              color: "#ead8b1",
+              width: 36,
+              height: 36,
+              padding: 0,
+              fontSize: 12,
+            }}
+          >
+            ⚙
+          </button>
+          <div className="font-pixel-display text-[10px] text-bone/60 ml-2">
+            LOBBY <span className="text-glow-cyan">#{lobbyId}</span>
+          </div>
         </div>
 
-        {/* GAME AREA */}
-        <div className="flex-1 flex min-h-0">
-          <div className="flex-1 flex flex-col p-3 min-w-0">
-            {/* Top Opponent */}
-            <div className="flex justify-center mb-2 shrink-0">
-              <OpponentSection
-                player={topPlayer}
-                isActive={gameState.currentPlayerIndex === topPlayer.id}
-                hasPassed={topPlayer.hasPassed}
-                cardBack="green"
+        <div className="flex items-center gap-6">
+          <div
+            className="flex flex-col items-center px-3 py-1"
+            style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}
+          >
+            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">
+              ROUND
+            </div>
+            <div className="font-pixel-display text-sm text-glow-gold">
+              {gameState.roundNumber}
+            </div>
+          </div>
+          <div className="flex flex-col items-center">
+            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">
+              NOW PLAYING
+            </div>
+            <div className="font-pixel-display text-base text-glow-gold">
+              THIRTEEN
+            </div>
+          </div>
+          <div className="font-pixel-display text-[10px] text-bone/60">
+            {iAmSpectator ? "SPECTATOR" : isHost ? "HOST" : "CLIENT"}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleToggleMute}
+            className="pixel-btn font-pixel-display"
+            style={{
+              backgroundColor: "#1f1a3d",
+              borderColor: "#0a0712",
+              color: "#ead8b1",
+              width: 36,
+              height: 36,
+              padding: 0,
+              fontSize: 12,
+            }}
+          >
+            {isMuted ? "◊" : "♪"}
+          </button>
+        </div>
+      </div>
+
+      {/* SETTINGS MODAL */}
+      {showSettings && (
+        <div
+          className="absolute top-16 left-4 z-50 p-4"
+          style={{
+            backgroundColor: "#1f1a3d",
+            border: "4px solid #0a0712",
+            boxShadow: "0 0 0 4px #463a78, 4px 4px 0 #0a0712",
+          }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-pixel-display text-[10px] text-glow-gold">
+              ⚙ SETTINGS
+            </span>
+            <button
+              onClick={() => setShowSettings(false)}
+              className="font-pixel-display text-[10px] text-rose"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className="font-pixel-display text-[9px] text-bone/60">
+                MASTER: {volumes.master}%
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volumes.master}
+                onChange={(e) => handleVolumeChange("master", e.target.value)}
+                className="w-full"
               />
             </div>
-
-            {/* Middle Row */}
-            <div className="flex items-stretch gap-3 flex-1 min-h-0">
-              <div className="flex items-center shrink-0">
-                <OpponentSection
-                  player={leftPlayer}
-                  isActive={gameState.currentPlayerIndex === leftPlayer.id}
-                  hasPassed={leftPlayer.hasPassed}
-                  cardBack="red"
-                />
-              </div>
-              <div className="flex-1 min-h-0">
-                <PlayArea
-                  currentPlay={gameState.currentPlay}
-                  lastPlayerName={currentPlayerName}
-                  roundNumber={gameState.roundNumber}
-                />
-              </div>
-              <div className="flex items-center shrink-0">
-                <OpponentSection
-                  player={rightPlayer}
-                  isActive={gameState.currentPlayerIndex === rightPlayer.id}
-                  hasPassed={rightPlayer.hasPassed}
-                  cardBack="purple"
-                />
-              </div>
-            </div>
-
-            {/* My Hand */}
-            <div className="mt-2 shrink-0">
-              <PlayerHand
-                hand={bottomPlayer.hand}
-                selectedCards={selectedCards}
-                onSelectionChange={(cards) => {
-                  setSelectedCards(cards);
-                  safePlay("playClick");
-                }}
-                isActive={isMyTurn && !bottomPlayer.isEliminated}
-                showCardCount={true}
-              />
-            </div>
-            <div className="mt-1 shrink-0">
-              <GameControls
-                onPlay={handlePlay}
-                onPass={handlePass}
-                canPlay={canPlay}
-                canPass={canPass}
-                isPlayerTurn={isMyTurn && !bottomPlayer.isEliminated}
-                selectedCount={selectedCards.length}
-                message={
-                  isMyTurn
-                    ? "Your turn!"
-                    : `Waiting for ${playersList[gameState.currentPlayerIndex].name}...`
-                }
-                errorMessage={errorMessage}
+            <div>
+              <label className="font-pixel-display text-[9px] text-bone/60">
+                SFX: {volumes.sfx}%
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volumes.sfx}
+                onChange={(e) => handleVolumeChange("sfx", e.target.value)}
+                className="w-full"
               />
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Sidebar */}
-          <div className="w-80 flex flex-col border-l border-gray-800 bg-gray-900 shrink-0 transition-all duration-300">
-            <div className="flex-1 min-h-0 border-b border-gray-700 overflow-hidden relative">
-              <ScoreBoard
-                players={gameState.players}
-                currentPlayerIndex={gameState.currentPlayerIndex}
+      {/* GAME REGION */}
+      <div
+        className="relative flex-1 grid min-h-0"
+        style={{ gridTemplateColumns: "1fr 320px" }}
+      >
+        {/* TABLE */}
+        <div className="relative flex flex-col min-h-0 px-6 py-2">
+          {/* Top opponent */}
+          <div className="flex justify-center">
+            <OpponentSection
+              player={topPlayer}
+              isActive={gameState.currentPlayerIndex === topPlayer.id}
+              hasPassed={topPlayer.hasPassed}
+              position="top"
+            />
+          </div>
+
+          {/* Middle row: left + table + right */}
+          <div className="flex-1 flex items-center justify-between gap-6 my-2 min-h-0">
+            <OpponentSection
+              player={leftPlayer}
+              isActive={gameState.currentPlayerIndex === leftPlayer.id}
+              hasPassed={leftPlayer.hasPassed}
+              position="left"
+            />
+            <div className="flex-1 h-full flex items-center justify-center">
+              <PlayArea
+                currentPlay={gameState.currentPlay}
+                lastPlayerName={currentPlayerName}
                 roundNumber={gameState.roundNumber}
               />
             </div>
-
-            <div
-              className={`
-              ${isChatCollapsed ? "h-12" : "h-[50%]"}
-              min-h-[48px] transition-[height] duration-300 ease-in-out overflow-hidden flex flex-col
-            `}
-            >
-              <GameChat
-                messages={messages}
-                onSendMessage={handleSendMessage}
-                isCollapsed={isChatCollapsed}
-                onToggleCollapse={() => setIsChatCollapsed(!isChatCollapsed)}
-              />
-            </div>
+            <OpponentSection
+              player={rightPlayer}
+              isActive={gameState.currentPlayerIndex === rightPlayer.id}
+              hasPassed={rightPlayer.hasPassed}
+              position="right"
+            />
           </div>
+
+          {/* My hand area */}
+          <PlayerHand
+            hand={bottomPlayer.hand}
+            selectedCards={selectedCards}
+            onSelectionChange={(cards) => {
+              setSelectedCards(cards);
+              safePlay("playClick");
+            }}
+            isActive={isMyTurn && !bottomPlayer.isEliminated}
+            showCardCount={true}
+          />
+          <GameControls
+            onPlay={handlePlay}
+            onPass={handlePass}
+            canPlay={canPlay}
+            canPass={canPass}
+            isPlayerTurn={isMyTurn && !bottomPlayer.isEliminated}
+            selectedCount={selectedCards.length}
+            message={
+              isMyTurn
+                ? "Your turn!"
+                : `Waiting for ${playersList[gameState.currentPlayerIndex].name}...`
+            }
+            errorMessage={errorMessage}
+          />
+        </div>
+
+        {/* SIDEBAR */}
+        <div
+          className="flex flex-col min-h-0 border-l-4"
+          style={{ borderColor: "#0a0712", background: "#0e0a1f" }}
+        >
+          <ScoreBoard
+            players={gameState.players}
+            currentPlayerIndex={gameState.currentPlayerIndex}
+            roundNumber={gameState.roundNumber}
+          />
+          <GameChat
+            messages={messages}
+            onSendMessage={handleSendMessage}
+            isCollapsed={isChatCollapsed}
+            onToggleCollapse={() => setIsChatCollapsed(!isChatCollapsed)}
+          />
         </div>
       </div>
     </div>
