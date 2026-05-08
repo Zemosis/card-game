@@ -1,6 +1,7 @@
 // PIXEL CARD - Pure CSS card component (no images)
 
 import React from "react";
+import CustomAvatarCanvas from "./CustomAvatarCanvas";
 
 const SUIT_COLOR = {
   "♠": "suit-black",
@@ -110,7 +111,21 @@ export function PixelAvatar({
   size = 48,
   active = false,
   eliminated = false,
+  customAvatarData = null,
 }) {
+  const wrapStyle = {
+    opacity: eliminated ? 0.35 : 1,
+    filter: active ? "drop-shadow(0 0 8px rgba(244,196,48,0.7))" : "none",
+  };
+
+  if (variant === "custom" && customAvatarData) {
+    return (
+      <div style={wrapStyle}>
+        <CustomAvatarCanvas avatarData={customAvatarData} size={size} />
+      </div>
+    );
+  }
+
   const cls = variant === "me" ? "avatar-me" : `avatar-${variant}`;
   return (
     <div
@@ -118,10 +133,8 @@ export function PixelAvatar({
       style={{
         width: size,
         height: size,
-        opacity: eliminated ? 0.35 : 1,
-        filter: active
-          ? "drop-shadow(0 0 8px rgba(244,196,48,0.7))"
-          : "none",
+        fontSize: size,
+        ...wrapStyle,
       }}
     />
   );
@@ -182,8 +195,9 @@ export function PixelPanel({
     cyan: { border: "#2a8a8c", bg: "#0e2a2c" },
     rose: { border: "#a83a5a", bg: "#2a0e18" },
     felt: { border: "#7a1530", bg: "#3a1424" },
+    dusk: { border: "#463a78", bg: "#1a1530" },
   };
-  const c = accentColors[accent];
+  const c = accentColors[accent] || accentColors.default;
   return (
     <div
       className={`relative ${className}`}

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { getGuestIdentity, clearGuestIdentity } from "../lib/guestIdentity";
+import { deserializeAvatar } from "../utils/avatarConstants";
 
 const AuthContext = createContext(null);
 
@@ -94,12 +95,18 @@ export function AuthProvider({ children }) {
 
   const isGuest = !session;
 
+  const customAvatar = profile?.custom_avatar ? deserializeAvatar(profile.custom_avatar) : null;
+
+  const customColors = profile?.custom_colors || [];
+
   const identity = isGuest
-    ? { name: guest.name, tag: guest.tag, avatar: guest.avatar }
+    ? { name: guest.name, tag: guest.tag, avatar: guest.avatar, customAvatar: null, customColors: [] }
     : {
         name: profile?.username || guest.name,
         tag: profile?.tag || guest.tag,
         avatar: profile?.avatar || guest.avatar,
+        customAvatar,
+        customColors,
       };
 
   return (
