@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { PixelButton } from "../PixelCard";
 import { hsbToHex, hexToHsb } from "../../utils/avatarConstants";
 
-const SB_SIZE = 200;
+const SB_SIZE = 220;
 const HUE_WIDTH = 24;
 const HUE_HEIGHT = SB_SIZE;
 
@@ -121,7 +121,7 @@ export default function ColorPickerModal({ initialColor, onSelect, onClose }) {
     >
       <div
         style={{
-          width: 380,
+          width: 460,
           backgroundColor: "#14102a",
           border: "4px solid #c89820",
           boxShadow: "0 0 0 4px #0a0712, 0 0 40px rgba(244,196,48,0.2), inset 0 4px 0 rgba(255,255,255,0.06)",
@@ -196,7 +196,7 @@ export default function ColorPickerModal({ initialColor, onSelect, onClose }) {
             </div>
 
             {/* Info panel */}
-            <div className="flex flex-col gap-3 flex-1">
+            <div className="flex flex-col gap-3 flex-1" style={{ minWidth: 140 }}>
               {/* Preview swatch */}
               <div
                 style={{
@@ -217,21 +217,38 @@ export default function ColorPickerModal({ initialColor, onSelect, onClose }) {
                   value={hexInput}
                   onChange={(e) => handleHexChange(e.target.value)}
                   maxLength={7}
-                  className="w-full font-pixel-display text-sm px-2 py-1.5 text-parchment uppercase"
+                  className="w-full font-pixel-display text-parchment uppercase"
                   style={{
+                    fontSize: 14,
                     backgroundColor: "#0a0712",
                     border: "3px solid #1f1a3d",
                     boxShadow: "inset 0 2px 0 0 rgba(0,0,0,0.5)",
-                    letterSpacing: "0.1em",
+                    padding: "6px 8px",
+                    letterSpacing: "0.02em",
                   }}
                 />
               </div>
 
               {/* HSB readout */}
-              <div className="font-pixel-body text-xs text-bone/60 flex flex-col gap-1">
-                <span>H: {Math.round(hue)}°</span>
-                <span>S: {Math.round(sat)}%</span>
-                <span>B: {Math.round(bri)}%</span>
+              <div className="flex flex-col gap-1.5">
+                {[
+                  { label: "H", value: `${Math.round(hue)}°` },
+                  { label: "S", value: `${Math.round(sat)}%` },
+                  { label: "B", value: `${Math.round(bri)}%` },
+                ].map(({ label, value }) => (
+                  <div
+                    key={label}
+                    className="flex items-center justify-between font-pixel-display text-[11px]"
+                    style={{
+                      backgroundColor: "#0a0712",
+                      border: "2px solid #1f1a3d",
+                      padding: "4px 8px",
+                    }}
+                  >
+                    <span style={{ color: "#c89820" }}>{label}</span>
+                    <span className="text-parchment">{value}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
