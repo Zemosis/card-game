@@ -6,14 +6,16 @@ Muushig is a Mongolian trick-taking card game for 5 players. Each player starts 
 
 ## The Deck
 
-- A 32-card deck is used: ranks 6, 7, 8, 9, 10, J, Q, K, A in all 4 suits.
+- A 32-card deck is used: ranks 7, 8, 9, 10, J, Q, K, A in all 4 suits.
 - No jokers. Cards 2–5 are removed.
 
 ### Card Ranking (lowest to highest)
-6, 7, 8, 9, 10, J, Q, K, A
+7, 8, 9, 10, J, Q, K, A
 
-### Suit Ranking (lowest to highest)
-Diamond, Club, Heart, Spade - (If there no trump suit, the suit with the highest card wins)
+### Suit Ranking 
+There are no suit rankings in Muushig. 
+Person who played the highest card in a trick wins the trick, unless other person played a trump suit card. 
+For example, if player A plays a 7 of clubs and player B plays a 7 of spades, player A wins the trick because they played the card first, unless the following players play either a trump suit card or a higher card of the same suit.
 
 ## Determining the Dealer
 
