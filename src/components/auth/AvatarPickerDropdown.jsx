@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { PixelAvatar } from "../PixelCard";
 
 const VARIANTS = [1, 2, 3, 4, 5];
+const CUSTOM_VISIBLE = 4;
 
 export default function AvatarPickerDropdown({
   currentVariant,
@@ -12,6 +13,7 @@ export default function AvatarPickerDropdown({
   onNavigatePaint,
 }) {
   const [open, setOpen] = useState(false);
+  const [scrollIdx, setScrollIdx] = useState(0);
   const ref = useRef(null);
 
   useEffect(() => {
@@ -25,6 +27,10 @@ export default function AvatarPickerDropdown({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  useEffect(() => {
+    if (open) setScrollIdx(0);
+  }, [open]);
+
   const btnStyle = (selected) => ({
     padding: 3,
     border: selected ? "3px solid #f4c430" : "3px solid #1f1a3d",
@@ -32,6 +38,43 @@ export default function AvatarPickerDropdown({
     boxShadow: selected ? "0 0 10px rgba(244,196,48,0.5)" : "none",
     cursor: "pointer",
     transition: "border-color 120ms ease, box-shadow 120ms ease",
+    flexShrink: 0,
+  });
+
+  const customItems = [];
+  if (customAvatarData) {
+    customItems.push({ type: "avatar", data: customAvatarData });
+  }
+
+  const showPlus = !disabled && onNavigatePaint;
+  const totalItems = customItems.length + (showPlus ? 1 : 0);
+  const needsScroll = totalItems > CUSTOM_VISIBLE;
+  const canScrollLeft = scrollIdx > 0;
+  const canScrollRight = scrollIdx + CUSTOM_VISIBLE < totalItems;
+
+  const visibleStart = scrollIdx;
+  const visibleEnd = Math.min(scrollIdx + CUSTOM_VISIBLE, totalItems);
+
+  const allSlots = [
+    ...customItems.map((item, i) => ({ key: `custom-${i}`, ...item })),
+    ...(showPlus ? [{ key: "plus", type: "plus" }] : []),
+  ];
+  const visibleSlots = needsScroll ? allSlots.slice(visibleStart, visibleEnd) : allSlots;
+
+  const arrowBtnStyle = (enabled) => ({
+    width: 20,
+    height: 42,
+    border: "2px solid #1f1a3d",
+    backgroundColor: "#0a0712",
+    color: enabled ? "#f4c430" : "#1f1a3d",
+    cursor: enabled ? "pointer" : "default",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: 10,
+    flexShrink: 0,
+    transition: "color 120ms ease",
   });
 
   return (
@@ -80,60 +123,101 @@ export default function AvatarPickerDropdown({
               borderBottom: "8px solid #c89820",
             }}
           />
+
+          {/* Row 1 — Presets */}
           <div style={{ display: "flex", gap: 6 }}>
             {VARIANTS.map((v) => (
               <button
                 key={v}
                 onClick={() => {
-                  onSelect(v);
+                  onSelect(String(v));
                   setOpen(false);
                 }}
-                style={btnStyle(currentVariant === v)}
+                style={btnStyle(String(currentVariant) === String(v))}
               >
                 <PixelAvatar variant={v} size={36} />
               </button>
             ))}
-
-            {customAvatarData && (
-              <button
-                onClick={() => {
-                  onSelect("custom");
-                  setOpen(false);
-                }}
-                style={btnStyle(currentVariant === "custom")}
-              >
-                <PixelAvatar variant="custom" size={36} customAvatarData={customAvatarData} />
-              </button>
-            )}
-
-            {!disabled && onNavigatePaint && (
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  onNavigatePaint();
-                }}
-                style={{
-                  padding: 3,
-                  border: "3px solid #1f1a3d",
-                  backgroundColor: "#0a0712",
-                  cursor: "pointer",
-                  width: 42,
-                  height: 42,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontFamily: "'Press Start 2P', monospace",
-                  fontSize: 16,
-                  color: "#f4c430",
-                  transition: "border-color 120ms ease",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#f4c430")}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#1f1a3d")}
-              >
-                +
-              </button>
-            )}
           </div>
+
+          {/* Divider */}
+          {(customItems.length > 0 || showPlus) && (
+            <div style={{ height: 1, backgroundColor: "#1f1a3d", margin: "6px 0" }} />
+          )}
+
+          {/* Row 2 — Custom avatars */}
+          {(customItems.length > 0 || showPlus) && (
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              {needsScroll && (
+                <button
+                  onClick={() => canScrollLeft && setScrollIdx((i) => i - 1)}
+                  style={arrowBtnStyle(canScrollLeft)}
+                >
+                  ◄
+                </button>
+              )}
+
+              <div style={{ display: "flex", gap: 6, overflow: "hidden" }}>
+                {visibleSlots.map((slot) => {
+                  if (slot.type === "avatar") {
+                    return (
+                      <button
+                        key={slot.key}
+                        onClick={() => {
+                          onSelect("custom");
+                          setOpen(false);
+                        }}
+                        style={btnStyle(currentVariant === "custom")}
+                      >
+                        <PixelAvatar variant="custom" size={36} customAvatarData={slot.data} />
+                      </button>
+                    );
+                  }
+                  if (slot.type === "plus") {
+                    return (
+                      <button
+                        key={slot.key}
+                        onClick={() => {
+                          setOpen(false);
+                          onNavigatePaint();
+                        }}
+                        style={{
+                          padding: 3,
+                          border: "3px solid #1f1a3d",
+                          backgroundColor: "#0a0712",
+                          cursor: "pointer",
+                          width: 42,
+                          height: 42,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontFamily: "'Press Start 2P', monospace",
+                          fontSize: 16,
+                          color: "#f4c430",
+                          flexShrink: 0,
+                          transition: "border-color 120ms ease",
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#f4c430")}
+                        onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#1f1a3d")}
+                      >
+                        +
+                      </button>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+
+              {needsScroll && (
+                <button
+                  onClick={() => canScrollRight && setScrollIdx((i) => i + 1)}
+                  style={arrowBtnStyle(canScrollRight)}
+                >
+                  ►
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

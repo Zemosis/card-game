@@ -133,7 +133,10 @@ export function PixelAvatar({
       style={{
         width: size,
         height: size,
+        minWidth: size,
+        minHeight: size,
         fontSize: size,
+        flexShrink: 0,
         ...wrapStyle,
       }}
     />

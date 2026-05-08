@@ -207,18 +207,8 @@ const LobbyMuushig = () => {
           <PixelPanel accent="gold" title="✦ ADVENTURER ✦">
             <div className="p-1.5 flex flex-col gap-2">
               <div className="flex items-center gap-3">
-                <div style={{ position: "relative" }}>
+                <div>
                   <PixelAvatar variant={identity.avatar} size={48} customAvatarData={identity.customAvatar} />
-                  <div
-                    className="absolute -bottom-1 -right-1 font-pixel-display text-[8px] px-1.5 py-1"
-                    style={{
-                      backgroundColor: "#9bd14f",
-                      color: "#1a3a0e",
-                      border: "2px solid #0a0712",
-                    }}
-                  >
-                    Lv.{isGuest ? "1" : "7"}
-                  </div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -265,6 +255,16 @@ const LobbyMuushig = () => {
                     />
                   </div>
                   <div className="flex items-center gap-3 mt-2 font-pixel-body text-sm">
+                    <span
+                      className="font-pixel-display text-[8px] px-1.5 py-0.5"
+                      style={{
+                        backgroundColor: "#9bd14f",
+                        color: "#1a3a0e",
+                        border: "2px solid #0a0712",
+                      }}
+                    >
+                      Lv.{isGuest ? "1" : "7"}
+                    </span>
                     <span className="text-glow-gold">★ {isGuest ? "0" : "1,247"} EXP</span>
                     <span className="text-glow-cyan">◆ {isGuest ? "0" : "28"} W</span>
                   </div>
