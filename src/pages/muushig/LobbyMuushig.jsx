@@ -9,7 +9,7 @@ import {
   PixelAvatar,
 } from "../../components/PixelCard";
 import { useAuth } from "../../hooks/useAuth";
-import AvatarPicker from "../../components/auth/AvatarPicker";
+import AvatarPickerDropdown from "../../components/auth/AvatarPickerDropdown";
 
 const LobbyMuushig = () => {
   const navigate = useNavigate();
@@ -17,7 +17,6 @@ const LobbyMuushig = () => {
 
   const [editName, setEditName] = useState(identity.name);
   const [editTag, setEditTag] = useState(identity.tag);
-  const [editAvatar, setEditAvatar] = useState(identity.avatar);
   const [profileDirty, setProfileDirty] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
 
@@ -31,9 +30,8 @@ const LobbyMuushig = () => {
   useEffect(() => {
     setEditName(identity.name);
     setEditTag(identity.tag);
-    setEditAvatar(identity.avatar);
     setProfileDirty(false);
-  }, [identity.name, identity.tag, identity.avatar]);
+  }, [identity.name, identity.tag]);
 
   function handleNameChange(val) {
     const clean = val.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
@@ -47,11 +45,6 @@ const LobbyMuushig = () => {
     setProfileDirty(true);
   }
 
-  function handleAvatarChange(v) {
-    setEditAvatar(v);
-    setProfileDirty(true);
-  }
-
   async function handleSaveProfile() {
     if (!editName.trim() || !editTag.trim()) {
       setError("Name and tag cannot be empty");
@@ -62,7 +55,6 @@ const LobbyMuushig = () => {
       await updateProfile({
         username: editName,
         tag: editTag,
-        avatar: editAvatar,
       });
       setProfileDirty(false);
     } catch (err) {
@@ -169,7 +161,14 @@ const LobbyMuushig = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <PixelAvatar variant={identity.avatar} size={32} />
+          <AvatarPickerDropdown
+            currentVariant={identity.avatar}
+            size={32}
+            disabled={isGuest}
+            onSelect={(v) => updateProfile({ avatar: v })}
+            customAvatarData={identity.customAvatar}
+            onNavigatePaint={() => navigate("/avatar-paint")}
+          />
           <span className="font-pixel-body text-base text-bone">
             {identity.name}{" "}
             <span className="text-bone/60">#{identity.tag}</span>
@@ -209,7 +208,7 @@ const LobbyMuushig = () => {
             <div className="p-1.5 flex flex-col gap-2">
               <div className="flex items-center gap-3">
                 <div style={{ position: "relative" }}>
-                  <PixelAvatar variant={isGuest ? identity.avatar : editAvatar} size={48} />
+                  <PixelAvatar variant={identity.avatar} size={48} customAvatarData={identity.customAvatar} />
                   <div
                     className="absolute -bottom-1 -right-1 font-pixel-display text-[8px] px-1.5 py-1"
                     style={{
@@ -284,23 +283,17 @@ const LobbyMuushig = () => {
                   Sign in from the menu to customize your profile
                 </div>
               ) : (
-                <>
-                  <AvatarPicker
-                    selected={editAvatar}
-                    onSelect={handleAvatarChange}
-                  />
-                  {profileDirty && (
-                    <PixelButton
-                      color="gold"
-                      size="sm"
-                      onClick={handleSaveProfile}
-                      disabled={savingProfile}
-                      className="w-full"
-                    >
-                      {savingProfile ? "SAVING..." : "✦ SAVE PROFILE"}
-                    </PixelButton>
-                  )}
-                </>
+                profileDirty && (
+                  <PixelButton
+                    color="gold"
+                    size="sm"
+                    onClick={handleSaveProfile}
+                    disabled={savingProfile}
+                    className="w-full"
+                  >
+                    {savingProfile ? "SAVING..." : "✦ SAVE PROFILE"}
+                  </PixelButton>
+                )
               )}
             </div>
           </PixelPanel>

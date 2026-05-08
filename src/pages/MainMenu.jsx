@@ -5,16 +5,16 @@ import { useNavigate } from "react-router-dom";
 import {
   PixelCard,
   PixelButton,
-  PixelAvatar,
 } from "../components/PixelCard";
 import { useAuth } from "../hooks/useAuth";
 import LoginModal from "../components/auth/LoginModal";
+import AvatarPickerDropdown from "../components/auth/AvatarPickerDropdown";
 
 const MainMenu = () => {
   const navigate = useNavigate();
   const [hovered, setHovered] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
-  const { identity, isGuest, signOut } = useAuth();
+  const { identity, isGuest, signOut, updateProfile } = useAuth();
 
   return (
     <div className="relative w-full h-screen starfield font-pixel-body text-parchment overflow-hidden flex flex-col">
@@ -68,7 +68,14 @@ const MainMenu = () => {
               boxShadow: "inset 0 2px 0 0 rgba(255,255,255,0.06)",
             }}
           >
-            <PixelAvatar variant={isGuest ? identity.avatar : identity.avatar || "me"} size={24} />
+            <AvatarPickerDropdown
+              currentVariant={identity.avatar}
+              size={24}
+              disabled={isGuest}
+              onSelect={(v) => updateProfile({ avatar: v })}
+              customAvatarData={identity.customAvatar}
+              onNavigatePaint={() => navigate("/avatar-paint")}
+            />
             <div>
               <div className="font-pixel-display text-[8px] text-bone uppercase">
                 {isGuest ? "Guest" : "Player"}
@@ -218,8 +225,8 @@ const MainMenu = () => {
         <div className="checker-strip h-2" />
         <div className="flex items-center justify-between px-8 py-2 bg-void">
           <div className="font-pixel-body text-bone/60 text-sm">
-            <span className="text-glow-cyan">▼</span> v2.6.0 — patch{" "}
-            <span className="text-parchment">"BLOOD MOON"</span>
+            <span className="text-glow-cyan">▼</span> v1.0.0 — patch{" "}
+            <span className="text-parchment">"CUTE RAY"</span>
           </div>
           <div className="flex items-center gap-4 font-pixel-body text-bone/70 text-sm">
             <span>247 ONLINE</span>
