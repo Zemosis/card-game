@@ -85,7 +85,20 @@ export function AuthProvider({ children }) {
     if (!session) return;
     const { data, error } = await supabase
       .from("profiles")
-      .upsert({ id: session.user.id, ...updates })
+      .update(updates)
+      .eq("id", session.user.id)
+      .select()
+      .single();
+    if (error) throw error;
+    setProfile(data);
+    return data;
+  }
+
+  async function createProfile(profileData) {
+    if (!session) return;
+    const { data, error } = await supabase
+      .from("profiles")
+      .insert({ id: session.user.id, ...profileData })
       .select()
       .single();
     if (error) throw error;
@@ -100,13 +113,18 @@ export function AuthProvider({ children }) {
   const customColors = profile?.custom_colors || [];
 
   const identity = isGuest
-    ? { name: guest.name, tag: guest.tag, avatar: guest.avatar, customAvatar: null, customColors: [] }
+    ? { name: guest.name, tag: guest.tag, avatar: guest.avatar, customAvatar: null, customColors: [], level: 1, exp: 0, coins: 0, wins: 0, gamesPlayed: 0 }
     : {
         name: profile?.username || guest.name,
         tag: profile?.tag || guest.tag,
         avatar: profile?.avatar || guest.avatar,
         customAvatar,
         customColors,
+        level: profile?.level ?? 1,
+        exp: profile?.exp ?? 0,
+        coins: profile?.coins ?? 0,
+        wins: profile?.wins ?? 0,
+        gamesPlayed: profile?.games_played ?? 0,
       };
 
   return (
@@ -122,6 +140,7 @@ export function AuthProvider({ children }) {
         signInWithOAuth,
         signOut,
         updateProfile,
+        createProfile,
         fetchProfile,
       }}
     >

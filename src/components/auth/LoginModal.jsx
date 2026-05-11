@@ -12,7 +12,7 @@ const OAUTH_PROVIDERS = [
 ];
 
 export default function LoginModal({ onClose }) {
-  const { signIn, signUp, signInWithOAuth, updateProfile } = useAuth();
+  const { signIn, signUp, signInWithOAuth, createProfile } = useAuth();
   const [tab, setTab] = useState(0);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -86,10 +86,10 @@ export default function LoginModal({ onClose }) {
     }
     setBusy(true);
     try {
-      await updateProfile({
+      await createProfile({
         username: setupName.toUpperCase().slice(0, 6),
         tag: setupTag.toUpperCase().slice(0, 4),
-        avatar: setupAvatar,
+        avatar: String(setupAvatar),
       });
       onClose();
     } catch (err) {

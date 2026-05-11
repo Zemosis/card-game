@@ -72,7 +72,7 @@ const MainMenu = () => {
               currentVariant={identity.avatar}
               size={24}
               disabled={isGuest}
-              onSelect={(v) => updateProfile({ avatar: v })}
+              onSelect={(v) => updateProfile({ avatar: v }).catch(console.error)}
               customAvatarData={identity.customAvatar}
               onNavigatePaint={() => navigate("/avatar-paint")}
             />
