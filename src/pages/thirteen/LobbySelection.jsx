@@ -167,7 +167,7 @@ const LobbySelection = () => {
             currentVariant={identity.avatar}
             size={32}
             disabled={isGuest}
-            onSelect={(v) => updateProfile({ avatar: v })}
+            onSelect={(v) => updateProfile({ avatar: v }).catch(err => setError(err.message))}
             customAvatarData={identity.customAvatar}
             onNavigatePaint={() => navigate("/avatar-paint")}
           />
@@ -266,10 +266,10 @@ const LobbySelection = () => {
                         border: "2px solid #0a0712",
                       }}
                     >
-                      Lv.{isGuest ? "1" : "7"}
+                      Lv.{identity.level}
                     </span>
-                    <span className="text-glow-gold">★ {isGuest ? "0" : "1,247"} EXP</span>
-                    <span className="text-glow-cyan">◆ {isGuest ? "0" : "28"} W</span>
+                    <span className="text-glow-gold">★ {identity.exp.toLocaleString()} EXP</span>
+                    <span className="text-glow-cyan">◆ {identity.wins} W</span>
                   </div>
                 </div>
               </div>

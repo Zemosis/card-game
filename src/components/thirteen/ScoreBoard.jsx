@@ -8,13 +8,14 @@ const ScoreBoard = ({
   players = [],
   currentPlayerIndex = 0,
   roundNumber = 1,
+  matchWins = [0, 0, 0, 0],
 }) => {
   const maxScore = GAME_SETTINGS.ELIMINATION_SCORE;
 
   // Sort by score to determine place
   const ranked = [...players]
     .map((p, i) => ({ ...p, originalIndex: i }))
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => a.score - b.score);
 
   return (
     <div
@@ -29,9 +30,10 @@ const ScoreBoard = ({
         <span className="text-bone/60">RD {roundNumber}</span>
       </div>
       <div className="px-3 py-2 flex flex-col gap-1.5">
-        {players.map((player, index) => {
+        {ranked.map((player, rankIdx) => {
+          const index = player.originalIndex;
           const isActive = index === currentPlayerIndex;
-          const place = ranked.findIndex((r) => r.originalIndex === index) + 1;
+          const place = rankIdx + 1;
           const scorePercentage = (player.score / maxScore) * 100;
 
           return (
@@ -92,7 +94,7 @@ const ScoreBoard = ({
                         color: "#ead8b1",
                       }}
                     >
-                      OUT
+                      ELIMINATED
                     </span>
                   )}
                 </div>
@@ -101,8 +103,21 @@ const ScoreBoard = ({
                 </div>
               </div>
               <div className="text-right">
-                <div className="font-pixel-display text-[10px] text-glow-gold">
-                  {player.score}
+                <div className="flex items-center justify-end gap-1">
+                  <div className="font-pixel-display text-[10px] text-glow-gold">
+                    {player.score}
+                  </div>
+                  {matchWins[player.originalIndex] > 0 && (
+                    <span
+                      className="font-pixel-display text-[7px] px-1"
+                      style={{
+                        backgroundColor: "#f4c430",
+                        color: "#1a1024",
+                      }}
+                    >
+                      {matchWins[player.originalIndex]}W
+                    </span>
+                  )}
                 </div>
                 {/* Score bar */}
                 <div

@@ -8,6 +8,7 @@ const OpponentSection = ({
   isActive = false,
   hasPassed = false,
   position = "top",
+  isDealing = false,
 }) => {
   const { name, hand, isEliminated } = player;
   const cardCount = hand.length;
@@ -85,7 +86,7 @@ const OpponentSection = ({
                     className="font-pixel-display text-[7px] px-1"
                     style={{ backgroundColor: "#7a1530", color: "#ead8b1" }}
                   >
-                    OUT
+                    ELIMINATED
                   </span>
                 )}
               </div>
@@ -121,15 +122,19 @@ const OpponentSection = ({
           </div>
         </div>
 
-        {/* Card fan */}
-        {!isEliminated && cardCount > 0 && (
+        {/* Card fan — reserve space during dealing so layout doesn't shift */}
+        {!isEliminated && (cardCount > 0 || isDealing) && (
           <div
             style={{
               transform: fanRotate,
               transformOrigin: "center",
+              minWidth: position === "top" ? undefined : 7 * 8 + 40,
+              minHeight: position === "top" ? 64 : undefined,
             }}
           >
-            <CardFan count={fanCount} size="small" spread={30} />
+            {cardCount > 0 && (
+              <CardFan count={fanCount} size="small" spread={30} />
+            )}
           </div>
         )}
       </div>
