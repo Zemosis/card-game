@@ -70,3 +70,10 @@ The maximum a player can subtract in one round is **5** (if they won all 5 trick
 ## Winning
 
 The first player whose score reaches **0** wins the game. The session ends and a new one may begin.
+
+## Match/Game/Round Structure
+
+- A match consists of multiple games.
+- A match ends when a player reaches 0 points.
+- Each game starts with a new dealer and a new deck.
+- Each game ends after 5 rounds (meaning each player has played 5 cards).

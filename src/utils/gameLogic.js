@@ -12,7 +12,12 @@ import { validatePlay } from "./handEvaluator.js";
  * @param {Number} startingPlayer - Index of player who starts (dealer's left)
  * @returns {Object} Complete game state
  */
-export const createGameState = (hands, startingPlayer = 0, aiDifficulty) => {
+export const createGameState = (
+  hands,
+  startingPlayer = 0,
+  aiDifficulty,
+  matchMeta = {},
+) => {
   const players = hands.map((hand, index) => ({
     id: index,
     hand: hand,
@@ -33,6 +38,8 @@ export const createGameState = (hands, startingPlayer = 0, aiDifficulty) => {
     currentPlay: null,
     lastPlayedBy: null,
     roundNumber: 1,
+    matchNumber: matchMeta.matchNumber || 1,
+    matchWins: matchMeta.matchWins || [0, 0, 0, 0],
     gameState: GAME_STATES.PLAYING,
     passCount: 0,
     moveHistory: [],
@@ -273,11 +280,17 @@ export const endRound = (gameState, winnerIndex) => {
   const activePlayers = updatedPlayers.filter((p) => !p.isEliminated);
   const gameOver = activePlayers.length === 1;
 
+  const updatedMatchWins = [...(gameState.matchWins || [0, 0, 0, 0])];
+  if (gameOver) {
+    updatedMatchWins[activePlayers[0].id] += 1;
+  }
+
   return {
     ...gameState,
     players: updatedPlayers,
     gameState: gameOver ? GAME_STATES.GAME_OVER : GAME_STATES.ROUND_END,
     winnerIndex,
+    matchWins: updatedMatchWins,
     moveHistory: [
       ...gameState.moveHistory,
       {
@@ -300,10 +313,25 @@ export const endRound = (gameState, winnerIndex) => {
  * @returns {Object} Updated game state
  */
 export const startNextRound = (gameState, newHands) => {
-  // Dealer moves to the left
-  const newDealerIndex =
-    (gameState.dealerIndex + 1) % GAME_SETTINGS.NUM_PLAYERS;
-  const startingPlayerIndex = (newDealerIndex + 1) % GAME_SETTINGS.NUM_PLAYERS;
+  const numPlayers = GAME_SETTINGS.NUM_PLAYERS;
+
+  let newDealerIndex = (gameState.dealerIndex + 1) % numPlayers;
+  for (let i = 0; i < numPlayers && gameState.players[newDealerIndex].isEliminated; i++) {
+    newDealerIndex = (newDealerIndex + 1) % numPlayers;
+  }
+
+  let startingPlayerIndex =
+    gameState.winnerIndex !== undefined
+      ? gameState.winnerIndex
+      : (newDealerIndex + 1) % numPlayers;
+  for (
+    let i = 0;
+    i < numPlayers &&
+    gameState.players[startingPlayerIndex].isEliminated;
+    i++
+  ) {
+    startingPlayerIndex = (startingPlayerIndex + 1) % numPlayers;
+  }
 
   const updatedPlayers = gameState.players.map((player, idx) => ({
     ...player,

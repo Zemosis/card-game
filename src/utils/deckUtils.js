@@ -234,6 +234,16 @@ export const handContainsCards = (hand, cardsToCheck) => {
   return cardsToCheck.every((card) => handIds.has(card.id));
 };
 
+export const findPlayerWithCard = (hands, rank, suit) => {
+  const targetId = `${rank}${suit}`;
+  for (let i = 0; i < hands.length; i++) {
+    if (hands[i].some((card) => card.id === targetId)) {
+      return i;
+    }
+  }
+  return -1;
+};
+
 /**
  * Creates a new shuffled and dealt game
  * @returns {Object} Object with deck and player hands
@@ -264,5 +274,6 @@ export default {
   findLowestCard,
   removeCardsFromHand,
   handContainsCards,
+  findPlayerWithCard,
   initializeGame,
 };

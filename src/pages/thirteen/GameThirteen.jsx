@@ -1,6 +1,6 @@
 // GAME THIRTEEN - Multiplayer Version with Pixel Retro UI
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { socket } from "../../utils/socket";
 import PlayerHand from "../../components/thirteen/PlayerHand";
@@ -9,11 +9,21 @@ import PlayArea from "../../components/thirteen/PlayArea";
 import GameControls from "../../components/thirteen/GameControls";
 import ScoreBoard from "../../components/thirteen/ScoreBoard";
 import GameChat from "../../components/thirteen/GameChat";
-import { getCardDisplay, initializeGame } from "../../utils/deckUtils";
+import {
+  getCardDisplay,
+  initializeGame,
+  findPlayerWithCard,
+} from "../../utils/deckUtils";
+import DealAnimation from "../../components/thirteen/DealAnimation";
 
-import { createGameState, playCards, passAction } from "../../utils/gameLogic";
+import {
+  createGameState,
+  playCards,
+  passAction,
+  startNextRound,
+} from "../../utils/gameLogic";
 import { validatePlay } from "../../utils/handEvaluator";
-import { COMBO_NAMES, GAME_STATES } from "../../utils/constants";
+import { COMBO_NAMES, GAME_STATES, GAME_SETTINGS } from "../../utils/constants";
 import { makeAIDecision } from "../../utils/aiPlayer";
 
 import { soundManager } from "../../utils/SoundManager";
@@ -35,6 +45,10 @@ const GameThirteen = () => {
   const [selectedCards, setSelectedCards] = useState([]);
   const [messages, setMessages] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showRoundEnd, setShowRoundEnd] = useState(false);
+  const [roundEndData, setRoundEndData] = useState(null);
+  const [isDealing, setIsDealing] = useState(true);
+  const [dealCounts, setDealCounts] = useState([0, 0, 0, 0]);
 
   const [showSettings, setShowSettings] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -44,6 +58,14 @@ const GameThirteen = () => {
 
   const lastHistoryLengthRef = useRef(0);
   const gameStateRef = useRef(gameState);
+  const dealOrderRef = useRef(null);
+
+  const handleDealProgress = useCallback((counts) => setDealCounts(counts), []);
+  const handleDealComplete = useCallback(() => {
+    setDealCounts([13, 13, 13, 13]);
+    dealOrderRef.current = null;
+    setIsDealing(false);
+  }, []);
 
   useEffect(() => {
     gameStateRef.current = gameState;
@@ -74,7 +96,12 @@ const GameThirteen = () => {
     const initLocalGame = () => {
       {
         const { hands } = initializeGame();
-        const initialState = createGameState(hands, 0, aiDifficulty);
+        const startingPlayer = findPlayerWithCard(hands, "3", "♦");
+        const initialState = createGameState(
+          hands,
+          startingPlayer >= 0 ? startingPlayer : 0,
+          aiDifficulty,
+        );
 
         if (initialState.players[0]) {
           initialState.players[0].name = playerName || "Host";
@@ -108,7 +135,22 @@ const GameThirteen = () => {
     };
 
     const handleStateUpdate = (newState) => {
+      const prev = gameStateRef.current;
+      const isNewRoundOrMatch =
+        newState.gameState === GAME_STATES.PLAYING &&
+        (!prev ||
+          prev.roundNumber !== newState.roundNumber ||
+          prev.matchNumber !== newState.matchNumber);
       setGameState(newState);
+      if (newState.gameState === GAME_STATES.PLAYING) {
+        setShowRoundEnd(false);
+        setRoundEndData(null);
+        if (isNewRoundOrMatch) {
+          dealOrderRef.current = null;
+          setDealCounts([0, 0, 0, 0]);
+          setIsDealing(true);
+        }
+      }
       const myIdx = getMyPlayerIndex(newState, mySocketId);
       if (newState.currentPlayerIndex === myIdx) {
         safePlay("playTurnAlert");
@@ -212,7 +254,13 @@ const GameThirteen = () => {
 
   // --- AI LOGIC (HOST ONLY) ---
   useEffect(() => {
-    if (!isHost || !gameState || gameState.gameState === GAME_STATES.GAME_OVER)
+    if (
+      !isHost ||
+      !gameState ||
+      isDealing ||
+      gameState.gameState === GAME_STATES.GAME_OVER ||
+      gameState.gameState === GAME_STATES.ROUND_END
+    )
       return;
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
@@ -243,7 +291,56 @@ const GameThirteen = () => {
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [gameState, isHost]);
+  }, [gameState, isHost, isDealing]);
+
+  // --- AUTO-CONTINUE: ROUND_END → next round ---
+  useEffect(() => {
+    if (!gameState) return;
+
+    if (
+      gameState.gameState === GAME_STATES.ROUND_END ||
+      gameState.gameState === GAME_STATES.GAME_OVER
+    ) {
+      const roundWinner =
+        gameState.winnerIndex !== undefined
+          ? gameState.players[gameState.winnerIndex]
+          : null;
+
+      setRoundEndData({
+        roundNumber: gameState.roundNumber,
+        players: gameState.players.map((p, idx) => ({
+          name: p.name,
+          score: p.score,
+          isEliminated: p.isEliminated,
+          matchWins: (gameState.matchWins || [0, 0, 0, 0])[idx],
+        })),
+        roundWinnerName: roundWinner?.name,
+        isGameOver: gameState.gameState === GAME_STATES.GAME_OVER,
+      });
+      setShowRoundEnd(true);
+    }
+
+    if (!isHost) return;
+    if (gameState.gameState !== GAME_STATES.ROUND_END) return;
+
+    const timer = setTimeout(() => {
+      const { hands } = initializeGame();
+      const nextState = startNextRound(gameState, hands);
+
+      setShowRoundEnd(false);
+      setRoundEndData(null);
+      dealOrderRef.current = null;
+      setDealCounts([0, 0, 0, 0]);
+      setIsDealing(true);
+      setGameState(nextState);
+
+      if (!isSoloGame) {
+        socket.emit("sync_game_state", { lobbyId, gameState: nextState });
+      }
+    }, 4000);
+
+    return () => clearTimeout(timer);
+  }, [gameState?.gameState]);
 
   // --- HELPER: FIND MY INDEX ---
   const getMyPlayerIndex = (state, socketId) => {
@@ -343,6 +440,45 @@ const GameThirteen = () => {
     if (!isMuted) soundManager.playClick();
   };
 
+  // --- REMATCH ---
+  const handleRematch = () => {
+    if (!isHost && !isSoloGame) return;
+
+    const { hands } = initializeGame();
+    const startingPlayer = findPlayerWithCard(hands, "3", "♦");
+    const matchMeta = {
+      matchNumber: (gameState.matchNumber || 1) + 1,
+      matchWins: gameState.matchWins || [0, 0, 0, 0],
+    };
+    const freshState = createGameState(
+      hands,
+      startingPlayer >= 0 ? startingPlayer : 0,
+      gameState.aiDifficulty,
+      matchMeta,
+    );
+
+    freshState.players = freshState.players.map((p, idx) => ({
+      ...p,
+      name: gameState.players[idx].name,
+      type: gameState.players[idx].type,
+      socketId: gameState.players[idx].socketId,
+    }));
+
+    setShowRoundEnd(false);
+    setRoundEndData(null);
+    dealOrderRef.current = null;
+    setDealCounts([0, 0, 0, 0]);
+    setIsDealing(true);
+    setSelectedCards([]);
+    lastHistoryLengthRef.current = 0;
+    setMessages([]);
+    setGameState(freshState);
+
+    if (!isSoloGame) {
+      socket.emit("sync_game_state", { lobbyId, gameState: freshState });
+    }
+  };
+
   // --- LOGS & SFX ---
   useEffect(() => {
     if (!gameState) return;
@@ -404,9 +540,30 @@ const GameThirteen = () => {
       </div>
     );
 
+  if (isDealing && !dealOrderRef.current && playersList[0]?.hand.length > 0) {
+    dealOrderRef.current = playersList.map((p) => {
+      const indices = p.hand.map((_, i) => i);
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+      return indices;
+    });
+  }
+
+  const visiblePlayers = isDealing
+    ? playersList.map((p, idx) => {
+        const count = dealCounts[idx] || 0;
+        const order = dealOrderRef.current?.[idx];
+        if (!order) return { ...p, hand: [] };
+        const shown = order.slice(0, count).map((i) => p.hand[i]);
+        return { ...p, hand: shown };
+      })
+    : playersList;
+
   const rotatedPlayers = [
-    ...playersList.slice(viewIndex),
-    ...playersList.slice(0, viewIndex),
+    ...visiblePlayers.slice(viewIndex),
+    ...visiblePlayers.slice(0, viewIndex),
   ];
 
   const bottomPlayer = rotatedPlayers[0];
@@ -414,7 +571,7 @@ const GameThirteen = () => {
   const topPlayer = rotatedPlayers[2];
   const rightPlayer = rotatedPlayers[3];
 
-  const isMyTurn = gameState.currentPlayerIndex === myIndex;
+  const isMyTurn = !isDealing && gameState.currentPlayerIndex === myIndex;
   const canPlay = selectedCards.length > 0 && isMyTurn;
   const canPass = isMyTurn && gameState.currentPlay !== null;
   const currentPlayerName =
@@ -469,10 +626,10 @@ const GameThirteen = () => {
             style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}
           >
             <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">
-              ROUND
+              MATCH
             </div>
             <div className="font-pixel-display text-sm text-glow-gold">
-              {gameState.roundNumber}
+              {gameState.matchNumber || 1}
             </div>
           </div>
           <div className="flex flex-col items-center">
@@ -483,8 +640,16 @@ const GameThirteen = () => {
               THIRTEEN
             </div>
           </div>
-          <div className="font-pixel-display text-[10px] text-bone/60">
-            {iAmSpectator ? "SPECTATOR" : isHost ? "HOST" : "CLIENT"}
+          <div
+            className="flex flex-col items-center px-3 py-1"
+            style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}
+          >
+            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">
+              ROUND
+            </div>
+            <div className="font-pixel-display text-sm text-glow-gold">
+              {gameState.roundNumber}
+            </div>
           </div>
         </div>
 
@@ -577,6 +742,7 @@ const GameThirteen = () => {
               isActive={gameState.currentPlayerIndex === topPlayer.id}
               hasPassed={topPlayer.hasPassed}
               position="top"
+              isDealing={isDealing}
             />
           </div>
 
@@ -587,19 +753,29 @@ const GameThirteen = () => {
               isActive={gameState.currentPlayerIndex === leftPlayer.id}
               hasPassed={leftPlayer.hasPassed}
               position="left"
+              isDealing={isDealing}
             />
-            <div className="flex-1 h-full flex items-center justify-center">
+            <div className="flex-1 h-full flex items-center justify-center relative">
               <PlayArea
-                currentPlay={gameState.currentPlay}
-                lastPlayerName={currentPlayerName}
+                currentPlay={isDealing ? null : gameState.currentPlay}
+                lastPlayerName={isDealing ? null : currentPlayerName}
                 roundNumber={gameState.roundNumber}
               />
+              {isDealing && gameState && (
+                <DealAnimation
+                  dealerIndex={gameState.dealerIndex}
+                  viewIndex={viewIndex}
+                  onDealProgress={handleDealProgress}
+                  onComplete={handleDealComplete}
+                />
+              )}
             </div>
             <OpponentSection
               player={rightPlayer}
               isActive={gameState.currentPlayerIndex === rightPlayer.id}
               hasPassed={rightPlayer.hasPassed}
               position="right"
+              isDealing={isDealing}
             />
           </div>
 
@@ -613,6 +789,7 @@ const GameThirteen = () => {
             }}
             isActive={isMyTurn && !bottomPlayer.isEliminated}
             showCardCount={true}
+            isDealing={isDealing}
           />
           <GameControls
             onPlay={handlePlay}
@@ -639,6 +816,7 @@ const GameThirteen = () => {
             players={gameState.players}
             currentPlayerIndex={gameState.currentPlayerIndex}
             roundNumber={gameState.roundNumber}
+            matchWins={gameState.matchWins || [0, 0, 0, 0]}
           />
           <GameChat
             messages={messages}
@@ -648,6 +826,167 @@ const GameThirteen = () => {
           />
         </div>
       </div>
+
+      {/* ROUND END / GAME OVER OVERLAY */}
+      {showRoundEnd && roundEndData && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center"
+          style={{
+            backgroundColor: "rgba(10, 7, 18, 0.85)",
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            className="flex flex-col items-center gap-4 p-8"
+            style={{
+              backgroundColor: "#1f1a3d",
+              border: "4px solid #0a0712",
+              boxShadow: "0 0 0 4px #463a78, 8px 8px 0 #0a0712",
+              minWidth: 400,
+            }}
+          >
+            {roundEndData.isGameOver ? (
+              <>
+                <div className="font-pixel-display text-lg text-glow-gold shimmer-text">
+                  MATCH OVER
+                </div>
+                <div className="font-pixel-display text-[10px] text-parchment">
+                  {(() => {
+                    const winner = roundEndData.players.find(
+                      (p) => !p.isEliminated,
+                    );
+                    return winner
+                      ? `${winner.name.toUpperCase()} WINS!`
+                      : "GAME FINISHED";
+                  })()}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="font-pixel-display text-base text-glow-gold">
+                  ROUND {roundEndData.roundNumber} COMPLETE
+                </div>
+                {roundEndData.roundWinnerName && (
+                  <div className="font-pixel-display text-[10px] text-glow-cyan">
+                    {roundEndData.roundWinnerName} won the round!
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Score summary table */}
+            <div className="w-full flex flex-col gap-1 mt-2">
+              {roundEndData.players
+                .slice()
+                .sort((a, b) => a.score - b.score)
+                .map((p, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between px-3 py-1.5"
+                    style={{
+                      backgroundColor: p.isEliminated ? "#2a0e18" : "#14102a",
+                      border: "2px solid #1f1a3d",
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="font-pixel-display text-[10px]"
+                        style={{
+                          color: i === 0 ? "#f4c430" : "#ead8b1",
+                          width: 20,
+                        }}
+                      >
+                        #{i + 1}
+                      </span>
+                      <span className="font-pixel-display text-[9px] text-parchment">
+                        {p.name}
+                      </span>
+                      {p.isEliminated && (
+                        <span
+                          className="font-pixel-display text-[7px] px-1"
+                          style={{
+                            backgroundColor: "#7a1530",
+                            color: "#ead8b1",
+                          }}
+                        >
+                          ELIMINATED
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="font-pixel-display text-[10px] text-glow-gold">
+                        {p.score} pts
+                      </span>
+                      {p.matchWins > 0 && (
+                        <span
+                          className="font-pixel-display text-[7px] px-1"
+                          style={{
+                            backgroundColor: "#f4c430",
+                            color: "#1a1024",
+                          }}
+                        >
+                          {p.matchWins}W
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            {roundEndData.isGameOver ? (
+              <div className="flex flex-col items-center gap-3 mt-4">
+                {isHost || isSoloGame ? (
+                  <>
+                    <button
+                      onClick={handleRematch}
+                      className="pixel-btn font-pixel-display text-[10px] px-6 py-3"
+                      style={{
+                        backgroundColor: "#f4c430",
+                        borderColor: "#c89820",
+                        color: "#1a1024",
+                      }}
+                    >
+                      REMATCH
+                    </button>
+                    <button
+                      onClick={() => navigate("/")}
+                      className="pixel-btn font-pixel-display text-[10px] px-6 py-3"
+                      style={{
+                        backgroundColor: "#7a1530",
+                        borderColor: "#3a0a18",
+                        color: "#ead8b1",
+                      }}
+                    >
+                      ABANDON LOBBY
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="font-pixel-display text-[9px] text-bone/60 blink">
+                      WAITING FOR HOST...
+                    </div>
+                    <button
+                      onClick={() => navigate("/")}
+                      className="pixel-btn font-pixel-display text-[10px] px-6 py-3"
+                      style={{
+                        backgroundColor: "#7a1530",
+                        borderColor: "#3a0a18",
+                        color: "#ead8b1",
+                      }}
+                    >
+                      ABANDON LOBBY
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="font-pixel-display text-[8px] text-bone/60 mt-2 blink">
+                NEXT ROUND STARTING...
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
