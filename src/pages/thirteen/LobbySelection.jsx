@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { socket } from "../../utils/socket";
+import { socket, connectSocket } from "../../utils/socket";
 import {
   PixelButton,
   PixelPanel,
@@ -65,15 +65,19 @@ const LobbySelection = () => {
     }
   }
 
+  // Connect with the current identity (Supabase JWT or guest name/tag).
+  useEffect(() => {
+    connectSocket({ name: identity.name, tag: identity.tag });
+  }, [identity.name, identity.tag]);
+
   useEffect(() => {
     socket.emit("get_public_lobbies");
 
+    const refreshList = () => socket.emit("get_public_lobbies");
+    socket.on("connect", refreshList);
+
     socket.on("public_lobbies_update", (lobbies) => {
       setPublicLobbies(lobbies);
-    });
-
-    socket.on("public_lobbies_update_trigger", () => {
-      socket.emit("get_public_lobbies");
     });
 
     socket.on("lobby_joined", (data) => {
@@ -86,8 +90,8 @@ const LobbySelection = () => {
     });
 
     return () => {
+      socket.off("connect", refreshList);
       socket.off("public_lobbies_update");
-      socket.off("public_lobbies_update_trigger");
       socket.off("lobby_joined");
       socket.off("error_message");
     };

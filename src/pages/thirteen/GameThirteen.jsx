@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { socket } from "../../utils/socket";
+import { socket, connectSocket } from "../../utils/socket";
+import { useAuth } from "../../hooks/useAuth";
 import PlayerHand from "../../components/thirteen/PlayerHand";
 import OpponentSection from "../../components/thirteen/OpponentSection";
 import PlayArea from "../../components/thirteen/PlayArea";
@@ -36,10 +37,10 @@ const GameThirteen = () => {
     lobbyId,
     isHost,
     playerName,
-    mySocketId,
-    myPlayerIndex: fixedPlayerIndex,
     aiDifficulty = "MEDIUM",
   } = location.state || {};
+
+  const { identity } = useAuth();
 
   const [gameState, setGameState] = useState(null);
   const [selectedCards, setSelectedCards] = useState([]);
@@ -79,12 +80,32 @@ const GameThirteen = () => {
       if (soundManager && typeof soundManager[method] === "function") {
         soundManager[method]();
       }
-    } catch (e) {}
+    } catch {
+      /* audio not ready yet — safe to ignore */
+    }
   };
 
   const isSoloGame = lobbyId?.startsWith("SOLO-");
 
-  // --- MULTIPLAYER SETUP ---
+  // --- HELPER: FIND MY INDEX ---
+  const getMyPlayerIndex = useCallback(
+    (state) => {
+      if (isSoloGame) return 0;
+      if (!state) return -1;
+      let idx = state.players.findIndex(
+        (p) => p.socketId && p.socketId === socket.id,
+      );
+      if (idx === -1 && playerName) {
+        idx = state.players.findIndex((p) => p.name === playerName);
+      }
+      return idx;
+    },
+    [isSoloGame, playerName],
+  );
+
+  // --- GAME SETUP ---
+  // Solo runs entirely locally. Multiplayer is server-authoritative: the
+  // server deals, validates moves, and runs CPU seats — we render its state.
   useEffect(() => {
     if (!lobbyId) {
       navigate("/");
@@ -93,8 +114,8 @@ const GameThirteen = () => {
 
     if (soundManager && soundManager.init) soundManager.init();
 
-    const initLocalGame = () => {
-      {
+    if (isSoloGame) {
+      if (!gameStateRef.current) {
         const { hands } = initializeGame();
         const startingPlayer = findPlayerWithCard(hands, "3", "♦");
         const initialState = createGameState(
@@ -102,37 +123,23 @@ const GameThirteen = () => {
           startingPlayer >= 0 ? startingPlayer : 0,
           aiDifficulty,
         );
-
         if (initialState.players[0]) {
-          initialState.players[0].name = playerName || "Host";
+          initialState.players[0].name = playerName || "You";
           initialState.players[0].type = "HUMAN";
-          initialState.players[0].socketId = mySocketId;
         }
-
         setGameState(initialState);
-
-        if (!isSoloGame) {
-          socket.emit("send_initial_state", { lobbyId, gameState: initialState });
-        }
       }
-    };
-
-    if (isHost && !gameState) {
-      if (isSoloGame) {
-        initLocalGame();
-      } else if (socket.connected) {
-        socket.emit("join_lobby", { lobbyId, playerName });
-        socket.emit("check_game_status", { lobbyId });
-      } else {
-        initLocalGame();
-      }
-    } else if (!isHost && !isSoloGame && !gameState) {
-      socket.emit("join_lobby", { lobbyId, playerName });
+      return;
     }
 
-    const handleGameNotStarted = () => {
-      if (isHost) initLocalGame();
+    const joinGame = () => {
+      socket.emit("join_lobby", { lobbyId, playerName });
+      socket.emit("check_game_status", { lobbyId });
     };
+
+    connectSocket({ name: identity.name, tag: identity.tag }).then(() => {
+      if (socket.connected) joinGame();
+    });
 
     const handleStateUpdate = (newState) => {
       const prev = gameStateRef.current;
@@ -151,7 +158,7 @@ const GameThirteen = () => {
           setIsDealing(true);
         }
       }
-      const myIdx = getMyPlayerIndex(newState, mySocketId);
+      const myIdx = getMyPlayerIndex(newState);
       if (newState.currentPlayerIndex === myIdx) {
         safePlay("playTurnAlert");
       }
@@ -164,98 +171,28 @@ const GameThirteen = () => {
       if (!isMe) safePlay("playClick");
     };
 
-    const handlePlayerJoined = ({ newPlayer }) => {
-      if (isHost) {
-        const current = gameStateRef.current;
-        if (!current) return;
-
-        const updatedPlayers = [...current.players];
-        const slotIndex = updatedPlayers.findIndex(
-          (p, idx) => idx > 0 && p.type === "AI",
-        );
-
-        if (slotIndex !== -1) {
-          updatedPlayers[slotIndex] = {
-            ...updatedPlayers[slotIndex],
-            name: newPlayer.name,
-            type: "HUMAN",
-            socketId: newPlayer.id,
-          };
-          const newState = { ...current, players: updatedPlayers };
-          setGameState(newState);
-          socket.emit("sync_game_state", { lobbyId, gameState: newState });
-        }
-      }
+    const handleMoveRejected = ({ reason }) => {
+      setErrorMessage(reason || "Move rejected");
+      safePlay("playError");
     };
 
-    const handlePlayerRejoined = ({ name, newSocketId }) => {
-      if (isHost) {
-        const current = gameStateRef.current;
-        if (!current) return;
-
-        const updatedPlayers = current.players.map((p) => {
-          if (p.name === name) {
-            return { ...p, socketId: newSocketId };
-          }
-          return p;
-        });
-
-        const newState = { ...current, players: updatedPlayers };
-        setGameState(newState);
-        socket.emit("sync_game_state", { lobbyId, gameState: newState });
-      }
-    };
-
-    const handleClientMove = ({ action, data, senderId }) => {
-      if (isHost) handleRemoteAction(action, data, senderId);
-    };
-
-    socket.on("game_not_started", handleGameNotStarted);
+    socket.on("connect", joinGame);
     socket.on("game_state_update", handleStateUpdate);
     socket.on("receive_chat", handleReceiveChat);
-    socket.on("player_joined", handlePlayerJoined);
-    socket.on("player_rejoined", handlePlayerRejoined);
-    socket.on("client_move_request", handleClientMove);
+    socket.on("move_rejected", handleMoveRejected);
 
     return () => {
-      socket.off("game_not_started", handleGameNotStarted);
+      socket.off("connect", joinGame);
       socket.off("game_state_update", handleStateUpdate);
       socket.off("receive_chat", handleReceiveChat);
-      socket.off("player_joined", handlePlayerJoined);
-      socket.off("player_rejoined", handlePlayerRejoined);
-      socket.off("client_move_request", handleClientMove);
+      socket.off("move_rejected", handleMoveRejected);
     };
-  }, [lobbyId, isHost, mySocketId]);
+  }, [lobbyId]);
 
-  // --- HOST LOGIC ---
-  const handleRemoteAction = (action, data, senderId) => {
-    const currentState = gameStateRef.current;
-    if (!currentState) return;
-
-    const player = currentState.players[data.playerIndex];
-    if (player.socketId !== senderId) {
-      console.log("ID Mismatch, proceeding if name matches (recovery mode)");
-    }
-
-    if (currentState.currentPlayerIndex !== data.playerIndex) return;
-
-    let result = null;
-    if (action === "play") {
-      const playResult = playCards(currentState, data.cards);
-      if (playResult.success) result = playResult.newState;
-    } else if (action === "pass") {
-      result = passAction(currentState);
-    }
-
-    if (result) {
-      socket.emit("sync_game_state", { lobbyId, gameState: result });
-    }
-  };
-
-  // --- AI LOGIC (HOST ONLY) ---
+  // --- AI LOGIC (SOLO ONLY — multiplayer CPUs run on the server) ---
   useEffect(() => {
     if (
-      !isHost ||
+      !isSoloGame ||
       !gameState ||
       isDealing ||
       gameState.gameState === GAME_STATES.GAME_OVER ||
@@ -282,16 +219,11 @@ const GameThirteen = () => {
           result = passAction(gameState);
         }
 
-        if (result) {
-          setGameState(result);
-          if (!isSoloGame) {
-            socket.emit("sync_game_state", { lobbyId, gameState: result });
-          }
-        }
+        if (result) setGameState(result);
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [gameState, isHost, isDealing]);
+  }, [gameState, isSoloGame, isDealing]);
 
   // --- AUTO-CONTINUE: ROUND_END → next round ---
   useEffect(() => {
@@ -320,7 +252,8 @@ const GameThirteen = () => {
       setShowRoundEnd(true);
     }
 
-    if (!isHost) return;
+    // Multiplayer: the server starts the next round itself.
+    if (!isSoloGame) return;
     if (gameState.gameState !== GAME_STATES.ROUND_END) return;
 
     const timer = setTimeout(() => {
@@ -333,27 +266,10 @@ const GameThirteen = () => {
       setDealCounts([0, 0, 0, 0]);
       setIsDealing(true);
       setGameState(nextState);
-
-      if (!isSoloGame) {
-        socket.emit("sync_game_state", { lobbyId, gameState: nextState });
-      }
     }, 4000);
 
     return () => clearTimeout(timer);
   }, [gameState?.gameState]);
-
-  // --- HELPER: FIND MY INDEX ---
-  const getMyPlayerIndex = (state, socketId) => {
-    if (fixedPlayerIndex !== undefined && fixedPlayerIndex >= 0) {
-      return fixedPlayerIndex;
-    }
-    if (!state) return -1;
-    let idx = state.players.findIndex((p) => p.socketId === socketId);
-    if (idx === -1 && playerName) {
-      idx = state.players.findIndex((p) => p.name === playerName);
-    }
-    return idx !== -1 ? idx : -1;
-  };
 
   // --- ACTIONS ---
   const handlePlay = () => {
@@ -361,7 +277,7 @@ const GameThirteen = () => {
       soundManager.context.resume();
     }
 
-    const myIndex = getMyPlayerIndex(gameState, mySocketId);
+    const myIndex = getMyPlayerIndex(gameState);
     if (myIndex === -1) {
       setErrorMessage("You are spectating");
       return;
@@ -374,43 +290,30 @@ const GameThirteen = () => {
       return;
     }
 
-    if (isHost) {
+    if (isSoloGame) {
       const result = playCards(gameState, selectedCards);
       if (result.success) {
         setSelectedCards([]);
-        if (!isSoloGame) {
-          socket.emit("sync_game_state", { lobbyId, gameState: result.newState });
-        } else {
-          setGameState(result.newState);
-        }
+        setGameState(result.newState);
       }
     } else {
       socket.emit("request_move", {
         lobbyId,
         action: "play",
-        data: { cards: selectedCards, playerIndex: myIndex },
+        data: { cards: selectedCards.map((c) => c.id) },
       });
       setSelectedCards([]);
     }
   };
 
   const handlePass = () => {
-    const myIndex = getMyPlayerIndex(gameState, mySocketId);
+    const myIndex = getMyPlayerIndex(gameState);
     if (myIndex === -1) return;
 
-    if (isHost) {
-      const newState = passAction(gameState);
-      if (!isSoloGame) {
-        socket.emit("sync_game_state", { lobbyId, gameState: newState });
-      } else {
-        setGameState(newState);
-      }
+    if (isSoloGame) {
+      setGameState(passAction(gameState));
     } else {
-      socket.emit("request_move", {
-        lobbyId,
-        action: "pass",
-        data: { playerIndex: myIndex },
-      });
+      socket.emit("request_move", { lobbyId, action: "pass", data: {} });
     }
   };
 
@@ -440,9 +343,18 @@ const GameThirteen = () => {
     if (!isMuted) soundManager.playClick();
   };
 
+  // --- EXIT ---
+  const handleExit = () => {
+    if (!isSoloGame) socket.emit("leave_lobby", { lobbyId });
+    navigate("/");
+  };
+
   // --- REMATCH ---
   const handleRematch = () => {
-    if (!isHost && !isSoloGame) return;
+    if (!isSoloGame) {
+      if (isHost) socket.emit("request_rematch", { lobbyId });
+      return;
+    }
 
     const { hands } = initializeGame();
     const startingPlayer = findPlayerWithCard(hands, "3", "♦");
@@ -461,7 +373,6 @@ const GameThirteen = () => {
       ...p,
       name: gameState.players[idx].name,
       type: gameState.players[idx].type,
-      socketId: gameState.players[idx].socketId,
     }));
 
     setShowRoundEnd(false);
@@ -473,10 +384,6 @@ const GameThirteen = () => {
     lastHistoryLengthRef.current = 0;
     setMessages([]);
     setGameState(freshState);
-
-    if (!isSoloGame) {
-      socket.emit("sync_game_state", { lobbyId, gameState: freshState });
-    }
   };
 
   // --- LOGS & SFX ---
@@ -528,7 +435,7 @@ const GameThirteen = () => {
       </div>
     );
 
-  const myIndex = getMyPlayerIndex(gameState, mySocketId);
+  const myIndex = getMyPlayerIndex(gameState);
   const iAmSpectator = myIndex === -1;
   const viewIndex = iAmSpectator ? 0 : myIndex;
 
@@ -605,7 +512,7 @@ const GameThirteen = () => {
       >
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate("/")}
+            onClick={handleExit}
             className="pixel-btn font-pixel-display text-[10px] px-3 py-2"
             style={{
               backgroundColor: "#7a1530",
@@ -698,6 +605,17 @@ const GameThirteen = () => {
             </button>
           </div>
           <div className="flex flex-col gap-3">
+            <button
+              onClick={handleToggleMute}
+              className="pixel-btn font-pixel-display text-[9px] px-3 py-2"
+              style={{
+                backgroundColor: isMuted ? "#7a1530" : "#463a78",
+                borderColor: isMuted ? "#3a0a18" : "#2a234d",
+                color: "#ead8b1",
+              }}
+            >
+              {isMuted ? "🔇 SOUND OFF" : "🔊 SOUND ON"}
+            </button>
             <div>
               <label className="font-pixel-display text-[9px] text-bone/60">
                 MASTER: {volumes.master}%
@@ -731,10 +649,10 @@ const GameThirteen = () => {
       {/* GAME REGION */}
       <div
         className="relative flex-1 grid min-h-0"
-        style={{ gridTemplateColumns: "1fr 320px" }}
+        style={{ gridTemplateColumns: "minmax(0, 1fr) 300px" }}
       >
         {/* TABLE */}
-        <div className="relative flex flex-col min-h-0 px-6 py-2">
+        <div className="relative flex flex-col min-h-0 px-4 py-2">
           {/* Top opponent */}
           <div className="flex justify-center relative z-10">
             <OpponentSection
@@ -747,7 +665,7 @@ const GameThirteen = () => {
           </div>
 
           {/* Middle row: left + table + right */}
-          <div className="flex-1 flex items-center justify-between gap-6 mt-12 mb-2 min-h-0">
+          <div className="flex-1 flex items-center justify-between gap-4 my-2 min-h-0">
             <OpponentSection
               player={leftPlayer}
               isActive={gameState.currentPlayerIndex === leftPlayer.id}
@@ -797,7 +715,6 @@ const GameThirteen = () => {
             canPlay={canPlay}
             canPass={canPass}
             isPlayerTurn={isMyTurn && !bottomPlayer.isEliminated}
-            selectedCount={selectedCards.length}
             message={
               isMyTurn
                 ? "Your turn!"
@@ -949,7 +866,7 @@ const GameThirteen = () => {
                       REMATCH
                     </button>
                     <button
-                      onClick={() => navigate("/")}
+                      onClick={handleExit}
                       className="pixel-btn font-pixel-display text-[10px] px-6 py-3"
                       style={{
                         backgroundColor: "#7a1530",
@@ -966,7 +883,7 @@ const GameThirteen = () => {
                       WAITING FOR HOST...
                     </div>
                     <button
-                      onClick={() => navigate("/")}
+                      onClick={handleExit}
                       className="pixel-btn font-pixel-display text-[10px] px-6 py-3"
                       style={{
                         backgroundColor: "#7a1530",
