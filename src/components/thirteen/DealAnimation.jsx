@@ -4,7 +4,16 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { PixelCard } from "../PixelCard";
+import { soundManager } from "../../utils/SoundManager";
 import gsap from "gsap";
+
+const safeSound = (method) => {
+  try {
+    soundManager[method]?.();
+  } catch {
+    /* audio not ready yet */
+  }
+};
 
 const TOTAL_CARDS = 52;
 const DEAL_STAGGER = 0.03;
@@ -49,6 +58,7 @@ const DealAnimation = ({
       shuffleRefs.current.slice(SHUFFLE_HALF).filter(Boolean),
     ];
     for (let pass = 0; pass < 2; pass++) {
+      tl.call(() => safeSound("playShuffle"));
       tl.to(halves[0], { x: -34, rotation: -7, duration: 0.16, ease: "power2.out" }, ">");
       tl.to(halves[1], { x: 34, rotation: 7, duration: 0.16, ease: "power2.out" }, "<");
       tl.to(halves[0], { x: 0, rotation: 0, duration: 0.2, ease: "power2.in", stagger: 0.035 }, ">0.05");
@@ -68,6 +78,7 @@ const DealAnimation = ({
         () => {
           counts[seat]++;
           progressRef.current?.([...counts]);
+          if (i % 4 === 0) safeSound("playDeal");
 
           const el = poolRefs.current[i % POOL_SIZE];
           if (!el) return;

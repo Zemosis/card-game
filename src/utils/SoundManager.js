@@ -104,6 +104,14 @@ class SoundManager {
     this.playTone(Math.random() * 1000 + 500, "square", 0.05);
   }
 
+  // Quick burst of ticks — one riffle of the deck
+  playShuffle() {
+    if (!this.context || this.isMuted) return;
+    for (let i = 0; i < 9; i++) {
+      this.playTone(1400 + Math.random() * 1600, "square", 0.025, i * 0.04);
+    }
+  }
+
   playVictory() {
     if (!this.context || this.isMuted) return;
     const now = 0;
