@@ -9,11 +9,15 @@ import {
   PixelAvatar,
 } from "../../components/PixelCard";
 import { useAuth } from "../../hooks/useAuth";
+import { useServerStats } from "../../hooks/useServerStats";
 import AvatarPickerDropdown from "../../components/auth/AvatarPickerDropdown";
+import SettingsModal from "../../components/SettingsModal";
 
 const LobbySelection = () => {
   const navigate = useNavigate();
   const { identity, isGuest, updateProfile } = useAuth();
+  const { connected } = useServerStats();
+  const [showSettings, setShowSettings] = useState(false);
 
   const [editName, setEditName] = useState(identity.name);
   const [editTag, setEditTag] = useState(identity.tag);
@@ -26,7 +30,6 @@ const LobbySelection = () => {
   const [error, setError] = useState("");
   const [publicLobbies, setPublicLobbies] = useState([]);
   const [selectedLobby, setSelectedLobby] = useState(null);
-  const [selectedDifficulty, setSelectedDifficulty] = useState("MEDIUM");
 
   useEffect(() => {
     setEditName(identity.name);
@@ -110,7 +113,7 @@ const LobbySelection = () => {
         playerName: playerName.trim(),
         mySocketId: socket.id || `solo-${Date.now()}`,
         myPlayerIndex: 0,
-        aiDifficulty: difficulty || selectedDifficulty,
+        aiDifficulty: difficulty || "MEDIUM",
       },
     });
   };
@@ -180,6 +183,7 @@ const LobbySelection = () => {
             <span className="text-bone/60">#{identity.tag}</span>
           </span>
           <button
+            onClick={() => setShowSettings(true)}
             className="pixel-btn font-pixel-display"
             style={{
               backgroundColor: "#463a78",
@@ -391,9 +395,9 @@ const LobbySelection = () => {
             </div>
           </PixelPanel>
 
-          {/* Quick Start — Solo vs CPU */}
+          {/* Quick Start — Solo vs CPU (anchored to the bottom of the column) */}
           <div
-            className="flex-shrink-0"
+            className="flex-shrink-0 mt-auto"
             style={{
               backgroundColor: "#1a3a0e",
               border: "4px solid #6a9a30",
@@ -444,35 +448,30 @@ const LobbySelection = () => {
                   tx: "#3a0e1a",
                   skulls: 3,
                 },
-              ].map((d) => {
-                const active = d.l === selectedDifficulty;
-                return (
-                  <button
-                    key={d.l}
-                    onClick={() => {
-                      setSelectedDifficulty(d.l);
-                      handleQuickStart(d.l);
-                    }}
-                    className="pixel-btn font-pixel-display text-[9px] flex-1 py-1.5 flex flex-col items-center gap-0.5"
-                    style={{
-                      backgroundColor: active ? d.c : "#0a0712",
-                      borderColor: active ? d.bd : "#1f1a3d",
-                      color: active ? d.tx : d.c,
-                      boxShadow: active
-                        ? "inset 0 2px 0 0 rgba(255,255,255,0.18), inset 0 -2px 0 0 rgba(0,0,0,0.4), 0 4px 0 0 #0a0712"
-                        : "inset 0 2px 0 0 rgba(255,255,255,0.04), 0 2px 0 0 #0a0712",
-                    }}
-                  >
-                    <span>{d.l}</span>
-                    <span style={{ fontSize: 8, letterSpacing: 1 }}>
-                      {"☠".repeat(d.skulls)}
-                      <span style={{ opacity: 0.25 }}>
-                        {"☠".repeat(3 - d.skulls)}
-                      </span>
+              ].map((d) => (
+                // Clicking starts a game immediately, so no button is ever in
+                // a "selected" state — they all idle dark with their color.
+                <button
+                  key={d.l}
+                  onClick={() => handleQuickStart(d.l)}
+                  className="pixel-btn font-pixel-display text-[9px] flex-1 py-1.5 flex flex-col items-center gap-0.5"
+                  style={{
+                    backgroundColor: "#0a0712",
+                    borderColor: d.bd,
+                    color: d.c,
+                    boxShadow:
+                      "inset 0 2px 0 0 rgba(255,255,255,0.04), 0 2px 0 0 #0a0712",
+                  }}
+                >
+                  <span>{d.l}</span>
+                  <span style={{ fontSize: 8, letterSpacing: 1 }}>
+                    {"☠".repeat(d.skulls)}
+                    <span style={{ opacity: 0.25 }}>
+                      {"☠".repeat(3 - d.skulls)}
                     </span>
-                  </button>
-                );
-              })}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -643,13 +642,17 @@ const LobbySelection = () => {
             >
               <div>Tip: hover a table to peek at the host's deck.</div>
               <div className="flex items-center gap-2">
-                <span className="text-glow-cyan">●</span>
-                <span>SERVER CONNECTED</span>
+                <span style={{ color: connected ? "#5fd4d6" : "#e85a7a" }}>
+                  ●
+                </span>
+                <span>{connected ? "SERVER CONNECTED" : "SERVER OFFLINE"}</span>
               </div>
             </div>
           </PixelPanel>
         </div>
       </div>
+
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   );
 };
