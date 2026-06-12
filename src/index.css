@@ -221,7 +221,7 @@ html, body, #root { height: 100%; }
 
 .pixel-card.selectable { cursor: pointer; }
 .pixel-card.selectable:hover {
-  transform: translateY(-10px) rotate(-1deg);
+  transform: translateY(-12px);
 }
 .pixel-card.selected {
   transform: translateY(-22px);

@@ -8,7 +8,6 @@ const GameControls = ({
   canPlay = false,
   canPass = true,
   isPlayerTurn = false,
-  selectedCount = 0,
   message = "",
   errorMessage = "",
 }) => {
