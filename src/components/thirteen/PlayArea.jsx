@@ -98,18 +98,19 @@ const PlayArea = ({
 
           {currentPlay && (
             <>
-              <div className="text-center mb-3">
-                <div className="font-pixel-display text-[9px] text-bone/70 tracking-widest mb-1">
-                  {lastPlayerName
-                    ? `${lastPlayerName.toUpperCase()} PLAYED`
-                    : "CURRENT PLAY"}
-                </div>
-                <div className="font-pixel-display text-base text-glow-gold">
-                  ✦ {COMBO_NAMES[currentPlay.type] || "CARDS"} ✦
-                </div>
+              {/* Header + hint are absolutely positioned so the felt content
+                  can never overflow the table, whatever its height. */}
+              <div
+                className="absolute top-2 left-0 right-0 text-center font-pixel-display text-[9px] tracking-widest"
+                style={{ color: "rgba(234,216,177,0.7)" }}
+              >
+                {lastPlayerName ? `${lastPlayerName.toUpperCase()} PLAYED ` : ""}
+                <span className="text-glow-gold text-[11px]">
+                  ✦ {(COMBO_NAMES[currentPlay.type] || "CARDS").toUpperCase()} ✦
+                </span>
               </div>
 
-              <div className="flex items-center justify-center my-2">
+              <div className="flex items-center justify-center">
                 {currentPlay.cards.map((c, i) => {
                   const mid = (currentPlay.cards.length - 1) / 2;
                   const d = i - mid;
@@ -140,10 +141,8 @@ const PlayArea = ({
                 })}
               </div>
 
-              <div className="text-center mt-3">
-                <div className="font-pixel-display text-[8px] text-rose/80 tracking-wider">
-                  ▼ BEAT THIS OR PASS ▼
-                </div>
+              <div className="absolute bottom-2 left-0 right-0 text-center font-pixel-display text-[8px] text-rose/80 tracking-wider">
+                ▼ BEAT THIS OR PASS ▼
               </div>
             </>
           )}

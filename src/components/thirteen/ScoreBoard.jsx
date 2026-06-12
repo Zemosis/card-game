@@ -9,6 +9,7 @@ const ScoreBoard = ({
   currentPlayerIndex = 0,
   roundNumber = 1,
   matchWins = [0, 0, 0, 0],
+  myIndex = -1,
 }) => {
   const maxScore = GAME_SETTINGS.ELIMINATION_SCORE;
 
@@ -36,14 +37,15 @@ const ScoreBoard = ({
           const place = rankIdx + 1;
           const scorePercentage = (player.score / maxScore) * 100;
 
+          const isMe = index === myIndex;
+
           return (
             <div
               key={player.id}
               className="flex items-center gap-2 px-2 py-1.5"
               style={{
                 backgroundColor: isActive ? "#2e1a3a" : "#14102a",
-                border:
-                  index === 0 ? "2px solid #5fd4d6" : "2px solid #1f1a3d",
+                border: isMe ? "2px solid #5fd4d6" : "2px solid #1f1a3d",
               }}
             >
               <div
@@ -58,12 +60,13 @@ const ScoreBoard = ({
                           ? "#c89820"
                           : "#7a1530",
                   width: 20,
+                  flexShrink: 0,
                 }}
               >
                 #{place}
               </div>
               <PixelAvatar
-                variant={player.id === 0 ? "me" : ((player.id % 5) + 1)}
+                variant={isMe ? "me" : ((player.id % 5) + 1)}
                 size={24}
                 active={isActive}
                 eliminated={player.isEliminated}
@@ -71,6 +74,19 @@ const ScoreBoard = ({
               <div className="flex-1 min-w-0">
                 <div className="font-pixel-display text-[9px] text-parchment truncate">
                   {player.name}
+                  {isMe && (
+                    <span
+                      className="ml-1"
+                      style={{
+                        fontSize: 7,
+                        padding: "1px 3px",
+                        backgroundColor: "#5fd4d6",
+                        color: "#0a3a3a",
+                      }}
+                    >
+                      YOU
+                    </span>
+                  )}
                   {isActive && !player.isEliminated && (
                     <span
                       className="ml-1 blink"
@@ -94,35 +110,30 @@ const ScoreBoard = ({
                         color: "#ead8b1",
                       }}
                     >
-                      ELIMINATED
+                      OUT
                     </span>
                   )}
                 </div>
                 <div className="font-pixel-body text-xs text-bone/60">
                   {player.hand.length} cards
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="flex items-center justify-end gap-1">
-                  <div className="font-pixel-display text-[10px] text-glow-gold">
-                    {player.score}
-                  </div>
                   {matchWins[player.originalIndex] > 0 && (
-                    <span
-                      className="font-pixel-display text-[7px] px-1"
-                      style={{
-                        backgroundColor: "#f4c430",
-                        color: "#1a1024",
-                      }}
-                    >
-                      {matchWins[player.originalIndex]}W
+                    <span className="ml-1 text-glow-gold">
+                      · {matchWins[player.originalIndex]}W
                     </span>
                   )}
+                </div>
+              </div>
+              <div className="text-right" style={{ width: 52, flexShrink: 0 }}>
+                <div className="font-pixel-display text-[10px] text-glow-gold">
+                  {player.score}
+                  <span className="text-bone/50 text-[7px] ml-0.5">
+                    /{maxScore}
+                  </span>
                 </div>
                 {/* Score bar */}
                 <div
                   style={{
-                    width: 40,
+                    width: "100%",
                     height: 4,
                     backgroundColor: "#0a0712",
                     border: "1px solid #1f1a3d",
@@ -133,6 +144,7 @@ const ScoreBoard = ({
                     style={{
                       width: `${Math.min(scorePercentage, 100)}%`,
                       height: "100%",
+                      transition: "width 300ms ease",
                       background:
                         scorePercentage >= 80
                           ? "#e85a7a"

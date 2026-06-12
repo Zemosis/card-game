@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { socket, connectSocket } from "../../utils/socket";
 import { useAuth } from "../../hooks/useAuth";
+import { useServerStats } from "../../hooks/useServerStats";
 import PlayerHand from "../../components/thirteen/PlayerHand";
 import OpponentSection from "../../components/thirteen/OpponentSection";
 import PlayArea from "../../components/thirteen/PlayArea";
@@ -86,6 +87,7 @@ const GameThirteen = () => {
   };
 
   const isSoloGame = lobbyId?.startsWith("SOLO-");
+  const { connected, ping } = useServerStats({ enabled: !isSoloGame });
 
   // --- HELPER: FIND MY INDEX ---
   const getMyPlayerIndex = useCallback(
@@ -319,6 +321,26 @@ const GameThirteen = () => {
 
   const handleSendMessage = (text) => {
     if (!text.trim()) return;
+
+    // Solo games have no server — chat is local
+    if (isSoloGame) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}-${Math.random()}`,
+          type: "CHAT",
+          sender: playerName || "You",
+          text: text.trim(),
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          isMe: true,
+        },
+      ]);
+      return;
+    }
+
     socket.emit("send_chat", {
       lobbyId,
       message: text,
@@ -562,8 +584,35 @@ const GameThirteen = () => {
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 font-pixel-body text-sm">
-            <span style={{ color: "#9bd14f" }}>●●●</span>
-            <span className="text-bone/70">22ms</span>
+            {isSoloGame ? (
+              <>
+                <span style={{ color: "#9bd14f" }}>●●●</span>
+                <span className="text-bone/70">LOCAL</span>
+              </>
+            ) : !connected ? (
+              <>
+                <span style={{ color: "#e85a7a" }}>●○○</span>
+                <span style={{ color: "#e85a7a" }}>OFFLINE</span>
+              </>
+            ) : (
+              <>
+                <span
+                  style={{
+                    color:
+                      ping == null || ping < 80
+                        ? "#9bd14f"
+                        : ping < 160
+                          ? "#f4c430"
+                          : "#e85a7a",
+                  }}
+                >
+                  {ping == null || ping < 80 ? "●●●" : ping < 160 ? "●●○" : "●○○"}
+                </span>
+                <span className="text-bone/70">
+                  {ping != null ? `${ping}ms` : "..."}
+                </span>
+              </>
+            )}
           </div>
           <button
             onClick={() => setShowSettings(!showSettings)}
@@ -734,6 +783,7 @@ const GameThirteen = () => {
             currentPlayerIndex={gameState.currentPlayerIndex}
             roundNumber={gameState.roundNumber}
             matchWins={gameState.matchWins || [0, 0, 0, 0]}
+            myIndex={myIndex}
           />
           <GameChat
             messages={messages}
