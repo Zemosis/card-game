@@ -4,7 +4,7 @@
 
 import { io } from "../node_modules/socket.io-client/build/esm/index.js";
 
-const URL = "http://localhost:3001";
+const URL = process.env.TEST_URL || "http://localhost:3001";
 let failures = 0;
 const check = (cond, label) => {
   if (cond) console.log(`  ok: ${label}`);
@@ -76,10 +76,26 @@ try {
   const rejection = await once(guest, "move_rejected");
   check(!!rejection.reason, `illegal move rejected ("${rejection.reason}")`);
 
-  // CPUs play on their own: within ~10s the move history should grow
+  // CPUs play on their own: within ~10s the move history should grow.
+  // If the 3♦ (opening turn) is on a human seat, play it first so the
+  // round-robin can start.
   const before = state2.moveHistory.length;
   let latest = state2;
   host.on("game_state_update", (s) => (latest = s));
+
+  const byValue = (a, b) =>
+    a.rankValue * 4 + a.suitValue - (b.rankValue * 4 + b.suitValue);
+  const turnSeat = state2.currentPlayerIndex;
+  if (turnSeat === 0 || turnSeat === bobSeat) {
+    const sock = turnSeat === 0 ? host : guest;
+    const ownState = turnSeat === 0 ? state1 : state2;
+    const lowest = [...ownState.players[turnSeat].hand].sort(byValue)[0];
+    sock.emit("request_move", {
+      lobbyId,
+      action: "play",
+      data: { cards: [lowest.id] },
+    });
+  }
   await wait(10000);
   check(
     latest.moveHistory.length > before,

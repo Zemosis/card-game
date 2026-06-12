@@ -212,6 +212,19 @@ io.on("connection", (socket) => {
     socket.emit("public_lobbies_update", publicLobbyList());
   });
 
+  // Latency probe — client measures round-trip via the ack callback.
+  socket.on("ping_check", (ack) => {
+    if (typeof ack === "function") ack();
+  });
+
+  socket.on("get_stats", (ack) => {
+    if (typeof ack !== "function") return;
+    ack({
+      online: io.engine.clientsCount,
+      tables: [...lobbies.values()].filter((l) => !l.isPrivate).length,
+    });
+  });
+
   socket.on("create_lobby", ({ lobbyName, isPrivate } = {}) => {
     // One lobby per player: leaving any previous one keeps the list clean.
     const existing = findMembership(socket);
