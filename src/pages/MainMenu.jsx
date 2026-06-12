@@ -1,20 +1,29 @@
 // MAIN MENU - Pixel Retro Landing Page
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   PixelCard,
   PixelButton,
 } from "../components/PixelCard";
 import { useAuth } from "../hooks/useAuth";
+import { useServerStats } from "../hooks/useServerStats";
+import { connectSocket } from "../utils/socket";
 import LoginModal from "../components/auth/LoginModal";
 import AvatarPickerDropdown from "../components/auth/AvatarPickerDropdown";
+import SettingsModal from "../components/SettingsModal";
 
 const MainMenu = () => {
   const navigate = useNavigate();
   const [hovered, setHovered] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const { identity, isGuest, signOut, updateProfile } = useAuth();
+  const stats = useServerStats();
+
+  useEffect(() => {
+    connectSocket({ name: identity.name, tag: identity.tag });
+  }, [identity.name, identity.tag]);
 
   return (
     <div className="relative w-full h-screen starfield font-pixel-body text-parchment overflow-hidden flex flex-col">
@@ -125,6 +134,7 @@ const MainMenu = () => {
             </span>
           </button>
           <button
+            onClick={() => setShowSettings(true)}
             className="pixel-btn font-pixel-display"
             style={{
               backgroundColor: "#463a78",
@@ -229,16 +239,25 @@ const MainMenu = () => {
             <span className="text-parchment">"CUTE RAY"</span>
           </div>
           <div className="flex items-center gap-4 font-pixel-body text-bone/70 text-sm">
-            <span>247 ONLINE</span>
-            <span className="text-mist">|</span>
-            <span>32 TABLES OPEN</span>
-            <span className="text-mist">|</span>
-            <span className="text-glow-gold">PING 24MS</span>
+            {stats.connected ? (
+              <>
+                <span>{stats.online ?? "—"} ONLINE</span>
+                <span className="text-mist">|</span>
+                <span>{stats.tables ?? "—"} TABLES OPEN</span>
+                <span className="text-mist">|</span>
+                <span className="text-glow-gold">
+                  PING {stats.ping != null ? `${stats.ping}MS` : "—"}
+                </span>
+              </>
+            ) : (
+              <span style={{ color: "#e85a7a" }}>● SERVER OFFLINE</span>
+            )}
           </div>
         </div>
       </div>
 
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   );
 };
@@ -398,7 +417,9 @@ function GameTile({
           >
             {title}
           </div>
-          <div className="font-pixel-body text-base text-parchment/80 leading-snug mb-2 min-h-[40px]">
+          {/* min-height fits the longest (3-line) description so all three
+              tiles stay the same height */}
+          <div className="font-pixel-body text-base text-parchment/80 leading-snug mb-2 min-h-[64px]">
             {desc}
           </div>
 
