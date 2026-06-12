@@ -89,7 +89,7 @@ const OpponentSection = ({
         <div className="flex items-center gap-2">
           <PixelAvatar
             variant={((player.id || 0) % 5) + 1}
-            size={36}
+            size={40}
             active={isActive}
             eliminated={isEliminated}
           />
