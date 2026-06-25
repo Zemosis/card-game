@@ -1,4 +1,4 @@
-// SETTINGS MODAL - shared sound settings popup (pixel style)
+﻿// SETTINGS MODAL - shared sound settings popup (pixel style)
 
 import React, { useState } from "react";
 import { soundManager } from "../utils/SoundManager";
@@ -42,13 +42,13 @@ const SettingsModal = ({ onClose }) => {
       >
         <div className="flex items-center justify-between mb-4">
           <span className="font-pixel-display text-[11px] text-glow-gold">
-            ⚙ SETTINGS
+            âš™ SETTINGS
           </span>
           <button
             onClick={onClose}
             className="font-pixel-display text-[11px] text-rose"
           >
-            ✕
+            âœ•
           </button>
         </div>
 
@@ -62,7 +62,7 @@ const SettingsModal = ({ onClose }) => {
               color: "#ead8b1",
             }}
           >
-            {isMuted ? "🔇 SOUND OFF" : "🔊 SOUND ON"}
+            {isMuted ? "ðŸ”‡ SOUND OFF" : "ðŸ”Š SOUND ON"}
           </button>
 
           <div>
@@ -75,7 +75,7 @@ const SettingsModal = ({ onClose }) => {
               max="100"
               value={volumes.master}
               onChange={(e) => handleVolumeChange("master", e.target.value)}
-              className="w-full"
+              className="w-full pixel-range"
             />
           </div>
           <div>
@@ -88,7 +88,7 @@ const SettingsModal = ({ onClose }) => {
               max="100"
               value={volumes.sfx}
               onChange={(e) => handleVolumeChange("sfx", e.target.value)}
-              className="w-full"
+              className="w-full pixel-range"
             />
           </div>
         </div>

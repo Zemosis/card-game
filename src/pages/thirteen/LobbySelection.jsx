@@ -395,9 +395,9 @@ const LobbySelection = () => {
             </div>
           </PixelPanel>
 
-          {/* Quick Start — Solo vs CPU (anchored to the bottom of the column) */}
+          {/* Quick Start — Solo vs CPU (grows to fill the column) */}
           <div
-            className="flex-shrink-0 mt-auto"
+            className="flex-1 flex flex-col min-h-0"
             style={{
               backgroundColor: "#1a3a0e",
               border: "4px solid #6a9a30",
@@ -425,7 +425,7 @@ const LobbySelection = () => {
                 no server
               </span>
             </div>
-            <div className="p-1 flex gap-1.5">
+            <div className="flex-1 p-2 flex gap-2 min-h-0">
               {[
                 {
                   l: "EASY",
@@ -454,7 +454,7 @@ const LobbySelection = () => {
                 <button
                   key={d.l}
                   onClick={() => handleQuickStart(d.l)}
-                  className="pixel-btn font-pixel-display text-[9px] flex-1 py-1.5 flex flex-col items-center gap-0.5"
+                  className="pixel-btn font-pixel-display text-[11px] flex-1 flex flex-col items-center justify-center gap-2"
                   style={{
                     backgroundColor: "#0a0712",
                     borderColor: d.bd,
@@ -464,11 +464,17 @@ const LobbySelection = () => {
                   }}
                 >
                   <span>{d.l}</span>
-                  <span style={{ fontSize: 8, letterSpacing: 1 }}>
+                  <span style={{ fontSize: 11, letterSpacing: 2 }}>
                     {"☠".repeat(d.skulls)}
                     <span style={{ opacity: 0.25 }}>
                       {"☠".repeat(3 - d.skulls)}
                     </span>
+                  </span>
+                  <span
+                    className="font-pixel-body"
+                    style={{ fontSize: 13, opacity: 0.6, letterSpacing: 0 }}
+                  >
+                    ► START
                   </span>
                 </button>
               ))}

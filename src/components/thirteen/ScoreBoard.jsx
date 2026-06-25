@@ -38,6 +38,8 @@ const ScoreBoard = ({
           const scorePercentage = (player.score / maxScore) * 100;
 
           const isMe = index === myIndex;
+          // "NAME #TAG" → tight name + dimmed tag (the font's space is wide)
+          const [baseName, nameTag] = player.name.split(" #");
 
           return (
             <div
@@ -73,18 +75,10 @@ const ScoreBoard = ({
               />
               <div className="flex-1 min-w-0">
                 <div className="font-pixel-display text-[9px] text-parchment truncate">
-                  {player.name}
-                  {isMe && (
-                    <span
-                      className="ml-1"
-                      style={{
-                        fontSize: 7,
-                        padding: "1px 3px",
-                        backgroundColor: "#5fd4d6",
-                        color: "#0a3a3a",
-                      }}
-                    >
-                      YOU
+                  {baseName}
+                  {nameTag && (
+                    <span className="text-bone/50" style={{ marginLeft: 2 }}>
+                      #{nameTag}
                     </span>
                   )}
                   {isActive && !player.isEliminated && (

@@ -10,13 +10,15 @@ const STEP = 12;
 // Fan of face-down cards with an explicitly sized container.
 // (Rotating a whole container doesn't change its layout box, which made the
 // old side fans collide with neighbours — so cards are rotated individually.)
-const OpponentFan = ({ count, vertical = false, mirror = false }) => {
+// `flip` inverts the arc for the top player, whose hand is held facing us.
+const OpponentFan = ({ count, vertical = false, mirror = false, flip = false }) => {
   const cards = Array.from({ length: count });
   const mid = (count - 1) / 2;
   const span = (count - 1) * STEP;
 
   const width = vertical ? CARD_H + 8 : span + CARD_W;
   const height = vertical ? span + CARD_H : CARD_H + 10;
+  const maxDip = mid * 1.4;
 
   return (
     <div style={{ position: "relative", width, height, flexShrink: 0 }}>
@@ -24,7 +26,12 @@ const OpponentFan = ({ count, vertical = false, mirror = false }) => {
         const d = i - mid;
         const arc = d * Math.min(3, 18 / Math.max(count - 1, 1));
         const dip = Math.abs(d) * 1.4;
-        const rotation = vertical ? 90 + (mirror ? -arc : arc) : arc;
+        const rotation = vertical
+          ? 90 + (mirror ? -arc : arc)
+          : flip
+            ? -arc
+            : arc;
+        const top = flip ? maxDip - dip : dip;
         return (
           <div
             key={i}
@@ -37,7 +44,7 @@ const OpponentFan = ({ count, vertical = false, mirror = false }) => {
                     marginLeft: -CARD_W / 2,
                     marginTop: (CARD_H - CARD_W) / 2 - 10,
                   }
-                : { left: i * STEP, top: dip }),
+                : { left: i * STEP, top }),
               transform: `rotate(${rotation}deg)`,
               transformOrigin: "center",
               zIndex: i,
@@ -163,6 +170,7 @@ const OpponentSection = ({
               count={fanCount}
               vertical={vertical}
               mirror={position === "right"}
+              flip={position === "top"}
             />
           )}
         </div>

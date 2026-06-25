@@ -384,9 +384,9 @@ const LobbyMuushig = () => {
             </div>
           </PixelPanel>
 
-          {/* Quick Start — Solo vs CPU */}
+          {/* Quick Start — Solo vs CPU (grows to fill the column) */}
           <div
-            className="flex-shrink-0"
+            className="flex-1 flex flex-col min-h-0"
             style={{
               backgroundColor: "#1a3a0e",
               border: "4px solid #6a9a30",
@@ -414,50 +414,51 @@ const LobbyMuushig = () => {
                 no server
               </span>
             </div>
-            <div className="p-1 flex gap-1.5">
+            <div className="flex-1 p-2 flex gap-2 min-h-0">
               {[
                 {
                   l: "EASY",
                   c: "#9bd14f",
                   bd: "#6a9a30",
-                  tx: "#1a3a0e",
                   skulls: 1,
                 },
                 {
                   l: "MEDIUM",
                   c: "#f4c430",
                   bd: "#c89820",
-                  tx: "#1a1024",
                   skulls: 2,
-                  active: true,
                 },
                 {
                   l: "HARD",
                   c: "#e85a7a",
                   bd: "#a83a5a",
-                  tx: "#3a0e1a",
                   skulls: 3,
                 },
               ].map((d) => (
                 <button
                   key={d.l}
                   onClick={handleQuickStart}
-                  className="pixel-btn font-pixel-display text-[9px] flex-1 py-1.5 flex flex-col items-center gap-0.5"
+                  className="pixel-btn font-pixel-display text-[11px] flex-1 flex flex-col items-center justify-center gap-2"
                   style={{
-                    backgroundColor: d.active ? d.c : "#0a0712",
-                    borderColor: d.active ? d.bd : "#1f1a3d",
-                    color: d.active ? d.tx : d.c,
-                    boxShadow: d.active
-                      ? "inset 0 2px 0 0 rgba(255,255,255,0.18), inset 0 -2px 0 0 rgba(0,0,0,0.4), 0 4px 0 0 #0a0712"
-                      : "inset 0 2px 0 0 rgba(255,255,255,0.04), 0 2px 0 0 #0a0712",
+                    backgroundColor: "#0a0712",
+                    borderColor: d.bd,
+                    color: d.c,
+                    boxShadow:
+                      "inset 0 2px 0 0 rgba(255,255,255,0.04), 0 2px 0 0 #0a0712",
                   }}
                 >
                   <span>{d.l}</span>
-                  <span style={{ fontSize: 8, letterSpacing: 1 }}>
+                  <span style={{ fontSize: 11, letterSpacing: 2 }}>
                     {"☠".repeat(d.skulls)}
                     <span style={{ opacity: 0.25 }}>
                       {"☠".repeat(3 - d.skulls)}
                     </span>
+                  </span>
+                  <span
+                    className="font-pixel-body"
+                    style={{ fontSize: 13, opacity: 0.6, letterSpacing: 0 }}
+                  >
+                    ► START
                   </span>
                 </button>
               ))}

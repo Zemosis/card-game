@@ -13,7 +13,13 @@ import { identifyCombination } from "../../utils/handEvaluator";
 import { COMBO_NAMES } from "../../utils/constants";
 import gsap from "gsap";
 
-const SORT_DURATION = 0.6;
+// Sorting choreography: hold the unsorted hand so the player can see it,
+// then cards lift, slide to their sorted slot, and drop — one after another.
+const SORT_HOLD = 0.65;
+const SORT_STAGGER = 0.05;
+const SORT_SLIDE = 0.45;
+const SORT_LIFT = 26;
+const SORT_TIMEOUT_MS = 4500;
 const HAND_HEIGHT = 156;
 
 // Fan geometry: cards sit on an arc as if held — edges tilt outward and dip
@@ -23,7 +29,7 @@ const getCardPosition = (index, total) => {
   const d = index - mid;
   const spacing = total > 1 ? Math.min(46, 640 / (total - 1)) : 0;
   const rotation = d * Math.min(2.4, 30 / Math.max(total - 1, 1));
-  const y = Math.pow(Math.abs(d) * 2.1, 2) * 0.09; // arc dip at the edges
+  const y = Math.pow(Math.abs(d) * 2.1, 2) * 0.07; // arc dip at the edges
   return { offset: d * spacing, rotation, y };
 };
 
@@ -151,7 +157,7 @@ const PlayerHand = ({
     timelineRef.current = tl;
 
     let hasTweens = false;
-    sorted.forEach((card) => {
+    sorted.forEach((card, sortedIndex) => {
       const el = cardRefsMap.current.get(card.id);
       if (!el) return;
 
@@ -165,17 +171,28 @@ const PlayerHand = ({
 
       if (Math.abs(deltaX) < 0.5 && Math.abs(deltaR) < 0.1) return;
 
+      // Keep the card visually where it was dealt, then move it on its cue
       gsap.set(el, { x: deltaX, y: deltaY, rotation: deltaR });
+      const cue = SORT_HOLD + sortedIndex * SORT_STAGGER;
+      tl.to(
+        el,
+        {
+          keyframes: [
+            { y: deltaY - SORT_LIFT, duration: 0.16, ease: "power2.out" },
+            { y: 0, duration: SORT_SLIDE - 0.16, ease: "power2.inOut" },
+          ],
+        },
+        cue,
+      );
       tl.to(
         el,
         {
           x: 0,
-          y: 0,
           rotation: 0,
-          duration: SORT_DURATION,
+          duration: SORT_SLIDE,
           ease: "power2.inOut",
         },
-        0,
+        cue,
       );
       hasTweens = true;
     });
@@ -204,7 +221,7 @@ const PlayerHand = ({
       }
       sortDataRef.current = null;
       setIsSorting(false);
-    }, SORT_DURATION * 1000 + 1000);
+    }, SORT_TIMEOUT_MS);
     return () => clearTimeout(timeout);
   }, [isSorting]);
 
@@ -370,7 +387,7 @@ const PlayerHand = ({
                 style={{
                   position: "absolute",
                   left: "50%",
-                  bottom: 14,
+                  bottom: 24,
                   transform: `translateX(calc(-50% + ${offset}px)) translateY(${y}px) rotate(${rotation}deg)`,
                   transformOrigin: "bottom center",
                   zIndex: i,
