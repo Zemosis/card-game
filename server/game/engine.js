@@ -26,10 +26,12 @@ export class ThirteenGame {
    * @param {Array} opts.seats - 4 entries of { type: "HUMAN"|"AI", name, socketId }
    * @param {String} opts.aiDifficulty
    * @param {Function} opts.onState - called after every state change
+   * @param {Function} opts.onRoundEnd - called once per completed round
    * @param {Function} opts.onGameOver - called once per finished match
    */
-  constructor({ seats, aiDifficulty = "MEDIUM", onState, onGameOver }) {
+  constructor({ seats, aiDifficulty = "MEDIUM", onState, onRoundEnd, onGameOver }) {
     this.onState = onState;
+    this.onRoundEnd = onRoundEnd;
     this.onGameOver = onGameOver;
     this.aiTimer = null;
     this.roundTimer = null;
@@ -137,8 +139,20 @@ export class ThirteenGame {
   }
 
   applyState(next) {
+    const prev = this.state;
     this.state = next;
     this.broadcast();
+
+    // A round ends into ROUND_END, or into GAME_OVER if it was the last one --
+    // watching only for ROUND_END would silently drop every final round.
+    const roundJustEnded =
+      prev?.gameState === GAME_STATES.PLAYING &&
+      (next.gameState === GAME_STATES.ROUND_END ||
+        next.gameState === GAME_STATES.GAME_OVER);
+    if (roundJustEnded && this.onRoundEnd) {
+      this.onRoundEnd(this.summariseRound(prev, next));
+    }
+
     if (next.gameState === GAME_STATES.ROUND_END) {
       this.roundTimer = setTimeout(() => {
         this.roundTimer = null;
@@ -151,6 +165,28 @@ export class ThirteenGame {
     } else {
       this.scheduleAI();
     }
+  }
+
+  /**
+   * Per-seat detail for the round that just finished. Card counts come from the
+   * PREVIOUS state: scoring empties every hand, so by `next` they are all zero.
+   */
+  summariseRound(prev, next) {
+    const winner = next.winnerIndex ?? null;
+    return {
+      roundNumber: next.roundNumber,
+      winnerSeat: winner,
+      seatResults: next.players.map((p, i) => ({
+        seat_index: i,
+        // The winner emptied their hand on the play that ended the round, and
+        // that play lands between prev and next -- so prev still shows the
+        // cards they just put down. Everyone else's hand is untouched by it.
+        cards_left: i === winner ? 0 : prev.players[i]?.hand?.length ?? 0,
+        points_gained: p.score - (prev.players[i]?.score ?? 0),
+        score_after: p.score,
+        eliminated: !!p.isEliminated,
+      })),
+    };
   }
 
   beginNextRound() {

@@ -49,8 +49,13 @@ socket and there is no Muushig logic anywhere in `server/game/`. This is why
 `recordMatch` hardcodes `game_type: 'thirteen'`. The rulebook is written; the
 implementation is not.
 
-There is **no automated test suite** for the frontend. The server has
-`simulate.js` and `test-multiplayer.mjs` as ad-hoc harnesses.
+There is **no automated test suite** for the frontend. The server has three
+ad-hoc harnesses: `simulate.js` (engine invariants), `test-rounds.mjs` (round
+history) and `test-multiplayer.mjs` (socket end-to-end, needs a running server).
+
+`test-multiplayer.mjs` has one **known pre-existing failure**: *"game advances
+on its own"* — the AI never takes its turn, so a table with CPU seats can stall.
+Combined with CPU-takeover-on-disconnect, an abandoned seat may freeze a match.
 
 ## 3. Tech stack
 
@@ -207,14 +212,55 @@ standard extension of two-player Elo to a placement result. **Only signed-in
 players are rated**, so rating cannot be farmed off CPUs or guests; with fewer
 than two rated players, nobody moves.
 
+### `game_rounds`
+
+One row per round, with per-seat detail as `seat_results` jsonb
+(`seat_index`, `cards_left`, `points_gained`, `score_after`, `eliminated`). The
+round is the natural write unit — all four seats resolve together — and the
+`round_seat_results` view unnests it back into relational form for querying.
+
+The engine emits these through `onRoundEnd`. Two subtleties worth preserving:
+
+* A round ends into `ROUND_END`, **or into `GAME_OVER` if it was the last one**.
+  Hooking only `ROUND_END` silently drops every final round.
+* Card counts are read from the *previous* state, because scoring empties every
+  hand. The exception is the round winner, who emptied their hand on the play
+  that ended the round — that play lands between the two states, so the previous
+  state still shows the cards they just put down. The winner is hardcoded to 0.
+
+`game_players.rounds_won` and `game_players.stats` (jsonb: `rounds_played`,
+`cards_left_total`, `best_round_cards_left`, `eliminated_at_round`) are derived
+from these by the server. jsonb because Thirteen and Muushig have genuinely
+different concepts; promote a field to a real column once you query it.
+
 ### Deriving stats
 
-Losses, win rate, average placement, placement distribution, streaks, best and
-worst score, head-to-head records and per-game-type splits are all **queries
-over these rows**, not stored counters. Only the small hot-path set the main
-menu reads (`coins`, `exp`, `level`, `wins`, `games_played`, `rating`) is
-denormalised onto `profiles`, and that is a cache. Do not add a `losses` column;
-a counter that can drift from the rows it summarises is worse than a join.
+Nothing about a player's record is stored as a counter. These views compute it
+all from the match rows, so they can never disagree with history:
+
+| View | What it answers |
+|---|---|
+| `player_match_history` | One row per match played — the base for everything else |
+| `player_stats` | Games, wins, losses, win rate, avg/best/worst placement, best/worst score, abandons, public vs private, time played |
+| `player_game_type_stats` | The same split by Thirteen vs Muushig |
+| `player_placement_stats` | Placement distribution — how often 2nd vs 4th, with percentages |
+| `player_streaks` | Longest win/loss streak, and current streak (negative = losing) |
+| `round_seat_results` | Round-level detail, flattened |
+| `leaderboards` | Ranking board; a thin projection of `player_stats` |
+| `head_to_head(a, b)` | Function, not a view — the full pair cross-product is not something to materialise |
+
+Two deliberate choices: `avg_position` **excludes** matches the player walked
+out of, so a rage-quit cannot flatter or punish their average; and `win_rate` is
+NULL rather than 0 for someone who has never played, because "0%" and "no data"
+are different facts.
+
+Only the hot-path set the main menu reads (`coins`, `exp`, `level`, `wins`,
+`games_played`, `rating`) is denormalised onto `profiles`, and that is a cache.
+Do not add a `losses` column: a counter that can drift from the rows it
+summarises is worse than a join.
+
+Note on score direction: in Thirteen a **lower** score is better (points are
+penalties for cards left in hand), so `best_score` is a `MIN`.
 
 ### `leaderboards`
 

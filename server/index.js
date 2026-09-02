@@ -35,6 +35,7 @@ const io = new Server(server, {
  *     socketId, connected, seatIndex, disconnectTimer
  *   }>,
  *   roster: Map<playerKey, seat ledger>,   // never pruned — see below
+ *   rounds: Array<round summary>,
  *   sessionPromise, recorded,
  *   game: ThirteenGame | null
  * }>
@@ -173,6 +174,7 @@ function closeSession(lobby, { completed, endedReason }) {
     endedReason,
     finishedAt: lobby.game?.finishedAt || new Date(),
     roster: [...lobby.roster.values()],
+    rounds: [...lobby.rounds],
     state: lobby.game?.state || null,
   };
 
@@ -191,6 +193,7 @@ function closeSession(lobby, { completed, endedReason }) {
  */
 function beginSession(lobby) {
   lobby.roster.clear();
+  lobby.rounds = [];
   lobby.recorded = false;
   for (const member of lobby.members.values()) rosterEnter(lobby, member);
 
@@ -226,6 +229,9 @@ function startGame(lobby) {
   lobby.game = new ThirteenGame({
     seats,
     onState: () => broadcastState(lobby),
+    // Fires before onGameOver, so the final round is captured before the
+    // session is closed out.
+    onRoundEnd: (round) => lobby.rounds.push(round),
     onGameOver: () => closeSession(lobby, { completed: true, endedReason: "completed" }),
   });
 
@@ -315,6 +321,7 @@ io.on("connection", (socket) => {
       createdAt: new Date(),
       members: new Map(),
       roster: new Map(),
+      rounds: [],
       sessionPromise: null,
       recorded: false,
       game: null,

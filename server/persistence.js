@@ -152,6 +152,7 @@ function rankSeats(state) {
  * @param {Array}   rec.roster - every seat ever occupied: { playerKey, userId,
  *                  name, tag, seatIndex, joinedAt, leftAt, leftEarly,
  *                  cpuTookOver, disconnectCount }
+ * @param {Array}   rec.rounds - per-round summaries from the engine
  * @param {Object}  rec.state - final game state
  */
 export async function finishSession(rec) {
@@ -174,6 +175,60 @@ export async function finishSession(rec) {
 
   if (sessionError) {
     console.error("[supabase] failed to update game_sessions:", sessionError.message);
+  }
+
+  // Round-level history. Written before the player rows so rounds_won and the
+  // stats blob can be derived from the same source.
+  const rounds = rec.rounds || [];
+  if (rounds.length) {
+    const { error } = await supabaseAdmin.from("game_rounds").upsert(
+      rounds.map((r) => ({
+        session_id: rec.sessionId,
+        round_number: r.roundNumber,
+        winner_seat: r.winnerSeat,
+        seat_results: r.seatResults,
+      })),
+      { onConflict: "session_id,round_number" },
+    );
+    if (error) {
+      console.error("[supabase] failed to write game_rounds:", error.message);
+    }
+  }
+
+  /** Per-seat round aggregates, derived from the round summaries. */
+  function roundStatsFor(seatIndex) {
+    let roundsWon = 0;
+    let roundsPlayed = 0;
+    let cardsLeftTotal = 0;
+    let bestRoundCardsLeft = null;
+    let eliminatedAtRound = null;
+
+    for (const round of rounds) {
+      const seat = round.seatResults.find((x) => x.seat_index === seatIndex);
+      if (!seat) continue;
+      roundsPlayed += 1;
+      if (round.winnerSeat === seatIndex) roundsWon += 1;
+      cardsLeftTotal += seat.cards_left;
+      if (bestRoundCardsLeft === null || seat.cards_left < bestRoundCardsLeft) {
+        bestRoundCardsLeft = seat.cards_left;
+      }
+      if (seat.eliminated && eliminatedAtRound === null) {
+        eliminatedAtRound = round.roundNumber;
+      }
+    }
+
+    return {
+      roundsWon,
+      stats: rounds.length
+        ? {
+            rounds_played: roundsPlayed,
+            rounds_won: roundsWon,
+            cards_left_total: cardsLeftTotal,
+            best_round_cards_left: bestRoundCardsLeft,
+            eliminated_at_round: eliminatedAtRound,
+          }
+        : null,
+    };
   }
 
   // Current ratings for the signed-in players, fetched in one round trip.
@@ -210,6 +265,7 @@ export async function finishSession(rec) {
     const profile = seat.userId ? profiles.get(seat.userId) : null;
     const before = profile?.rating ?? (seat.userId ? DEFAULT_RATING : null);
     const delta = ratingDeltas.get(seat.playerKey);
+    const roundStats = roundStatsFor(seat.seatIndex);
 
     return {
       session_id: rec.sessionId,
@@ -230,6 +286,8 @@ export async function finishSession(rec) {
       disconnect_count: seat.disconnectCount || 0,
       rating_before: before,
       rating_after: delta == null ? before : before + delta,
+      rounds_won: roundStats.roundsWon,
+      stats: roundStats.stats,
     };
   });
 
@@ -273,6 +331,7 @@ export async function finishSession(rec) {
 
   console.log(
     `[supabase] recorded match ${rec.sessionId} (${playerRows.length} seats, ` +
+      `${rounds.length} rounds, ` +
       `${playerRows.filter((r) => r.left_early).length} left early)`,
   );
 }
