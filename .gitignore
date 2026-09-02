@@ -31,3 +31,6 @@ server/.env
 CLAUDE.md
 *.local.json
 
+
+# Agent skills (installed via `npx skills add`)
+.agents/

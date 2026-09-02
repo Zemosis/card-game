@@ -2,17 +2,20 @@
 
 ## Overview
 
-Thirteen is a Mongolian climbing card game for 2-4 players. The goal is to be the first player to get rid of all your cards. The game continues until only one player remains uneliminated.
+Thirteen is a Mongolian card game for 2-4 players. The goal is to be the first player to get rid of all your cards.
+The game continues until only one player remains uneliminated.
 
 ## Card Ranking
 
 ### By Rank (lowest to highest)
+
 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A, 2
 
 - **3** is the lowest card
 - **2** is the highest card
 
 ### By Suit (lowest to highest)
+
 Diamonds, Clubs, Hearts, Spades
 
 For example, 3 of Spades > 3 of Hearts > 3 of Clubs > 3 of Diamonds
@@ -40,33 +43,42 @@ If you pass, you cannot play again until a new trick starts. A new trick starts 
 ## Valid Combinations
 
 ### Single
+
 Any one card. Beaten by a higher single card.
 
 ### Pair
+
 Two cards of the same rank. Beaten by a higher pair.
 
 ### Three of a Kind
+
 Three cards of the same rank. Beaten by a higher three of a kind.
 
 ### Four of a Kind
+
 Four cards of the same rank. Beaten by a higher four of a kind.
 
 ### Straight
+
 Five or more consecutive cards of any suit (e.g., 5-6-7-8-9).
 
 - **2s can be used** in straights like J-Q-K-A-2.
 - Beaten by a higher straight of the same length or flush, full house, straight flush, or royal flush.
 
 ### Flush
+
 Five cards of the same suit. Beaten by a higher flush (compared by highest card, then by suit) or full house, straight flush, or royal flush.
 
 ### Full House
+
 Three of a kind + a pair. Beaten by a higher full house (compared by the three-of-a-kind rank) or straight flush, or royal flush.
 
 ### Straight Flush
+
 Five or more consecutive cards all of the same suit. Beaten by a higher straight flush of the same length or royal flush.
 
 ### Royal Flush
+
 10, J, Q, K, A all of the same suit. The highest possible combination.
 
 ## Scoring

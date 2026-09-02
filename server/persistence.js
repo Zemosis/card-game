@@ -1,5 +1,5 @@
 // SUPABASE PERSISTENCE — token verification and match recording.
-// The realtime game itself never touches the database (see ARCHITECTURE.md);
+// The realtime game itself never touches the database (see docs/ARCHITECTURE.md);
 // Supabase is only used to verify JWTs on connect and to write results when a
 // match finishes.
 
