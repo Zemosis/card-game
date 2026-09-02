@@ -8,7 +8,7 @@ import http from "http";
 import cors from "cors";
 import { Server } from "socket.io";
 import { ThirteenGame, redactState } from "./game/engine.js";
-import { verifyToken, recordMatch } from "./persistence.js";
+import { verifyToken, createSession, finishSession } from "./persistence.js";
 
 const PORT = process.env.PORT || 3001;
 const CORS_ORIGINS = (process.env.CORS_ORIGIN || "http://localhost:5173")
@@ -34,8 +34,15 @@ const io = new Server(server, {
  *     key, userId, name, tag, displayName,
  *     socketId, connected, seatIndex, disconnectTimer
  *   }>,
+ *   roster: Map<playerKey, seat ledger>,   // never pruned — see below
+ *   sessionPromise, recorded,
  *   game: ThirteenGame | null
  * }>
+ *
+ * `members` is the LIVE connection map and loses a player the moment they quit.
+ * `roster` is the recording ledger: every seat ever occupied for the current
+ * match, kept until the session is written. Recording from `members` is what
+ * previously made quitters vanish from match history entirely.
  */
 const lobbies = new Map();
 
@@ -118,26 +125,90 @@ function sendStateTo(lobby, socket) {
   socket.emit("game_state_update", redactState(lobby.game.state, seat));
 }
 
-function buildMatchRecord(lobby, game) {
+/** Adds (or refreshes) a seat in the recording ledger. Never removes. */
+function rosterEnter(lobby, member) {
+  if (member.seatIndex == null) return;
+  const existing = lobby.roster.get(member.key);
+  if (existing) {
+    // Rejoined: they are back in a seat, so this is no longer an early exit.
+    existing.seatIndex = member.seatIndex;
+    existing.leftAt = null;
+    existing.leftEarly = false;
+    return;
+  }
+  lobby.roster.set(member.key, {
+    playerKey: member.key,
+    userId: member.userId,
+    name: member.name,
+    tag: member.tag,
+    seatIndex: member.seatIndex,
+    joinedAt: new Date(),
+    leftAt: null,
+    leftEarly: false,
+    cpuTookOver: false,
+    disconnectCount: 0,
+  });
+}
+
+/** Marks a seat as vacated. The entry stays so the loss is still recorded. */
+function rosterLeave(lobby, member, { cpuTookOver = false } = {}) {
+  const entry = lobby.roster.get(member.key);
+  if (!entry) return;
+  entry.leftAt = new Date();
+  entry.leftEarly = true;
+  if (cpuTookOver) entry.cpuTookOver = true;
+}
+
+/**
+ * Writes the session outcome exactly once. Called on game over and again if the
+ * lobby dies first, so an abandoned match still leaves a record.
+ */
+function closeSession(lobby, { completed, endedReason }) {
+  if (!lobby.sessionPromise || lobby.recorded) return;
+  lobby.recorded = true;
+
+  // Snapshot now: the lobby may be torn down before the insert resolves.
+  const snapshot = {
+    completed,
+    endedReason,
+    finishedAt: lobby.game?.finishedAt || new Date(),
+    roster: [...lobby.roster.values()],
+    state: lobby.game?.state || null,
+  };
+
+  lobby.sessionPromise
+    .then((sessionId) => sessionId && finishSession({ sessionId, ...snapshot }))
+    .catch((err) => console.error("[supabase] finishSession failed:", err));
+}
+
+/**
+ * Opens a fresh recording session for the match now running in this lobby.
+ * Called for the first match AND for every rematch — a rematch is a separate
+ * match and gets its own session row.
+ *
+ * The row is written at match start, not at game over, so a match that is
+ * abandoned still leaves a trace.
+ */
+function beginSession(lobby) {
+  lobby.roster.clear();
+  lobby.recorded = false;
+  for (const member of lobby.members.values()) rosterEnter(lobby, member);
+
   const host = lobby.members.get(lobby.hostKey);
-  return {
+  lobby.sessionPromise = createSession({
+    gameType: "thirteen",
     lobbyId: lobby.id,
     lobbyName: lobby.name,
     isPrivate: lobby.isPrivate,
     hostUserId: host?.userId || null,
     hostDisplayName: host?.displayName || "?",
-    startedAt: game.startedAt,
-    finishedAt: game.finishedAt || new Date(),
-    seats: [...lobby.members.values()]
-      .filter((m) => m.seatIndex != null)
-      .map((m) => ({
-        seatIndex: m.seatIndex,
-        userId: m.userId,
-        name: m.name,
-        tag: m.tag,
-      })),
-    state: game.state,
-  };
+    maxPlayers: lobby.maxPlayers,
+    playerCount: lobby.roster.size,
+    startedAt: lobby.game?.startedAt,
+  }).catch((err) => {
+    console.error("[supabase] createSession failed:", err);
+    return null;
+  });
 }
 
 function startGame(lobby) {
@@ -155,12 +226,10 @@ function startGame(lobby) {
   lobby.game = new ThirteenGame({
     seats,
     onState: () => broadcastState(lobby),
-    onGameOver: (game) => {
-      recordMatch(buildMatchRecord(lobby, game)).catch((err) =>
-        console.error("[supabase] recordMatch failed:", err),
-      );
-    },
+    onGameOver: () => closeSession(lobby, { completed: true, endedReason: "completed" }),
   });
+
+  beginSession(lobby);
   console.log(`Game started in lobby ${lobby.id} (${lobby.members.size} humans)`);
   broadcastLobbyList();
 }
@@ -170,13 +239,17 @@ function removeMember(lobby, member, { convertSeat = true } = {}) {
   lobby.members.delete(member.key);
 
   // Mid-game: a CPU inherits the seat and hand so the match can continue.
-  if (convertSeat && lobby.game && member.seatIndex != null) {
+  const cpuTookOver = !!(convertSeat && lobby.game && member.seatIndex != null);
+  if (cpuTookOver) {
     lobby.game.replaceSeat(member.seatIndex, {
       type: "AI",
       name: `${member.name} (CPU)`,
       socketId: null,
     });
   }
+
+  // The ledger keeps the seat so the result is still attributed to them.
+  if (lobby.game) rosterLeave(lobby, member, { cpuTookOver });
 
   if (lobby.members.size === 0) {
     destroyLobby(lobby);
@@ -187,6 +260,8 @@ function removeMember(lobby, member, { convertSeat = true } = {}) {
 }
 
 function destroyLobby(lobby) {
+  // Everyone left before the match ended — record it rather than losing it.
+  closeSession(lobby, { completed: false, endedReason: "all_left" });
   if (lobby.game) lobby.game.destroy();
   for (const m of lobby.members.values()) {
     if (m.disconnectTimer) clearTimeout(m.disconnectTimer);
@@ -239,6 +314,9 @@ io.on("connection", (socket) => {
       hostKey: socket.data.playerKey,
       createdAt: new Date(),
       members: new Map(),
+      roster: new Map(),
+      sessionPromise: null,
+      recorded: false,
       game: null,
     };
     addMember(lobby, socket);
@@ -272,6 +350,7 @@ io.on("connection", (socket) => {
           name: member.displayName,
           socketId: socket.id,
         });
+        rosterEnter(lobby, member);
       }
       socket.emit("lobby_joined", {
         lobbyId,
@@ -306,6 +385,7 @@ io.on("connection", (socket) => {
           name: member.displayName,
           socketId: socket.id,
         });
+        rosterEnter(lobby, member);
       }
     }
 
@@ -353,7 +433,9 @@ io.on("connection", (socket) => {
     const result = lobby.game.rematch();
     if (!result.ok) {
       socket.emit("move_rejected", { reason: result.error });
+      return;
     }
+    beginSession(lobby);
   });
 
   socket.on("send_chat", ({ lobbyId, message } = {}) => {
@@ -388,6 +470,9 @@ io.on("connection", (socket) => {
     const { lobby, member } = found;
 
     member.connected = false;
+    const entry = lobby.roster.get(member.key);
+    if (entry) entry.disconnectCount += 1;
+
     if (lobby.game) {
       // Grace period: a refresh/rejoin within 60s keeps the seat.
       member.disconnectTimer = setTimeout(() => {

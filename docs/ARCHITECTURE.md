@@ -164,18 +164,64 @@ Unique on `(lower(username), tag)` — the name#tag identity model.
 
 ### `game_sessions` / `game_players`
 
-Written only by the Node server when a match ends. `game_sessions.host_id` and
-`game_players.player_id` are nullable because guests have no `auth.uid()`; guest
-seats carry `guest_name` / `guest_tag` instead. `game_players` is unique on
-`(session_id, seat_index)`.
+Written only by the Node server. `host_id` and `player_id` are nullable because
+guests have no `auth.uid()`; guest seats carry `guest_name` / `guest_tag`.
+
+**The session row is written when the match starts**, with
+`status = 'in_progress'`, and updated when it ends. Recording only at game over
+meant an abandoned match left no trace at all.
+
+**Player rows come from `lobby.roster`, not `lobby.members`.** `members` is the
+live connection map and drops a player the instant they quit; `roster` is a
+ledger of every seat ever occupied during the match and is never pruned. Writing
+from `members` is what previously erased quitters from history entirely — their
+loss was recorded nowhere.
+
+Uniqueness is `(session_id, player_key)`, not `(session_id, seat_index)`: a seat
+can have more than one occupant, because `join_lobby` lets a newcomer take over
+a vacated CPU seat mid-match. `player_key` is the socket layer's stable identity
+(the user id, or `guest:NAME#TAG`).
+
+A rematch is a separate match and opens its own session row.
+
+Columns that exist so a result can be judged fairly later:
+`left_early`, `cpu_took_over`, `disconnect_count`, `joined_at` / `left_at`, and
+`ended_reason` (`completed` / `abandoned` / `all_left`). Without them, a loss
+where someone rage-quit and a CPU finished the hand is indistinguishable from a
+loss they played out.
 
 Rewards by final placement: 100/50/25/10 coins, 60/35/20/10 exp;
-`level = exp/100 + 1`.
+`level = exp/100 + 1`. Rewards and rating apply **only** to matches that
+actually finished — an abandoned match records what happened but yields no
+result.
+
+### Rating
+
+`profiles.rating` (seeded at 1000) plus `rating_before` / `rating_after` on each
+`game_players` row. Elo is path-dependent: each delta depends on the ratings *at
+that moment*, so a rating history cannot be backfilled from final results. The
+snapshot is taken now even though nothing displays it yet.
+
+The formula is pairwise Elo across the rated field, averaged (`K = 32`) — the
+standard extension of two-player Elo to a placement result. **Only signed-in
+players are rated**, so rating cannot be farmed off CPUs or guests; with fewer
+than two rated players, nobody moves.
+
+### Deriving stats
+
+Losses, win rate, average placement, placement distribution, streaks, best and
+worst score, head-to-head records and per-game-type splits are all **queries
+over these rows**, not stored counters. Only the small hot-path set the main
+menu reads (`coins`, `exp`, `level`, `wins`, `games_played`, `rating`) is
+denormalised onto `profiles`, and that is a cache. Do not add a `losses` column;
+a counter that can drift from the rows it summarises is worse than a join.
 
 ### `leaderboards`
 
 A **view** (`security_invoker = true`) aggregating `game_players` — not a table.
-Nothing to keep in sync, and it cannot drift from the match records.
+Nothing to keep in sync, and it cannot drift from the match records. Exposes
+wins, losses, abandons, `cpu_finished`, average and best position, per-game-type
+wins, and `last_played_at`.
 
 ## 7. Security model
 
@@ -191,8 +237,8 @@ statement rather than once per row.
 **Column-level anti-tamper.** RLS restricts rows, not columns — so
 `profiles_update_own` would otherwise let any signed-in user `PATCH /profiles`
 and mint themselves coins with the publishable key. The `profiles_guard_stats`
-BEFORE UPDATE trigger reverts `coins`, `exp`, `level`, `wins` and `games_played`
-to their previous values unless `current_user = 'service_role'`. Identity fields
+BEFORE UPDATE trigger reverts `coins`, `exp`, `level`, `wins`, `games_played`
+and `rating` to their previous values unless `current_user = 'service_role'`. Identity fields
 stay client-editable.
 
 **Keys.** The publishable/anon key is safe in the browser; RLS is what protects
