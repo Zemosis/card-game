@@ -11,7 +11,7 @@ const OAUTH_PROVIDERS = [
   { id: "facebook", label: "FACEBOOK", icon: "F", color: "#1877f2", border: "#1058b5" },
 ];
 
-export default function LoginModal({ onClose }) {
+export default function LoginModal({ onClose, initialSetup = false }) {
   const { signIn, signUp, signInWithOAuth, createProfile } = useAuth();
   const [tab, setTab] = useState(0);
   const [email, setEmail] = useState("");
@@ -20,8 +20,9 @@ export default function LoginModal({ onClose }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Profile setup (after signup)
-  const [setupMode, setSetupMode] = useState(false);
+  // Profile setup — after email signup, or on return from an OAuth redirect
+  // where the profile row exists but has no username yet.
+  const [setupMode, setSetupMode] = useState(initialSetup);
   const [setupName, setSetupName] = useState("");
   const [setupTag, setSetupTag] = useState("");
   const [setupAvatar, setSetupAvatar] = useState(1);

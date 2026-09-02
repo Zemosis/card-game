@@ -18,7 +18,7 @@ const MainMenu = () => {
   const [hovered, setHovered] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const { identity, isGuest, signOut, updateProfile } = useAuth();
+  const { identity, isGuest, needsProfileSetup, signOut, updateProfile } = useAuth();
   const stats = useServerStats();
 
   useEffect(() => {
@@ -256,7 +256,12 @@ const MainMenu = () => {
         </div>
       </div>
 
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+      {(showLogin || needsProfileSetup) && (
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          initialSetup={needsProfileSetup}
+        />
+      )}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   );

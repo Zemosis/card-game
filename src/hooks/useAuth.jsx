@@ -94,11 +94,14 @@ export function AuthProvider({ children }) {
     return data;
   }
 
+  // A DB trigger creates the profile row on signup, so this fills in the row
+  // that already exists. Upsert rather than update so a user created before
+  // that trigger existed still gets a row.
   async function createProfile(profileData) {
     if (!session) return;
     const { data, error } = await supabase
       .from("profiles")
-      .insert({ id: session.user.id, ...profileData })
+      .upsert({ id: session.user.id, ...profileData })
       .select()
       .single();
     if (error) throw error;
@@ -107,6 +110,10 @@ export function AuthProvider({ children }) {
   }
 
   const isGuest = !session;
+
+  // Signed in but never picked a name — the OAuth path skips the signup form,
+  // so the setup step has to be driven off the profile, not the signup flow.
+  const needsProfileSetup = !!session && !loading && !profile?.username;
 
   const customAvatar = profile?.custom_avatar ? deserializeAvatar(profile.custom_avatar) : null;
 
@@ -134,6 +141,7 @@ export function AuthProvider({ children }) {
         profile,
         loading,
         isGuest,
+        needsProfileSetup,
         identity,
         signIn,
         signUp,
