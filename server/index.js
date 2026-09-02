@@ -108,10 +108,19 @@ function addMember(lobby, socket) {
   return member;
 }
 
-/** Sends each lobby member their own redacted view of the game state. */
-function broadcastState(lobby) {
-  if (!lobby.game) return;
-  const state = lobby.game.state;
+/**
+ * Sends each lobby member their own redacted view of the game state.
+ *
+ * `game` is passed explicitly because the very first broadcast happens INSIDE
+ * the ThirteenGame constructor, before `lobby.game` has been assigned. Reading
+ * lobby.game here dropped that initial deal on every single match: clients only
+ * recovered when the first AI move triggered another broadcast ~4s later, and
+ * when a human held the opening turn no AI was scheduled, so nothing ever
+ * arrived and the board stayed blank.
+ */
+function broadcastState(lobby, game = lobby.game) {
+  if (!game) return;
+  const state = game.state;
   for (const member of lobby.members.values()) {
     if (!member.connected || !member.socketId) continue;
     const seat = member.seatIndex ?? -1;
@@ -228,7 +237,9 @@ function startGame(lobby) {
 
   lobby.game = new ThirteenGame({
     seats,
-    onState: () => broadcastState(lobby),
+    // The engine hands us itself, which is what makes the constructor-time
+    // broadcast work -- see broadcastState.
+    onState: (game) => broadcastState(lobby, game),
     // Fires before onGameOver, so the final round is captured before the
     // session is closed out.
     onRoundEnd: (round) => lobby.rounds.push(round),

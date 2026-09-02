@@ -50,12 +50,9 @@ socket and there is no Muushig logic anywhere in `server/game/`. This is why
 implementation is not.
 
 There is **no automated test suite** for the frontend. The server has three
-ad-hoc harnesses: `simulate.js` (engine invariants), `test-rounds.mjs` (round
-history) and `test-multiplayer.mjs` (socket end-to-end, needs a running server).
-
-`test-multiplayer.mjs` has one **known pre-existing failure**: *"game advances
-on its own"* — the AI never takes its turn, so a table with CPU seats can stall.
-Combined with CPU-takeover-on-disconnect, an abandoned seat may freeze a match.
+ad-hoc harnesses, all currently green: `simulate.js` (engine invariants),
+`test-rounds.mjs` (round history) and `test-multiplayer.mjs` (socket
+end-to-end, needs a running server on :3001).
 
 ## 3. Tech stack
 
@@ -129,6 +126,13 @@ state directly.
 **Redaction** — `redactState(state, seatIndex)` replaces every other player's
 hand with `{hidden: true}` placeholders, preserving length so card backs render
 correctly. Each client receives a state shaped for its own seat.
+
+**Broadcasting** — `broadcastState(lobby, game)` takes the game explicitly. The
+first broadcast of a match happens *inside* the `ThirteenGame` constructor,
+before `lobby.game` has been assigned, so reading `lobby.game` there silently
+dropped the opening deal on every match. Clients only recovered when the first
+AI move produced another broadcast, and when a human held the opening turn none
+came — the board stayed blank indefinitely. Keep the game parameter.
 
 **Disconnects** — a dropped player keeps their seat for 60 seconds
 (`DISCONNECT_GRACE_MS`). After that a CPU takes over so the match can finish.
