@@ -90,11 +90,23 @@ Defined in `index.css` via `@theme`:
 - Uppercase where thematic (codes, names)
 
 ### Avatars (`PixelAvatar`)
-- Square, no border-radius
-- 3px `void` border + pixel shadow
-- CSS-only face: `::before` for eyes, `::after` for mouth
-- 6 gradient variants: avatar-1 (gold), avatar-2 (cyan), avatar-3 (rose), avatar-4 (poison), avatar-5 (purple), avatar-me (parchment)
-- Sizes passed via `size` prop (px value)
+- Every avatar — the five built-ins and painted ones — is a 16×16 pixel grid
+  drawn by `CustomAvatarCanvas`. Built-ins come from `presetAvatar()` in
+  `utils/avatarConstants.js`.
+- The drawn size is snapped so each avatar pixel is a whole number of
+  **device** pixels (this accounts for Windows display scaling). Ask for any
+  size; expect it rounded to the nearest clean multiple. Never scale an avatar
+  with CSS transforms or percentage sizes — that brings back uneven pixels.
+- 2px `void` border and drop shadow drawn outside the art, so edge pixels are
+  never cropped.
+
+### Hover and focus
+- Every clickable element must visibly react on hover **and** keyboard focus.
+- `.pixel-btn`: lifts 3px, brightens, gains a 3px parchment outline.
+- `.pixel-hbtn`: small buttons in panel header bars (Edit, Refresh).
+- `.pixel-choice` + `--tone`: outlined tiles that fill with their color.
+- `.pixel-pick`: swatches and avatar tiles.
+- Motion is dropped under `prefers-reduced-motion`; the outline remains.
 
 ### Modals / Popups
 - Must use same panel style as `PixelPanel`

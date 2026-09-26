@@ -63,7 +63,7 @@ export function HeaderBtn({ onClick, bg, children, title }) {
     <button
       onClick={onClick}
       title={title}
-      className="flex items-center gap-2 font-pixel-display text-[10px] uppercase px-2 py-1.5 leading-none"
+      className="pixel-hbtn flex items-center gap-2 font-pixel-display text-[10px] uppercase px-2 py-1.5 leading-none"
       style={{ color: INK, backgroundColor: bg, boxShadow: `0 0 0 2px ${INK}` }}
     >
       {children}

@@ -134,7 +134,7 @@ export default function AvatarPickerDropdown({
                   onSelect(String(v));
                   setOpen(false);
                 }}
-                style={btnStyle(String(currentVariant) === String(v))}
+                className="pixel-pick" style={btnStyle(String(currentVariant) === String(v))}
               >
                 <PixelAvatar variant={v} size={36} />
               </button>
@@ -169,7 +169,7 @@ export default function AvatarPickerDropdown({
                           onSelect("custom");
                           setOpen(false);
                         }}
-                        style={btnStyle(currentVariant === "custom")}
+                        className="pixel-pick" style={btnStyle(currentVariant === "custom")}
                       >
                         <PixelAvatar variant="custom" size={36} customAvatarData={slot.data} />
                       </button>

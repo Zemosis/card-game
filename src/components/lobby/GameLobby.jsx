@@ -216,14 +216,14 @@ function PracticePanel({ onStart }) {
             <button
               key={d.id}
               onClick={() => onStart(d.id)}
-              className="pixel-btn flex flex-col items-center justify-center gap-2"
-              style={{ backgroundColor: INK, borderColor: d.deep, color: d.color }}
+              className="pixel-btn pixel-choice flex flex-col items-center justify-center gap-2"
+              style={{ backgroundColor: INK, borderColor: d.deep, color: d.color, "--tone": d.color }}
               title={`Start a ${d.label.toLowerCase()} game against the computer`}
             >
               <span className="font-pixel-display text-[12px] uppercase">{d.label}</span>
               <span className="flex gap-1">
                 {[1, 2, 3].map((n) => (
-                  <PixelIcon key={n} name="skull" size={12} color={n <= d.skulls ? d.color : "#2a234d"} />
+                  <PixelIcon key={n} name="skull" size={12} className={n <= d.skulls ? "" : "opacity-30"} />
                 ))}
               </span>
             </button>
@@ -416,7 +416,7 @@ export default function GameLobby({ game }) {
       )}
 
       <main
-        className="flex-1 min-h-0 w-full max-w-[1480px] mx-auto grid grid-cols-1 lg:grid-cols-[400px_minmax(0,1fr)] overflow-y-auto lg:overflow-hidden"
+        className="flex-1 min-h-0 w-full grid grid-cols-1 lg:grid-cols-[clamp(380px,24vw,480px)_minmax(0,1fr)] overflow-y-auto lg:overflow-hidden"
         style={{ padding: "var(--gap)", gap: "var(--gap)" }}
       >
         <div className="grid min-h-0 lg:grid-rows-[auto_repeat(3,minmax(0,1fr))]" style={{ gap: "var(--gap)" }}>

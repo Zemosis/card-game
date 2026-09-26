@@ -11,6 +11,60 @@ export const BASIC_COLORS = [
   "#ffffff", "#f4c430", "#5fd4d6", "#e85a7a",
 ];
 
+// The five built-in avatars as 16x16 pixel maps, so they render through the
+// same crisp path as painted ones. Each is a three-stop vertical gradient
+// quantized to one color per row, with two 2x2 eyes and a one-row mouth — the
+// same face the old CSS version drew with fractional em offsets.
+const PRESET_STOPS = {
+  1: ["#f4c430", "#c89820", "#6b3a1f"],
+  2: ["#5fd4d6", "#2a8a8c", "#1a3a4a"],
+  3: ["#e85a7a", "#a83a5a", "#4a1a2c"],
+  4: ["#9bd14f", "#6a9a30", "#1a3a1a"],
+  5: ["#c5a8ff", "#7a5fc8", "#3a2470"],
+  me: ["#ead8b1", "#c8b890", "#6b3a1f"],
+};
+const FACE = "#1a1024";
+
+function mix(a, b, t) {
+  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
+  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
+  return (
+    "#" +
+    pa
+      .map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, "0"))
+      .join("")
+  );
+}
+
+const presetCache = new Map();
+
+/** Pixel data ({ pixels: 16x16 }) for a built-in avatar variant. */
+export function presetAvatar(variant) {
+  const key = PRESET_STOPS[variant] ? variant : 1;
+  if (presetCache.has(key)) return presetCache.get(key);
+
+  const [top, mid, bottom] = PRESET_STOPS[key];
+  const pixels = [];
+  for (let r = 0; r < GRID_SIZE; r++) {
+    const t = r / (GRID_SIZE - 1);
+    const color = t < 0.5 ? mix(top, mid, t * 2) : mix(mid, bottom, (t - 0.5) * 2);
+    const row = Array(GRID_SIZE).fill(color);
+    if (r === 7 || r === 8) row[4] = row[5] = row[10] = row[11] = FACE;
+    if (r === 11) for (let c = 3; c <= 12; c++) row[c] = FACE;
+    pixels.push(row);
+  }
+  const data = { pixels };
+  presetCache.set(key, data);
+  return data;
+}
+
+/** Device-pixel side (a multiple of 16) and CSS side for a requested size. */
+export function snapAvatarSize(size, dpr = 1) {
+  const cells = Math.max(1, Math.round((size * dpr) / GRID_SIZE));
+  const device = cells * GRID_SIZE;
+  return { device, css: device / dpr };
+}
+
 export function createEmptyGrid() {
   return Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null));
 }
@@ -46,16 +100,20 @@ export function deserializeAvatar(data) {
   return null;
 }
 
+/**
+ * Draws a 16x16 avatar onto a canvas whose side is a multiple of 16, so every
+ * avatar pixel is a whole number of canvas pixels — no seams, no uneven cells.
+ */
 export function renderAvatarToCanvas(ctx, avatarData, canvasSize) {
   const pixels = avatarData.pixels;
-  const cellSize = canvasSize / GRID_SIZE;
+  const cell = Math.max(1, Math.floor(canvasSize / GRID_SIZE));
   ctx.clearRect(0, 0, canvasSize, canvasSize);
   for (let r = 0; r < GRID_SIZE; r++) {
     for (let c = 0; c < GRID_SIZE; c++) {
       const color = pixels[r]?.[c];
       if (color) {
         ctx.fillStyle = color;
-        ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+        ctx.fillRect(c * cell, r * cell, cell, cell);
       }
     }
   }

@@ -63,7 +63,7 @@ function EditProfile() {
 
   return (
     <Panel title="Edit profile" icon="pencil" deep="#c89820" className="min-h-0">
-      <form onSubmit={save} className="flex-1 flex flex-col gap-5 p-4 overflow-y-auto min-h-0">
+      <form onSubmit={save} className="flex-1 flex flex-col p-4 overflow-y-auto min-h-0" style={{ gap: "var(--gap)" }}>
         {/* Preview: exactly how other players see you. */}
         <div className="flex items-center gap-4">
           <div style={{ boxShadow: `0 0 0 4px ${INK}` }}>
@@ -104,6 +104,7 @@ function EditProfile() {
                   type="button"
                   onClick={() => setAvatar(v)}
                   aria-pressed={selected}
+                  className="pixel-pick"
                   aria-label={v === "custom" ? "Your painted avatar" : `Avatar ${v}`}
                   style={{
                     padding: 3,
@@ -119,17 +120,12 @@ function EditProfile() {
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={() => navigate("/avatar-paint")}
-              className="flex flex-col items-center justify-center gap-1 font-pixel-display text-[9px] uppercase text-bone"
-              style={{ width: 50, height: 50, backgroundColor: INK, boxShadow: "0 0 0 3px #2a234d" }}
-              title="Paint your own avatar"
-            >
-              <PixelIcon name="pencil" size={14} />
-              Paint
-            </button>
+
           </div>
+          <Btn tone={TONES.dusk} onClick={() => navigate("/avatar-paint")} className="w-full mt-4" style={{ height: 44 }}>
+            <PixelIcon name="pencil" size={14} />
+            {identity.customAvatar ? "Edit your painted avatar" : "Paint your own avatar"}
+          </Btn>
         </fieldset>
 
         <div className="grid gap-3" style={{ gridTemplateColumns: "minmax(0,1fr) 120px" }}>
@@ -392,7 +388,7 @@ export default function Profile() {
           </Panel>
         </main>
       ) : (
-        <main className="flex-1 min-h-0 w-full max-w-[1480px] mx-auto p-4 grid gap-4 grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)] overflow-y-auto lg:overflow-hidden">
+        <main className="flex-1 min-h-0 w-full p-4 grid gap-4 grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)] overflow-y-auto lg:overflow-hidden">
           <EditProfile />
           <StatsPanel />
         </main>

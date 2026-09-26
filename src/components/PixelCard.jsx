@@ -2,6 +2,7 @@
 
 import React from "react";
 import CustomAvatarCanvas from "./CustomAvatarCanvas";
+import { presetAvatar } from "../utils/avatarConstants";
 
 const SUIT_COLOR = {
   "♠": "suit-black",
@@ -113,33 +114,18 @@ export function PixelAvatar({
   eliminated = false,
   customAvatarData = null,
 }) {
-  const wrapStyle = {
-    opacity: eliminated ? 0.35 : 1,
-    filter: active ? "drop-shadow(0 0 8px rgba(244,196,48,0.7))" : "none",
-  };
-
-  if (variant === "custom" && customAvatarData) {
-    return (
-      <div style={wrapStyle}>
-        <CustomAvatarCanvas avatarData={customAvatarData} size={size} />
-      </div>
-    );
-  }
-
-  const cls = variant === "me" ? "avatar-me" : `avatar-${variant}`;
+  // Built-in and painted avatars share one pixel-exact renderer.
+  const data = variant === "custom" && customAvatarData ? customAvatarData : presetAvatar(variant);
   return (
     <div
-      className={`pixel-avatar ${cls}`}
       style={{
-        width: size,
-        height: size,
-        minWidth: size,
-        minHeight: size,
-        fontSize: size,
+        opacity: eliminated ? 0.35 : 1,
+        filter: active ? "drop-shadow(0 0 8px rgba(244,196,48,0.7))" : "none",
         flexShrink: 0,
-        ...wrapStyle,
       }}
-    />
+    >
+      <CustomAvatarCanvas avatarData={data} size={size} />
+    </div>
   );
 }
 
@@ -162,7 +148,7 @@ export function PixelButton({
     danger: { bg: "#7a1530", text: "#ead8b1", border: "#3a0a18" },
   }[color];
   const sizes = {
-    sm: "px-3 py-1.5 text-[10px]",
+    sm: "px-3 py-2 text-[11px]",
     md: "px-5 py-2.5 text-xs",
     lg: "px-7 py-3.5 text-sm",
     xl: "px-9 py-4 text-base",
@@ -214,7 +200,7 @@ export function PixelPanel({
     >
       {title && (
         <div
-          className="font-pixel-display text-[10px] uppercase tracking-wider px-3 py-2 flex items-center gap-2 text-shadow-hard-sm"
+          className="font-pixel-display text-[12px] uppercase tracking-wider px-3 py-2.5 flex items-center gap-2 text-shadow-hard-sm"
           style={{
             backgroundColor: c.border,
             color: "#ead8b1",
