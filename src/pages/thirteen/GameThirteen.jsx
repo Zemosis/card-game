@@ -16,6 +16,7 @@ import {
   findPlayerWithCard,
 } from "../../utils/deckUtils";
 import DealAnimation from "../../components/thirteen/DealAnimation";
+import RulesModal from "../../components/thirteen/RulesModal";
 
 import {
   createGameState,
@@ -57,6 +58,8 @@ const GameThirteen = () => {
   const [dealCounts, setDealCounts] = useState([0, 0, 0, 0]);
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const closeRules = useCallback(() => setShowRules(false), []);
   const [isMuted, setIsMuted] = useState(false);
   const [sortMode, setSortMode] = useState(() => {
     try {
@@ -681,6 +684,15 @@ const GameThirteen = () => {
             )}
           </div>
           <button
+            onClick={() => setShowRules(true)}
+            className="pixel-btn font-pixel-display text-[10px] px-3 flex items-center gap-2"
+            style={{ backgroundColor: "#f4c430", borderColor: "#c89820", color: "#1a1024", height: 36 }}
+            title="How to play"
+          >
+            <PixelIcon name="book" size={14} />
+            RULES
+          </button>
+          <button
             onClick={() => setShowSettings(!showSettings)}
             className="pixel-btn font-pixel-display"
             style={{
@@ -698,6 +710,8 @@ const GameThirteen = () => {
           </button>
         </div>
       </div>
+
+      {showRules && <RulesModal onClose={closeRules} />}
 
       {/* SETTINGS MODAL */}
       {showSettings && (

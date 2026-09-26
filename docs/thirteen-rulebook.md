@@ -1,94 +1,76 @@
-# Thirteen - Rulebook
+# Thirteen — Rulebook
 
-## Overview
+The rules the game enforces (`src/utils/handEvaluator.js`, `src/utils/gameLogic.js`;
+the server runs the same files). The in-game version is
+`src/components/thirteen/RulesModal.jsx` — keep the two in step.
 
-Thirteen is a Mongolian card game for 2-4 players. The goal is to be the first player to get rid of all your cards.
-The game continues until only one player remains uneliminated.
+## The goal
 
-## Card Ranking
+Be the **first to play every card** in your hand. Everyone else scores points for the
+cards they still hold, and points are bad. Reach **25 points** and you are eliminated.
+The **last player standing wins the match**.
 
-### By Rank (lowest to highest)
+- 4 players, 13 cards each, one 52-card deck (no jokers).
 
-3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A, 2
+## Card order
 
-- **3** is the lowest card
-- **2** is the highest card
+- **Ranks**, low to high: 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A, **2**.
+- **Suits** break ties between equal ranks, low to high: ♦ Diamonds < ♣ Clubs < ♥ Hearts < ♠ Spades.
+- The **2♠** is the strongest single card; the **3♦** the weakest.
 
-### By Suit (lowest to highest)
+## Playing a round
 
-Diamonds, Clubs, Hearts, Spades
+1. Everyone is dealt 13 cards. In the first round the holder of the **3♦** leads
+   (they don't have to play it). In later rounds, **the previous round's winner** leads.
+2. The leader plays any combination, starting a **trick**. The leader can't pass.
+3. Clockwise, each player plays a **higher combination of the same kind** (same number
+   of cards) or **passes**.
+4. **A pass locks you out** until the trick ends.
+5. When everyone else has passed, the last player to play **takes the trick**, the table
+   clears, and they lead again with anything.
+6. The first player to empty their hand **wins the round**.
 
-For example, 3 of Spades > 3 of Hearts > 3 of Clubs > 3 of Diamonds
+## Combinations
 
-## Setup
+Plays are 1, 2, 3, 4 or 5 cards. Other sizes are not valid.
 
-- A standard 52-card deck is used (no jokers).
-- Best played with 4 players — each player receives exactly 13 cards with none left over.
-- With fewer players, cards are still dealt 13 each.
+| Play | Cards | Beaten by |
+| --- | --- | --- |
+| Single | 1 | a higher single |
+| Pair | 2 of a rank | a higher pair |
+| Triple | 3 of a rank | a higher triple |
+| Four of a kind | 4 of a rank | a higher four of a kind only |
 
-## Starting the Game
+There are **no bombs**: four of a kind cannot be played on 2s or anything but another
+four of a kind.
 
-- The player holding the **3 of Diamonds** (lowest card) goes first in the first round.
-- In subsequent rounds, the winner of the previous round goes first.
+### 5-card hands
 
-## Gameplay
+Any 5-card hand beats any weaker **type** of 5-card hand, weakest to strongest:
 
-Players take turns in order. On your turn, you must either:
+1. **Straight** — five consecutive ranks, any suits. Exactly five cards. 2 is the top
+   rank, so J-Q-K-A-2 is the highest straight; there is no wrap (A-2-3-4-5 is invalid).
+2. **Flush** — five cards of one suit.
+3. **Full house** — a triple plus a pair.
+4. **Straight flush** — a straight in one suit.
+5. **Royal flush** — 10-J-Q-K-A in one suit.
 
-1. **Play a valid combination** that beats the current combination on the table, OR
-2. **Pass**
+## Breaking ties (same kind)
 
-If you pass, you cannot play again until a new trick starts. A new trick starts when all other players pass — the last player who played leads the next trick with any valid combination.
-
-## Valid Combinations
-
-### Single
-
-Any one card. Beaten by a higher single card.
-
-### Pair
-
-Two cards of the same rank. Beaten by a higher pair.
-
-### Three of a Kind
-
-Three cards of the same rank. Beaten by a higher three of a kind.
-
-### Four of a Kind
-
-Four cards of the same rank. Beaten by a higher four of a kind.
-
-### Straight
-
-Five or more consecutive cards of any suit (e.g., 5-6-7-8-9).
-
-- **2s can be used** in straights like J-Q-K-A-2.
-- Beaten by a higher straight of the same length or flush, full house, straight flush, or royal flush.
-
-### Flush
-
-Five cards of the same suit. Beaten by a higher flush (compared by highest card, then by suit) or full house, straight flush, or royal flush.
-
-### Full House
-
-Three of a kind + a pair. Beaten by a higher full house (compared by the three-of-a-kind rank) or straight flush, or royal flush.
-
-### Straight Flush
-
-Five or more consecutive cards all of the same suit. Beaten by a higher straight flush of the same length or royal flush.
-
-### Royal Flush
-
-10, J, Q, K, A all of the same suit. The highest possible combination.
+- **Singles, pairs, triples, fours:** higher rank; on equal rank, the highest suit held.
+- **Straights, flushes, straight flushes:** highest card's rank, then its suit.
+- **Full houses:** rank of the triple (then of the pair).
 
 ## Scoring
 
-- The first player to play all their cards wins the round.
-- Every other player adds the number of cards remaining in their hand to their cumulative score.
-- A player is **eliminated** when their score reaches **26 points**.
-- The game continues until only one player remains.
+- When a player goes out, every other player scores **1 point per card left**.
+- Holding **10 or more cards doubles** those points (11 cards = 22).
+- Points add up across rounds. At **25 or more** a player is eliminated and sits out.
+- When one player remains, they win the match (a match win is recorded) and the host
+  can start a rematch.
 
-## Etiquette
+## Controls
 
-- You cannot play out of turn.
-- Once you pass, you must wait until the current trick ends before playing again.
+- Click a card to select it; **Shift**-click selects a range.
+- **Space** plays the selection, **P** passes.
+- **Sort** arranges the hand by rank or by suit; **Clear / All** change the selection.
