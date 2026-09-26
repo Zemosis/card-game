@@ -36,7 +36,7 @@ function Tab({ active, onClick, children, badge = 0 }) {
   );
 }
 
-const GameChat = ({ messages = [], onSendMessage, avatarFor }) => {
+const GameChat = ({ messages = [], onSendMessage, avatarFor, colorFor }) => {
   const [inputText, setInputText] = useState("");
   const [tab, setTab] = useState("chat");
   const [seenChat, setSeenChat] = useState(0);
@@ -86,11 +86,18 @@ const GameChat = ({ messages = [], onSendMessage, avatarFor }) => {
           </Tab>
         </div>
         <span className="self-center font-pixel-display text-[10px] text-bone/50">
-          {visible.length} {tab === "log" ? "MOVES" : "MSGS"}
+          {tab === "log"
+            ? `${logMessages.filter((m) => m.kind === "play" || m.kind === "pass").length} MOVES`
+            : `${visible.length} MSGS`}
         </span>
       </div>
 
-      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-2 flex flex-col gap-2" role="log" aria-live="polite">
+      <div
+        ref={listRef}
+        className={`flex-1 min-h-0 overflow-y-auto px-3 py-2 flex flex-col ${tab === "log" ? "gap-1" : "gap-2"}`}
+        role="log"
+        aria-live="polite"
+      >
         {visible.length === 0 && (
           <div className="m-auto font-pixel-body text-[20px] text-bone/50 text-center">
             {tab === "log" ? "Moves will be logged here." : "Say hi to the table!"}
@@ -98,7 +105,7 @@ const GameChat = ({ messages = [], onSendMessage, avatarFor }) => {
         )}
         {visible.map((msg) =>
           msg.type === "SYSTEM" ? (
-            <LogLine key={msg.id} msg={msg} />
+            <LogLine key={msg.id} msg={msg} color={colorFor?.(msg.playerIndex)} />
           ) : (
             <ChatMessage key={msg.id} msg={msg} avatar={avatarFor?.(msg)} />
           ),
@@ -142,13 +149,86 @@ const GameChat = ({ messages = [], onSendMessage, avatarFor }) => {
   );
 };
 
-function LogLine({ msg }) {
+const RED_SUITS = new Set(["♥", "♦"]);
+
+function CardChip({ card }) {
   return (
-    <div className="font-pixel-body text-[18px] leading-tight text-bone/75">
-      <span className="text-bone/40">{msg.timestamp} </span>
-      {msg.text}
+    <span
+      className="inline-flex items-center font-pixel-display text-[10px] leading-none px-1 py-1"
+      style={{
+        backgroundColor: "#ead8b1",
+        color: RED_SUITS.has(card.suit) ? "#c0203a" : "#1a1024",
+        boxShadow: "inset 0 -2px 0 #c8b890, 1px 1px 0 #0a0712",
+      }}
+    >
+      {card.rank}
+      <span className="text-[13px] ml-px">{card.suit}</span>
+    </span>
+  );
+}
+
+function Divider({ children, color = "#8a7fb0" }) {
+  return (
+    <div className="flex items-center gap-2 my-1" style={{ color }}>
+      <span className="flex-1" style={{ height: 2, backgroundColor: "currentColor", opacity: 0.35 }} />
+      <span className="font-pixel-display text-[10px] tracking-wider whitespace-nowrap">{children}</span>
+      <span className="flex-1" style={{ height: 2, backgroundColor: "currentColor", opacity: 0.35 }} />
     </div>
   );
+}
+
+// One log entry: plays as name + combo + card chips, passes dimmed, and
+// dividers where a trick or round ends. Old plain-text entries still render.
+function LogLine({ msg, color = "#ead8b1" }) {
+  const name = (
+    <span className="font-pixel-display text-[10px] shrink-0" style={{ color }}>
+      {msg.name}
+    </span>
+  );
+
+  if (msg.kind === "round") {
+    return (
+      <div
+        className="font-pixel-display text-[10px] tracking-wider text-center py-1.5 mt-1"
+        style={{ backgroundColor: "#1f1a3d", color: "#f4c430" }}
+      >
+        ROUND {msg.round}
+      </div>
+    );
+  }
+  if (msg.kind === "trick") return <Divider>{msg.name} TAKES THE TRICK</Divider>;
+  if (msg.kind === "roundEnd") return <Divider color="#f4c430">{msg.name} WINS THE ROUND</Divider>;
+
+  if (msg.kind === "pass") {
+    return (
+      <div className="flex items-center gap-2 px-2 py-1 opacity-60" title={msg.timestamp}>
+        {name}
+        <span className="font-pixel-body text-[18px] leading-none text-bone/80">passed</span>
+      </div>
+    );
+  }
+
+  if (msg.kind === "play") {
+    return (
+      <div
+        className="flex items-center gap-2 px-2 py-1.5"
+        style={{ backgroundColor: "#14102a", boxShadow: `inset 3px 0 0 ${color}` }}
+        title={msg.timestamp}
+      >
+        {name}
+        {msg.cards.length > 1 && (
+          <span className="font-pixel-body text-[18px] leading-none text-bone/70 shrink-0">{msg.combo}</span>
+        )}
+        <span className="ml-auto flex flex-wrap justify-end gap-1">
+          {msg.cards.map((c) => (
+            <CardChip key={c.id || c.rank + c.suit} card={c} />
+          ))}
+        </span>
+      </div>
+    );
+  }
+
+  return <div className="font-pixel-body text-[18px] leading-tight text-bone/75">{msg.text}</div>;
 }
 
 function ChatMessage({ msg, avatar }) {

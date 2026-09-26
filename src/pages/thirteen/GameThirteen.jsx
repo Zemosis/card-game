@@ -12,7 +12,6 @@ import GameControls from "../../components/thirteen/GameControls";
 import ScoreBoard from "../../components/thirteen/ScoreBoard";
 import GameChat from "../../components/thirteen/GameChat";
 import {
-  getCardDisplay,
   initializeGame,
   findPlayerWithCard,
 } from "../../utils/deckUtils";
@@ -32,6 +31,8 @@ import { makeAIDecision } from "../../utils/aiPlayer";
 import { soundManager } from "../../utils/SoundManager";
 import PixelIcon from "../../components/PixelIcon";
 import { SignalBars } from "../../components/PixelUI";
+
+const AVATAR_COLOR = { 1: "#f4c430", 2: "#5fd4d6", 3: "#e85a7a", 4: "#9bd14f", 5: "#c5a8ff", custom: "#ead8b1" };
 
 const GameThirteen = () => {
   const navigate = useNavigate();
@@ -429,42 +430,53 @@ const GameThirteen = () => {
   };
 
   // --- LOGS & SFX ---
+  // The log stores structured entries (who, what, which cards); GameChat
+  // renders them as rows with card chips.
   useEffect(() => {
     if (!gameState) return;
     const history = gameState.moveHistory;
-    if (history.length > lastHistoryLengthRef.current) {
-      const newMoves = history.slice(lastHistoryLengthRef.current);
-      newMoves.forEach((move, index) => {
-        setTimeout(() => {
-          if (move.type === "PLAY") safePlay("playSnap");
-          if (move.type === "NEW_ROUND") safePlay("playDeal");
+    if (history.length <= lastHistoryLengthRef.current) return;
+    const firstBatch = lastHistoryLengthRef.current === 0;
+    const newMoves = history.slice(lastHistoryLengthRef.current);
+    lastHistoryLengthRef.current = history.length;
+    const nameOf = (i) => (gameState.players[i]?.name || "").split(" #")[0];
+    const entry = (fields) => ({
+      id: `sys-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: "SYSTEM",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      ...fields,
+    });
 
-          const id = `sys-${Date.now()}-${index}`;
-          const timestamp = new Date().toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-          let text = "";
-          const pName = (gameState.players[move.playerIndex]?.name || "System").split(" #")[0];
-
-          if (move.type === "PLAY") {
-            const comboName = COMBO_NAMES[move.combination.type] || "cards";
-            const cardsDisplay = move.cards
-              .map((c) => getCardDisplay(c))
-              .join(" ");
-            text = `${pName} played ${comboName} (${cardsDisplay})`;
-          } else if (move.type === "PASS") {
-            text = `${pName} passed`;
-          }
-          if (text)
-            setMessages((prev) => [
-              ...prev,
-              { id, type: "SYSTEM", text, timestamp },
-            ]);
-        }, index * 100);
-      });
-      lastHistoryLengthRef.current = history.length;
+    if (firstBatch) {
+      setMessages((prev) => [...prev, entry({ kind: "round", round: gameState.roundNumber })]);
     }
+
+    newMoves.forEach((move, index) => {
+      setTimeout(() => {
+        if (move.type === "PLAY") safePlay("playSnap");
+        if (move.type === "NEW_ROUND") safePlay("playDeal");
+
+        let fields = null;
+        if (move.type === "PLAY") {
+          fields = {
+            kind: "play",
+            playerIndex: move.playerIndex,
+            name: nameOf(move.playerIndex),
+            cards: move.cards,
+            combo: COMBO_NAMES[move.combination?.type] || "Cards",
+          };
+        } else if (move.type === "PASS") {
+          fields = { kind: "pass", playerIndex: move.playerIndex, name: nameOf(move.playerIndex) };
+        } else if (move.type === "ROUND_RESET") {
+          fields = { kind: "trick", playerIndex: move.leadPlayer, name: nameOf(move.leadPlayer) };
+        } else if (move.type === "ROUND_END") {
+          fields = { kind: "roundEnd", playerIndex: move.winnerIndex, name: nameOf(move.winnerIndex) };
+        } else if (move.type === "NEW_ROUND") {
+          fields = { kind: "round", round: move.roundNumber };
+        }
+        if (fields) setMessages((prev) => [...prev, entry(fields)]);
+      }, index * 100);
+    });
   }, [gameState?.moveHistory]);
 
   // --- RENDER ---
@@ -547,6 +559,14 @@ const GameThirteen = () => {
     if (msg.isMe) return myAvatar;
     const idx = playersList.findIndex((p) => p.name.split(" #")[0] === msg.sender?.split(" #")[0]);
     return { variant: idx >= 0 ? ((playersList[idx].id ?? idx) % 5) + 1 : 2 };
+  };
+
+  // Log names use the colour of the avatar shown for that seat.
+  const colorFor = (playerIndex) => {
+    const p = playersList[playerIndex];
+    if (!p) return "#ead8b1";
+    const variant = playerIndex === myIndex ? myAvatar.variant : ((p.id ?? playerIndex) % 5) + 1;
+    return AVATAR_COLOR[variant] || "#ead8b1";
   };
 
   const comboInfo = (() => {
@@ -852,6 +872,7 @@ const GameThirteen = () => {
             messages={messages}
             onSendMessage={handleSendMessage}
             avatarFor={avatarFor}
+            colorFor={colorFor}
           />
         </div>
       </div>
