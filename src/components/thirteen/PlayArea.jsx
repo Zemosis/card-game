@@ -84,7 +84,7 @@ const PlayArea = ({ pile = [], lastPlayerName = null, roundNumber = 1, isDealing
         <div
           className="relative felt-bg w-full h-full"
           style={{
-            minHeight: 200,
+            minHeight: 150,
             border: "4px solid #2e0f1d",
             boxShadow:
               "0 0 0 4px #0a0712, inset 0 0 0 2px #7a1530, inset 0 0 60px rgba(0,0,0,0.5), 0 0 32px rgba(232,90,122,0.15)",

@@ -35,8 +35,8 @@ import { SignalBars } from "../../components/PixelUI";
 
 const AVATAR_COLOR = { 1: "#f4c430", 2: "#5fd4d6", 3: "#e85a7a", 4: "#9bd14f", 5: "#c5a8ff", custom: "#ead8b1" };
 
-// Side seat = name plate (184) + gap (12) + sideways card preview (72).
-const SIDE_SEAT_W = 268;
+// Side seat = tall name plate (124) + gap (12) + sideways card fan (88).
+const SIDE_SEAT_W = 224;
 
 const GameThirteen = () => {
   const navigate = useNavigate();
@@ -793,7 +793,6 @@ const GameThirteen = () => {
               isActive={!isDealing && gameState.currentPlayerIndex === topPlayer.id}
               hasPassed={topPlayer.hasPassed}
               position="top"
-              isDealing={isDealing}
             />
           </div>
 
@@ -809,7 +808,6 @@ const GameThirteen = () => {
               isActive={!isDealing && gameState.currentPlayerIndex === leftPlayer.id}
               hasPassed={leftPlayer.hasPassed}
               position="left"
-              isDealing={isDealing}
             />
             <div ref={tableCenterRef} className="h-full min-w-0 flex items-center justify-center relative">
               <PlayArea
@@ -834,7 +832,6 @@ const GameThirteen = () => {
               isActive={!isDealing && gameState.currentPlayerIndex === rightPlayer.id}
               hasPassed={rightPlayer.hasPassed}
               position="right"
-              isDealing={isDealing}
             />
           </div>
 

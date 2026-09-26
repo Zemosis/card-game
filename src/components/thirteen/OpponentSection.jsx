@@ -2,19 +2,25 @@
 // the cards they hold, always on the table side of the plate.
 //
 // Every seat uses the same plate and the same preview, so the table reads as
-// symmetric: left and right are exact mirrors, the top seat is the same parts
-// turned to face down. A hand shows at most SHOWN backs; past that the last
+// symmetric: left and right are exact mirrors with tall plates, the top seat
+// has a wide plate. Each fan is built like the player's own hand and turned to
+// open toward the table. At most SHOWN backs are drawn; past that the last
 // back is blurred and carries the rest as "+N".
 
 import React from "react";
 import { PixelAvatar, PixelCard } from "../PixelCard";
 
-const SEAT_PLATE_W = 184;
 const CARD_W = 44;
 const CARD_H = 64;
 const SHOWN = 5; // backs drawn, the last one blurred when there are more
-const STEP = 14; // offset between two backs
-const FAN_LEN = CARD_W + (SHOWN - 1) * STEP; // longest a preview gets
+const STEP = 22; // offset between two backs
+const ANGLE = 6; // degrees of fan between two backs
+// Fan box before it is turned to face the table.
+const FAN_W = CARD_W + (SHOWN - 1) * STEP + 28;
+const FAN_H = CARD_H + 14;
+// How far each seat's fan is turned so it opens toward the table: the fan is
+// built like your own hand (opening upward), then rotated.
+const TURN = { top: 180, left: 90, right: 270 };
 
 function StatusChip({ label, bg, fg = "#1a1024", blink }) {
   return (
@@ -27,67 +33,83 @@ function StatusChip({ label, bg, fg = "#1a1024", blink }) {
   );
 }
 
-// Card backs, fanned along one axis. `vertical` stacks sideways cards down
-// the side of the table.
-function HandPreview({ count, vertical }) {
+// Card backs held as a fan facing the table. Past SHOWN cards, the last back
+// is blurred and carries the rest as "+N".
+function HandPreview({ count, position }) {
   const drawn = Math.min(count, SHOWN);
-  const extra = count - (SHOWN - 1); // cards the blurred back stands for
   const blurLast = count > SHOWN;
+  const extra = count - (SHOWN - 1);
   const mid = (drawn - 1) / 2;
-  // Box sized for a full preview so the seat never changes size mid-deal.
-  const box = vertical ? { width: CARD_H + 8, height: FAN_LEN + 12 } : { width: FAN_LEN + 12, height: CARD_H + 8 };
-  const start = (FAN_LEN - (CARD_W + (drawn - 1) * STEP)) / 2 + 6;
+  const turn = TURN[position];
+  const sideways = position !== "top";
+  const box = sideways ? { width: FAN_H, height: FAN_W } : { width: FAN_W, height: FAN_H };
 
   return (
     <div className="relative shrink-0" style={box}>
-      {Array.from({ length: drawn }, (_, i) => {
-        const d = i - mid;
-        const blurred = blurLast && i === drawn - 1;
-        const pos = start + i * STEP;
-        return (
-          <div
-            key={i}
-            className="absolute"
-            style={{
-              ...(vertical
-                ? { top: pos + (CARD_W - CARD_H) / 2, left: (CARD_H + 8 - CARD_W) / 2 }
-                : { left: pos, top: 4 + Math.abs(d) * 1.5 }),
-              transform: `rotate(${(vertical ? 90 : 0) + d * 3}deg)`,
-              zIndex: i,
-            }}
-          >
-            <div style={{ filter: blurred ? "blur(1.5px) brightness(0.7)" : "none" }}>
-              <PixelCard faceDown size="small" />
-            </div>
-            {blurred && (
-              <div
-                className="absolute inset-0 flex items-center justify-center font-pixel-display text-[12px] text-parchment"
-                style={{ transform: vertical ? "rotate(-90deg)" : "none", textShadow: "2px 2px 0 #0a0712" }}
-              >
-                +{extra}
+      <div
+        className="absolute"
+        style={{
+          width: FAN_W,
+          height: FAN_H,
+          left: (box.width - FAN_W) / 2,
+          top: (box.height - FAN_H) / 2,
+          transform: `rotate(${turn}deg)`,
+        }}
+      >
+        {Array.from({ length: drawn }, (_, i) => {
+          const d = i - mid;
+          const blurred = blurLast && i === drawn - 1;
+          const rotation = d * ANGLE;
+          return (
+            <div
+              key={i}
+              className="absolute"
+              style={{
+                left: FAN_W / 2 - CARD_W / 2 + d * STEP,
+                bottom: 4 - d * d * 1.4,
+                transform: `rotate(${rotation}deg)`,
+                transformOrigin: "50% 100%",
+                zIndex: i,
+              }}
+            >
+              <div style={{ filter: blurred ? "blur(1.5px) brightness(0.7)" : "none" }}>
+                <PixelCard faceDown size="small" />
               </div>
-            )}
-          </div>
-        );
-      })}
+              {blurred && (
+                <div
+                  className="absolute inset-0 flex items-center justify-center font-pixel-display text-[12px] text-parchment"
+                  style={{ transform: `rotate(${-turn - rotation}deg)`, textShadow: "2px 2px 0 #0a0712" }}
+                >
+                  +{extra}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-const OpponentSection = ({ player, isActive = false, hasPassed = false, position = "top", isDealing = false }) => {
+const TOP_PLATE_W = 184;
+const SIDE_PLATE_W = 124;
+
+const OpponentSection = ({ player, isActive = false, hasPassed = false, position = "top" }) => {
   const { name, hand, isEliminated } = player;
   const count = hand.length;
   const vertical = position !== "top";
 
   // Cards always sit between the plate and the table.
-  const layout = { top: "flex-col", left: "flex-row", right: "flex-row-reverse" }[position];
+  // The top hand tucks up against its plate, held just in front of it.
+  const layout = { top: "flex-col -space-y-1", left: "flex-row gap-3", right: "flex-row-reverse gap-3" }[position];
 
   return (
-    <div className={`flex items-center gap-3 ${layout}`} data-seat={position}>
+    <div className={`flex items-center ${layout}`} data-seat={position}>
       <div
-        className="relative flex items-center gap-2.5 px-2.5 py-2"
+        className={`relative flex items-center ${vertical ? "flex-col justify-center text-center gap-2 px-2 py-3" : "gap-2.5 px-2.5 py-2"}`}
         style={{
-          width: SEAT_PLATE_W,
+          width: vertical ? SIDE_PLATE_W : TOP_PLATE_W,
+          minHeight: vertical ? FAN_W - 8 : undefined,
           backgroundColor: isActive ? "#241a3a" : "#14102a",
           border: `4px solid ${isActive ? "#f4c430" : "#0a0712"}`,
           boxShadow: isActive
@@ -104,8 +126,8 @@ const OpponentSection = ({ player, isActive = false, hasPassed = false, position
         ) : hasPassed ? (
           <StatusChip label="PASS" bg="#463a78" fg="#ead8b1" />
         ) : null}
-        <PixelAvatar variant={((player.id || 0) % 5) + 1} size={44} active={isActive} eliminated={isEliminated} />
-        <div className="min-w-0">
+        <PixelAvatar variant={((player.id || 0) % 5) + 1} size={vertical ? 56 : 44} active={isActive} eliminated={isEliminated} />
+        <div className="min-w-0 max-w-full">
           <div className="font-pixel-display text-[11px] text-parchment truncate">{name.split(" #")[0]}</div>
           <div className="font-pixel-body text-[18px] leading-none mt-1.5 text-bone/70 whitespace-nowrap">
             <span className="text-glow-cyan">{count}</span> {count === 1 ? "card" : "cards"}
@@ -116,7 +138,7 @@ const OpponentSection = ({ player, isActive = false, hasPassed = false, position
       {/* Always rendered (empty while dealing) so the seat keeps its shape;
           the deal animation lands cards on it. */}
       <div data-deal-seat={position} style={{ visibility: isEliminated ? "hidden" : "visible" }}>
-        <HandPreview count={isDealing || count ? count : 0} vertical={vertical} />
+        <HandPreview count={count} position={position} />
       </div>
     </div>
   );
