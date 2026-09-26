@@ -35,6 +35,9 @@ import { SignalBars } from "../../components/PixelUI";
 
 const AVATAR_COLOR = { 1: "#f4c430", 2: "#5fd4d6", 3: "#e85a7a", 4: "#9bd14f", 5: "#c5a8ff", custom: "#ead8b1" };
 
+// Side seat = name plate (184) + gap (12) + sideways card preview (72).
+const SIDE_SEAT_W = 268;
+
 const GameThirteen = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -794,8 +797,13 @@ const GameThirteen = () => {
             />
           </div>
 
-          {/* Middle row: left + table + right */}
-          <div className="flex-1 flex items-center justify-between gap-4 my-2 min-h-0">
+          {/* Middle row: left seat + felt + right seat. Equal side columns
+              keep the felt centered under the top seat; the row is capped so
+              seats stay close to the felt on wide screens. */}
+          <div
+            className="flex-1 grid items-center gap-4 my-2 min-h-0 w-full mx-auto"
+            style={{ gridTemplateColumns: `${SIDE_SEAT_W}px minmax(0,1fr) ${SIDE_SEAT_W}px`, maxWidth: SIDE_SEAT_W * 2 + 820 + 32 }}
+          >
             <OpponentSection
               player={leftPlayer}
               isActive={!isDealing && gameState.currentPlayerIndex === leftPlayer.id}
@@ -803,7 +811,7 @@ const GameThirteen = () => {
               position="left"
               isDealing={isDealing}
             />
-            <div ref={tableCenterRef} className="flex-1 h-full flex items-center justify-center relative">
+            <div ref={tableCenterRef} className="h-full min-w-0 flex items-center justify-center relative">
               <PlayArea
                 pile={pile}
                 lastPlayerName={isDealing ? null : currentPlayerName?.split(" #")[0]}
@@ -856,7 +864,7 @@ const GameThirteen = () => {
                 ? "Dealing..."
                 : isMyTurn
                 ? "Your turn!"
-                : `Waiting for ${playersList[gameState.currentPlayerIndex].name}...`
+                : `Waiting for ${playersList[gameState.currentPlayerIndex].name.split(" #")[0]}...`
             }
             errorMessage={errorMessage}
             selectedCount={selectedCards.length}

@@ -349,7 +349,10 @@ io.on("connection", (socket) => {
   });
 
   socket.on("join_lobby", ({ lobbyId } = {}) => {
-    const lobby = lobbies.get(lobbyId);
+    // A shared code is the 6 characters either way; public ids carry a
+    // "PUB-" prefix the player doesn't have to type.
+    const lobby = lobbies.get(lobbyId) || lobbies.get(`PUB-${lobbyId}`);
+    if (lobby) lobbyId = lobby.id;
     if (!lobby) {
       socket.emit("error_message", "Lobby not found");
       return;

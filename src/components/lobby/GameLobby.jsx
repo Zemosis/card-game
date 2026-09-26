@@ -189,7 +189,7 @@ function JoinPanel({ onJoin }) {
               aria-label="Table code"
               value={code}
               onChange={(e) =>
-                setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, CODE_LENGTH))
+                setCode(e.target.value.toUpperCase().replace(/^PUB-?/, "").replace(/[^A-Z0-9]/g, "").slice(0, CODE_LENGTH))
               }
               autoComplete="off"
               spellCheck={false}

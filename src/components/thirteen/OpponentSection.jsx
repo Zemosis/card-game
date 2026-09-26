@@ -1,181 +1,123 @@
-// OPPONENT SECTION - Pixel Retro Style
+// OPPONENT SEAT — one player around the table: a name plate plus a preview of
+// the cards they hold, always on the table side of the plate.
+//
+// Every seat uses the same plate and the same preview, so the table reads as
+// symmetric: left and right are exact mirrors, the top seat is the same parts
+// turned to face down. A hand shows at most SHOWN backs; past that the last
+// back is blurred and carries the rest as "+N".
 
 import React from "react";
 import { PixelAvatar, PixelCard } from "../PixelCard";
 
+const SEAT_PLATE_W = 184;
 const CARD_W = 44;
 const CARD_H = 64;
-const STEP = 12;
+const SHOWN = 5; // backs drawn, the last one blurred when there are more
+const STEP = 14; // offset between two backs
+const FAN_LEN = CARD_W + (SHOWN - 1) * STEP; // longest a preview gets
 
-// Fan of face-down cards with an explicitly sized container.
-// (Rotating a whole container doesn't change its layout box, which made the
-// old side fans collide with neighbours — so cards are rotated individually.)
-// `flip` inverts the arc for the top player, whose hand is held facing us.
-const OpponentFan = ({ count, vertical = false, mirror = false, flip = false }) => {
-  const cards = Array.from({ length: count });
-  const mid = (count - 1) / 2;
-  const span = (count - 1) * STEP;
+function StatusChip({ label, bg, fg = "#1a1024", blink }) {
+  return (
+    <span
+      className={`absolute -top-3 right-2 font-pixel-display text-[10px] leading-none px-1.5 py-1 ${blink ? "blink" : ""}`}
+      style={{ backgroundColor: bg, color: fg, boxShadow: "0 0 0 2px #0a0712" }}
+    >
+      {label}
+    </span>
+  );
+}
 
-  const width = vertical ? CARD_H + 8 : span + CARD_W;
-  const height = vertical ? span + CARD_H : CARD_H + 10;
-  const maxDip = mid * 1.4;
+// Card backs, fanned along one axis. `vertical` stacks sideways cards down
+// the side of the table.
+function HandPreview({ count, vertical }) {
+  const drawn = Math.min(count, SHOWN);
+  const extra = count - (SHOWN - 1); // cards the blurred back stands for
+  const blurLast = count > SHOWN;
+  const mid = (drawn - 1) / 2;
+  // Box sized for a full preview so the seat never changes size mid-deal.
+  const box = vertical ? { width: CARD_H + 8, height: FAN_LEN + 12 } : { width: FAN_LEN + 12, height: CARD_H + 8 };
+  const start = (FAN_LEN - (CARD_W + (drawn - 1) * STEP)) / 2 + 6;
 
   return (
-    <div style={{ position: "relative", width, height, flexShrink: 0 }}>
-      {cards.map((_, i) => {
+    <div className="relative shrink-0" style={box}>
+      {Array.from({ length: drawn }, (_, i) => {
         const d = i - mid;
-        const arc = d * Math.min(3, 18 / Math.max(count - 1, 1));
-        const dip = Math.abs(d) * 1.4;
-        const rotation = vertical
-          ? 90 + (mirror ? -arc : arc)
-          : flip
-            ? -arc
-            : arc;
-        const top = flip ? maxDip - dip : dip;
+        const blurred = blurLast && i === drawn - 1;
+        const pos = start + i * STEP;
         return (
           <div
             key={i}
+            className="absolute"
             style={{
-              position: "absolute",
               ...(vertical
-                ? {
-                    top: i * STEP,
-                    left: "50%",
-                    marginLeft: -CARD_W / 2,
-                    marginTop: (CARD_H - CARD_W) / 2 - 10,
-                  }
-                : { left: i * STEP, top }),
-              transform: `rotate(${rotation}deg)`,
-              transformOrigin: "center",
+                ? { top: pos + (CARD_W - CARD_H) / 2, left: (CARD_H + 8 - CARD_W) / 2 }
+                : { left: pos, top: 4 + Math.abs(d) * 1.5 }),
+              transform: `rotate(${(vertical ? 90 : 0) + d * 3}deg)`,
               zIndex: i,
             }}
           >
-            <PixelCard faceDown size="small" />
+            <div style={{ filter: blurred ? "blur(1.5px) brightness(0.7)" : "none" }}>
+              <PixelCard faceDown size="small" />
+            </div>
+            {blurred && (
+              <div
+                className="absolute inset-0 flex items-center justify-center font-pixel-display text-[12px] text-parchment"
+                style={{ transform: vertical ? "rotate(-90deg)" : "none", textShadow: "2px 2px 0 #0a0712" }}
+              >
+                +{extra}
+              </div>
+            )}
           </div>
         );
       })}
     </div>
   );
-};
+}
 
-const OpponentSection = ({
-  player,
-  isActive = false,
-  hasPassed = false,
-  position = "top",
-  isDealing = false,
-}) => {
+const OpponentSection = ({ player, isActive = false, hasPassed = false, position = "top", isDealing = false }) => {
   const { name, hand, isEliminated } = player;
-  const cardCount = hand.length;
-  const fanCount = Math.min(cardCount, 7);
-  const vertical = position === "left" || position === "right";
+  const count = hand.length;
+  const vertical = position !== "top";
 
-  // Cards sit between the avatar block and the table center
-  const layout = {
-    top: "flex-col items-center",
-    left: "flex-row items-center",
-    right: "flex-row-reverse items-center",
-  }[position];
+  // Cards always sit between the plate and the table.
+  const layout = { top: "flex-col", left: "flex-row", right: "flex-row-reverse" }[position];
 
   return (
-    <div className={`flex gap-2 ${layout}`}>
-      {/* Avatar block */}
+    <div className={`flex items-center gap-3 ${layout}`} data-seat={position}>
       <div
-        className="relative"
+        className="relative flex items-center gap-2.5 px-2.5 py-2"
         style={{
-          backgroundColor: "#14102a",
+          width: SEAT_PLATE_W,
+          backgroundColor: isActive ? "#241a3a" : "#14102a",
           border: `4px solid ${isActive ? "#f4c430" : "#0a0712"}`,
-          padding: "6px 8px",
-          width: 188,
           boxShadow: isActive
-            ? "0 0 0 4px #0a0712, 0 0 16px rgba(244,196,48,0.5), inset 0 4px 0 rgba(255,255,255,0.06)"
+            ? "0 0 0 4px #0a0712, 0 0 18px rgba(244,196,48,0.45)"
             : "0 0 0 4px #0a0712, inset 0 4px 0 rgba(255,255,255,0.04)",
           animation: isActive ? "pulse-glow 1.6s ease-in-out infinite" : "none",
+          opacity: isEliminated ? 0.55 : 1,
         }}
       >
-        <div className="flex items-center gap-2">
-          <PixelAvatar
-            variant={((player.id || 0) % 5) + 1}
-            size={40}
-            active={isActive}
-            eliminated={isEliminated}
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <div className="font-pixel-display text-[9px] text-parchment truncate">
-                {name.split(" #")[0]}
-              </div>
-              {isActive && !isEliminated && (
-                <span
-                  className="font-pixel-display text-[7px] px-1 blink"
-                  style={{ backgroundColor: "#f4c430", color: "#1a1024" }}
-                >
-                  TURN
-                </span>
-              )}
-              {hasPassed && !isEliminated && (
-                <span
-                  className="font-pixel-display text-[7px] px-1"
-                  style={{ backgroundColor: "#463a78", color: "#ead8b1" }}
-                >
-                  PASS
-                </span>
-              )}
-              {isEliminated && (
-                <span
-                  className="font-pixel-display text-[7px] px-1"
-                  style={{ backgroundColor: "#7a1530", color: "#ead8b1" }}
-                >
-                  OUT
-                </span>
-              )}
-            </div>
-
-            {/* Card count bar */}
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <div className="font-pixel-display text-[9px] text-glow-cyan" style={{ minWidth: 18 }}>
-                {cardCount}
-              </div>
-              <div
-                className="flex-1 h-2"
-                style={{
-                  backgroundColor: "#0a0712",
-                  border: "1px solid #1f1a3d",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${(cardCount / 13) * 100}%`,
-                    height: "100%",
-                    background: "linear-gradient(90deg, #5fd4d6, #f4c430)",
-                    transition: "width 300ms ease",
-                  }}
-                />
-              </div>
-            </div>
+        {isEliminated ? (
+          <StatusChip label="OUT" bg="#7a1530" fg="#ead8b1" />
+        ) : isActive ? (
+          <StatusChip label="TURN" bg="#f4c430" blink />
+        ) : hasPassed ? (
+          <StatusChip label="PASS" bg="#463a78" fg="#ead8b1" />
+        ) : null}
+        <PixelAvatar variant={((player.id || 0) % 5) + 1} size={44} active={isActive} eliminated={isEliminated} />
+        <div className="min-w-0">
+          <div className="font-pixel-display text-[11px] text-parchment truncate">{name.split(" #")[0]}</div>
+          <div className="font-pixel-body text-[18px] leading-none mt-1.5 text-bone/70 whitespace-nowrap">
+            <span className="text-glow-cyan">{count}</span> {count === 1 ? "card" : "cards"}
           </div>
         </div>
       </div>
 
-      {/* Card fan — reserve space during dealing so layout doesn't shift */}
-      {!isEliminated && (cardCount > 0 || isDealing) && (
-        <div
-          data-deal-seat={position}
-          style={{
-            minWidth: vertical ? CARD_H + 8 : undefined,
-            minHeight: vertical ? undefined : CARD_H + 10,
-          }}
-        >
-          {cardCount > 0 && (
-            <OpponentFan
-              count={fanCount}
-              vertical={vertical}
-              mirror={position === "right"}
-              flip={position === "top"}
-            />
-          )}
-        </div>
-      )}
+      {/* Always rendered (empty while dealing) so the seat keeps its shape;
+          the deal animation lands cards on it. */}
+      <div data-deal-seat={position} style={{ visibility: isEliminated ? "hidden" : "visible" }}>
+        <HandPreview count={isDealing || count ? count : 0} vertical={vertical} />
+      </div>
     </div>
   );
 };
