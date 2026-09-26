@@ -542,13 +542,14 @@ const GameThirteen = () => {
   const isMyTurn = !isDealing && gameState.currentPlayerIndex === myIndex;
   const canPlay = selectedCards.length > 0 && isMyTurn;
   const canPass = isMyTurn && gameState.currentPlay !== null;
-  // This trick's plays, oldest first: everything since the last reset.
+  // Every play this round, oldest first. Won tricks stay on the felt (the
+  // pile only clears when a new round is dealt).
   const pile = [];
   if (!isDealing) {
     const history = gameState.moveHistory || [];
     for (let i = history.length - 1; i >= 0; i--) {
       const move = history[i];
-      if (move.type !== "PLAY" && move.type !== "PASS") break;
+      if (move.type === "NEW_ROUND" || move.type === "ROUND_END") break;
       if (move.type === "PLAY") {
         pile.unshift({
           key: `${gameState.matchNumber || 1}-${gameState.roundNumber}-${i}`,
@@ -819,6 +820,8 @@ const GameThirteen = () => {
             <div ref={tableCenterRef} className="h-full min-w-0 flex items-center justify-center relative">
               <PlayArea
                 pile={pile}
+                trickOpen={!isDealing && gameState.currentPlay != null}
+                leaderName={playersList[gameState.currentPlayerIndex]?.name.split(" #")[0]}
                 lastPlayerName={isDealing ? null : currentPlayerName?.split(" #")[0]}
                 roundNumber={gameState.roundNumber}
                 isDealing={isDealing}
@@ -829,6 +832,7 @@ const GameThirteen = () => {
                   dealerIndex={gameState.dealerIndex}
                   viewIndex={viewIndex}
                   deckWidth={deckW}
+                  seatsIn={playersList.map((p) => !p.isEliminated)}
                   onDealProgress={handleDealProgress}
                   onComplete={handleDealComplete}
                 />
@@ -857,6 +861,7 @@ const GameThirteen = () => {
             deckWidth={deckW}
             dealOriginRef={tableCenterRef}
             sortMode={sortMode}
+            isEliminated={bottomPlayer.isEliminated}
           />
           <GameControls
             onPlay={handlePlay}

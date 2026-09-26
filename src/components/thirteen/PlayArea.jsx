@@ -1,16 +1,17 @@
-// PLAY AREA — the felt, with this trick's plays stacked on it.
+// PLAY AREA — the felt, with the round's plays stacked on it.
 //
-// Every play since the last reset stays on the table as a pile: each lands on
-// top of the one before at an alternating tilt, so the pile crosses into an X
-// and only the newest play reads clearly. The newest play flies in from the
-// seat that played it. The pile clears when a trick is won.
+// Every play this round stays on the table as a pile: each lands on top of
+// the one before at an alternating tilt, so the pile crosses into an X and
+// only the play to beat reads clearly. The newest play flies in from the seat
+// that played it. When a trick is won the whole pile dims and the felt names
+// the next leader; the pile clears when a new round is dealt.
 
 import React, { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 import { PixelCard } from "../PixelCard";
 import { COMBO_NAMES } from "../../utils/constants";
 
-const MAX_PILE = 8; // older plays are fully covered anyway
+const MAX_PILE = 16; // older plays are fully covered anyway
 const ENTRY = {
   bottom: { x: 0, y: 320 },
   top: { x: 0, y: -320 },
@@ -56,7 +57,15 @@ function PlayGroup({ cards, cardWidth }) {
   );
 }
 
-const PlayArea = ({ pile = [], lastPlayerName = null, roundNumber = 1, isDealing = false, cardWidth = 80 }) => {
+const PlayArea = ({
+  pile = [],
+  trickOpen = false,
+  leaderName = null,
+  lastPlayerName = null,
+  roundNumber = 1,
+  isDealing = false,
+  cardWidth = 80,
+}) => {
   const topRef = useRef(null);
   const prevTopKeyRef = useRef(null);
 
@@ -115,15 +124,24 @@ const PlayArea = ({ pile = [], lastPlayerName = null, roundNumber = 1, isDealing
                 className="absolute top-2 left-0 right-0 text-center font-pixel-display text-[10px] tracking-widest"
                 style={{ color: "rgba(234,216,177,0.7)", zIndex: 20 }}
               >
-                {lastPlayerName ? `${lastPlayerName.toUpperCase()} PLAYED ` : ""}
-                <span className="text-glow-gold text-[11px]">
-                  {(COMBO_NAMES[top.type] || "CARDS").toUpperCase()}
-                </span>
+                {trickOpen ? (
+                  <>
+                    {lastPlayerName ? `${lastPlayerName.toUpperCase()} PLAYED ` : ""}
+                    <span className="text-glow-gold text-[11px]">
+                      {(COMBO_NAMES[top.type] || "CARDS").toUpperCase()}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    TRICK WON · <span className="text-glow-gold text-[11px]">{(leaderName || "").toUpperCase()}</span> LEADS
+                  </>
+                )}
               </div>
 
               {/* The pile */}
               {shown.map((play, i) => {
-                const depth = shown.length - 1 - i;
+                // A won trick buries even the newest play: nothing to beat.
+                const depth = shown.length - 1 - i + (trickOpen ? 0 : 1);
                 const t = pileTransform(play, depth);
                 return (
                   <div
@@ -137,7 +155,7 @@ const PlayArea = ({ pile = [], lastPlayerName = null, roundNumber = 1, isDealing
                       transition: "transform 260ms ease-out, filter 260ms ease-out",
                     }}
                   >
-                    <div ref={depth === 0 ? topRef : undefined}>
+                    <div ref={i === shown.length - 1 ? topRef : undefined}>
                       <PlayGroup cards={play.cards} cardWidth={cardWidth} />
                     </div>
                   </div>
@@ -148,7 +166,7 @@ const PlayArea = ({ pile = [], lastPlayerName = null, roundNumber = 1, isDealing
                 className="absolute bottom-2 left-0 right-0 text-center font-pixel-display text-[10px] text-rose/80 tracking-wider"
                 style={{ zIndex: 20 }}
               >
-                BEAT THIS OR PASS
+                {trickOpen ? "BEAT THIS OR PASS" : "ANY COMBINATION CAN LEAD"}
               </div>
             </>
           )}

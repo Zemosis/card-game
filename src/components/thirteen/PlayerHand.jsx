@@ -46,6 +46,7 @@ const PlayerHand = ({
   deckWidth = 68,
   dealOriginRef,
   sortMode = "rank",
+  isEliminated = false,
 }) => {
   const containerRef = useRef(null);
   const [width, setWidth] = useState(0);
@@ -220,7 +221,7 @@ const PlayerHand = ({
     >
       {hand.length === 0 && !isDealing ? (
         <div className="absolute inset-0 flex items-center justify-center font-pixel-display text-[12px] text-glow-gold">
-          NO CARDS — YOU WIN!
+          {isEliminated ? "YOU'RE OUT — WATCHING THE REST OF THE MATCH" : "NO CARDS — YOU WIN!"}
         </div>
       ) : (
         displayHand.map((card) => (

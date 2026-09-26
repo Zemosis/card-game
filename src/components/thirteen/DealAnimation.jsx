@@ -20,7 +20,6 @@ const safeSound = (method) => {
   }
 };
 
-const TOTAL_CARDS = 52;
 const DECK_LAYERS = 12;
 const POOL_SIZE = 8; // flying sprites reused round-robin
 const FAN_CARD_W = 44; // PixelCard "small", used by opponent fans
@@ -31,7 +30,14 @@ const SEAT_ROTATION = { left: 90, top: 180, right: 270 };
 
 const stackY = (k) => -k * 1.5;
 
-const DealAnimation = ({ dealerIndex = 0, viewIndex = 0, deckWidth = 72, onDealProgress, onComplete }) => {
+const DealAnimation = ({
+  dealerIndex = 0,
+  viewIndex = 0,
+  deckWidth = 72,
+  seatsIn = [true, true, true, true], // false for eliminated seats, who get no cards
+  onDealProgress,
+  onComplete,
+}) => {
   const [phase, setPhase] = useState("shuffle");
   const containerRef = useRef(null);
   const deckRef = useRef(null);
@@ -43,6 +49,8 @@ const DealAnimation = ({ dealerIndex = 0, viewIndex = 0, deckWidth = 72, onDealP
   completeRef.current = onComplete;
 
   const deckH = Math.round(deckWidth * CARD_RATIO);
+  // Stable dependency for the effect (a fresh array every render otherwise).
+  const seatsKey = seatsIn.map(Number).join("");
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -110,20 +118,27 @@ const DealAnimation = ({ dealerIndex = 0, viewIndex = 0, deckWidth = 72, onDealP
       };
     };
 
+    // 13 cards to each seat still in the match, round-robin from the dealer's left.
+    const dealSeats = [];
+    for (let k = 1; k <= 4; k++) {
+      const seat = (dealerIndex + k) % 4;
+      if (seatsKey[seat] === "1") dealSeats.push(seat);
+    }
+    const total = dealSeats.length * 13;
     const counts = [0, 0, 0, 0];
     const land = (seat) => {
       counts[seat]++;
       progressRef.current?.([...counts]);
     };
 
-    for (let i = 0; i < TOTAL_CARDS; i++) {
-      const seat = (dealerIndex + 1 + i) % 4;
+    for (let i = 0; i < total; i++) {
+      const seat = dealSeats[i % dealSeats.length];
       const pos = SEATS[(seat - viewIndex + 4) % 4];
 
       tl.call(
         () => {
           // The deck thins as it deals.
-          const visible = Math.ceil(((TOTAL_CARDS - i - 1) / TOTAL_CARDS) * DECK_LAYERS);
+          const visible = Math.ceil(((total - i - 1) / total) * DECK_LAYERS);
           order.forEach((el, k) => gsap.set(el, { autoAlpha: k < visible ? 1 : 0 }));
           if (i % 2 === 0) safeSound("playDeal");
 
@@ -161,7 +176,7 @@ const DealAnimation = ({ dealerIndex = 0, viewIndex = 0, deckWidth = 72, onDealP
       tl.kill();
       gsap.killTweensOf(pool);
     };
-  }, [dealerIndex, viewIndex, deckWidth]);
+  }, [dealerIndex, viewIndex, deckWidth, seatsKey]);
 
   const cardBox = { position: "absolute", marginLeft: -deckWidth / 2, marginTop: -deckH / 2 };
 
