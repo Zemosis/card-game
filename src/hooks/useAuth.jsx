@@ -1,113 +1,79 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
+import { api, getToken, setToken } from "../lib/api";
 import { getGuestIdentity, clearGuestIdentity } from "../lib/guestIdentity";
 import { deserializeAvatar } from "../utils/avatarConstants";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  // { token, user: { id, email } } while signed in, null for guests.
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Only a saved token needs a round trip before we know who the player is.
+  const [loading, setLoading] = useState(() => !!getToken());
 
   const guest = getGuestIdentity();
 
+  // Restore a saved session on load. A 401 means the token expired or the
+  // account is gone, so drop it; any other failure (server down) keeps the
+  // token for next time and plays as a guest meanwhile.
   useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) fetchProfile(session.user.id);
-      else setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        if (session) fetchProfile(session.user.id);
-        else {
-          setProfile(null);
-          setLoading(false);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    const token = getToken();
+    if (!token) return;
+    api("/me")
+      .then(({ user, profile }) => {
+        setSession({ token, user });
+        setProfile(profile);
+      })
+      .catch((err) => {
+        if (err.status === 401) setToken(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  async function fetchProfile(userId) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    setProfile(data);
-    setLoading(false);
+  function applySession({ token, user, profile }) {
+    setToken(token);
+    setSession({ token, user });
+    setProfile(profile);
+  }
+
+  async function fetchProfile() {
+    const { profile } = await api("/me");
+    setProfile(profile);
+    return profile;
   }
 
   async function signIn(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
+    const data = await api("/login", { method: "POST", body: { email, password } });
+    applySession(data);
     return data;
   }
 
   async function signUp(email, password) {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    if (error) throw error;
+    const data = await api("/signup", { method: "POST", body: { email, password } });
+    applySession(data);
     return data;
   }
 
   async function signInWithOAuth(provider) {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: window.location.origin },
-    });
-    if (error) throw error;
-    return data;
+    throw new Error(`${provider} sign in is not available yet — use email`);
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
+    setToken(null);
     setSession(null);
     setProfile(null);
   }
 
   async function updateProfile(updates) {
     if (!session) return;
-    const { data, error } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", session.user.id)
-      .select()
-      .single();
-    if (error) throw error;
-    setProfile(data);
-    return data;
+    const { profile } = await api("/profile", { method: "PATCH", body: updates });
+    setProfile(profile);
+    return profile;
   }
 
-  // A DB trigger creates the profile row on signup, so this fills in the row
-  // that already exists. Upsert rather than update so a user created before
-  // that trigger existed still gets a row.
-  async function createProfile(profileData) {
-    if (!session) return;
-    const { data, error } = await supabase
-      .from("profiles")
-      .upsert({ id: session.user.id, ...profileData })
-      .select()
-      .single();
-    if (error) throw error;
-    setProfile(data);
-    return data;
-  }
+  // The server creates the profile row at signup, so setup just fills it in.
+  const createProfile = updateProfile;
 
   const isGuest = !session;
 

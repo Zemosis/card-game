@@ -1,52 +1,13 @@
-// SUPABASE PERSISTENCE — token verification and match recording.
+// PERSISTENCE — match recording.
 // The realtime game itself never touches the database (see docs/ARCHITECTURE.md);
-// Supabase is only used to verify JWTs on connect and to record matches.
+// Postgres is only used to record matches and award progression.
 //
 // A session row is written when the match STARTS and updated when it ends, so
 // abandoned matches leave a trace instead of vanishing. Player rows come from
 // the lobby's roster (every seat that was ever occupied) rather than from the
 // live member map, which drops players the moment they quit.
 
-import { createClient } from "@supabase/supabase-js";
-
-const url = process.env.SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const anonKey = process.env.SUPABASE_ANON_KEY;
-
-const clientOptions = { auth: { persistSession: false, autoRefreshToken: false } };
-
-// Admin client (bypasses RLS) — only available when the service role key is set.
-export const supabaseAdmin =
-  url && serviceRoleKey ? createClient(url, serviceRoleKey, clientOptions) : null;
-
-// Auth verification works with the anon key too, so guests-only setups still
-// get JWT validation even before the service role key is configured.
-const supabaseAuth =
-  url && (serviceRoleKey || anonKey)
-    ? createClient(url, serviceRoleKey || anonKey, clientOptions)
-    : null;
-
-if (!supabaseAuth) {
-  console.warn(
-    "[supabase] SUPABASE_URL / keys not configured — all connections treated as guests.",
-  );
-}
-if (!supabaseAdmin) {
-  console.warn(
-    "[supabase] SUPABASE_SERVICE_ROLE_KEY not set — match results will NOT be recorded.",
-  );
-}
-
-/** Returns the Supabase user for a JWT, or null for guests/invalid tokens. */
-export async function verifyToken(token) {
-  if (!supabaseAuth || !token) return null;
-  try {
-    const { data, error } = await supabaseAuth.auth.getUser(token);
-    return error ? null : data.user;
-  } catch {
-    return null;
-  }
-}
+import { pool, withTransaction } from "./db/index.js";
 
 // Rewards by final position (1st..4th). Level-ups come from exp: 100 exp/level.
 const REWARDS = [
@@ -96,30 +57,43 @@ export async function createSession({
   playerCount = 0,
   startedAt,
 }) {
-  if (!supabaseAdmin) return null;
+  if (!pool) return null;
 
-  const { data, error } = await supabaseAdmin
-    .from("game_sessions")
-    .insert({
-      game_type: gameType,
-      status: "in_progress",
-      host_id: hostUserId,
-      host_display_name: hostDisplayName,
-      name: lobbyName,
-      is_private: !!isPrivate,
-      lobby_code: lobbyId,
-      max_players: maxPlayers,
-      current_player_count: playerCount,
-      started_at: (startedAt || new Date()).toISOString(),
-    })
-    .select("id")
-    .single();
+  const { rows } = await pool.query(
+    `insert into game_sessions (
+       game_type, status, host_id, host_display_name, name, is_private,
+       lobby_code, max_players, current_player_count, started_at
+     ) values ($1, 'in_progress', $2, $3, $4, $5, $6, $7, $8, $9)
+     returning id`,
+    [
+      gameType,
+      hostUserId,
+      hostDisplayName,
+      lobbyName,
+      !!isPrivate,
+      lobbyId,
+      maxPlayers,
+      playerCount,
+      startedAt || new Date(),
+    ],
+  );
+  return rows[0].id;
+}
 
-  if (error) {
-    console.error("[supabase] failed to insert game_sessions:", error.message);
-    return null;
-  }
-  return data.id;
+/**
+ * Closes sessions orphaned by a server restart. Game state lives in RAM, so a
+ * session still 'in_progress' at boot can never finish. Assumes one game
+ * server per database — revisit when running several instances.
+ */
+export async function closeOrphanedSessions() {
+  if (!pool) return;
+  const { rowCount } = await pool.query(
+    `update game_sessions
+        set status = 'abandoned', ended_reason = 'abandoned',
+            finished_at = greatest(now(), started_at)
+      where status = 'in_progress'`,
+  );
+  if (rowCount) console.log(`[db] closed ${rowCount} session(s) orphaned by a restart`);
 }
 
 /** Ranks seats: not-eliminated first, then by score ascending (lower is better). */
@@ -156,44 +130,12 @@ function rankSeats(state) {
  * @param {Object}  rec.state - final game state
  */
 export async function finishSession(rec) {
-  if (!supabaseAdmin || !rec.sessionId) return;
+  if (!pool || !rec.sessionId) return;
 
   const { state, roster, completed } = rec;
-  const finishedAt = (rec.finishedAt || new Date()).toISOString();
+  const finishedAt = rec.finishedAt || new Date();
   const positionBySeat = completed && state ? rankSeats(state) : {};
-
-  const { error: sessionError } = await supabaseAdmin
-    .from("game_sessions")
-    .update({
-      status: completed ? "finished" : "abandoned",
-      ended_reason: rec.endedReason || (completed ? "completed" : "abandoned"),
-      round_count: state?.roundNumber ?? null,
-      current_player_count: roster.length,
-      finished_at: finishedAt,
-    })
-    .eq("id", rec.sessionId);
-
-  if (sessionError) {
-    console.error("[supabase] failed to update game_sessions:", sessionError.message);
-  }
-
-  // Round-level history. Written before the player rows so rounds_won and the
-  // stats blob can be derived from the same source.
   const rounds = rec.rounds || [];
-  if (rounds.length) {
-    const { error } = await supabaseAdmin.from("game_rounds").upsert(
-      rounds.map((r) => ({
-        session_id: rec.sessionId,
-        round_number: r.roundNumber,
-        winner_seat: r.winnerSeat,
-        seat_results: r.seatResults,
-      })),
-      { onConflict: "session_id,round_number" },
-    );
-    if (error) {
-      console.error("[supabase] failed to write game_rounds:", error.message);
-    }
-  }
 
   /** Per-seat round aggregates, derived from the round summaries. */
   function roundStatsFor(seatIndex) {
@@ -231,106 +173,138 @@ export async function finishSession(rec) {
     };
   }
 
-  // Current ratings for the signed-in players, fetched in one round trip.
-  const userIds = roster.map((r) => r.userId).filter(Boolean);
-  const profiles = new Map();
-  if (userIds.length) {
-    const { data, error } = await supabaseAdmin
-      .from("profiles")
-      .select("id, coins, exp, wins, games_played, rating")
-      .in("id", userIds);
-    if (error) {
-      console.error("[supabase] failed to read profiles:", error.message);
-    } else {
-      for (const p of data) profiles.set(p.id, p);
+  // One transaction for the whole result: a match is recorded entirely or not
+  // at all, and the profile rows are locked so two matches finishing at once
+  // cannot lose each other's coins.
+  const playerRows = await withTransaction(async (client) => {
+    await client.query(
+      `update game_sessions
+          set status = $2, ended_reason = $3, round_count = $4,
+              current_player_count = $5, finished_at = $6
+        where id = $1`,
+      [
+        rec.sessionId,
+        completed ? "finished" : "abandoned",
+        rec.endedReason || (completed ? "completed" : "abandoned"),
+        state?.roundNumber ?? null,
+        roster.length,
+        finishedAt,
+      ],
+    );
+
+    // Round-level history. Written before the player rows so rounds_won and
+    // the stats blob can be derived from the same source.
+    for (const r of rounds) {
+      await client.query(
+        `insert into game_rounds (session_id, round_number, winner_seat, seat_results)
+         values ($1, $2, $3, $4)
+         on conflict (session_id, round_number) do update
+           set winner_seat = excluded.winner_seat, seat_results = excluded.seat_results`,
+        [rec.sessionId, r.roundNumber, r.winnerSeat, JSON.stringify(r.seatResults)],
+      );
     }
-  }
 
-  // Rating only moves on a completed match, and only among signed-in players.
-  const ratingDeltas = completed
-    ? computeRatingDeltas(
-        roster
-          .filter((r) => r.userId && positionBySeat[r.seatIndex])
-          .map((r) => ({
-            playerKey: r.playerKey,
-            rating: profiles.get(r.userId)?.rating ?? DEFAULT_RATING,
-            position: positionBySeat[r.seatIndex],
-          })),
-      )
-    : new Map();
+    // Current ratings for the signed-in players, locked until commit.
+    const userIds = roster.map((r) => r.userId).filter(Boolean);
+    const profiles = new Map();
+    if (userIds.length) {
+      const { rows } = await client.query(
+        `select id, coins, exp, wins, games_played, rating
+           from profiles where id = any($1::uuid[]) for update`,
+        [userIds],
+      );
+      for (const p of rows) profiles.set(p.id, p);
+    }
 
-  const playerRows = roster.map((seat) => {
-    const position = completed ? positionBySeat[seat.seatIndex] ?? null : null;
-    const reward = completed && position ? REWARDS[position - 1] || REWARDS.at(-1) : null;
-    const profile = seat.userId ? profiles.get(seat.userId) : null;
-    const before = profile?.rating ?? (seat.userId ? DEFAULT_RATING : null);
-    const delta = ratingDeltas.get(seat.playerKey);
-    const roundStats = roundStatsFor(seat.seatIndex);
+    // Rating only moves on a completed match, and only among signed-in players.
+    const ratingDeltas = completed
+      ? computeRatingDeltas(
+          roster
+            .filter((r) => r.userId && positionBySeat[r.seatIndex])
+            .map((r) => ({
+              playerKey: r.playerKey,
+              rating: profiles.get(r.userId)?.rating ?? DEFAULT_RATING,
+              position: positionBySeat[r.seatIndex],
+            })),
+        )
+      : new Map();
 
-    return {
-      session_id: rec.sessionId,
-      player_key: seat.playerKey,
-      player_id: seat.userId || null,
-      guest_name: seat.userId ? null : seat.name,
-      guest_tag: seat.userId ? null : seat.tag,
-      seat_index: seat.seatIndex,
-      final_score: state?.players?.[seat.seatIndex]?.score ?? null,
-      final_position: position,
-      is_winner: position === 1,
-      coins_earned: reward?.coins ?? 0,
-      exp_earned: reward?.exp ?? 0,
-      joined_at: seat.joinedAt ? new Date(seat.joinedAt).toISOString() : null,
-      left_at: seat.leftAt ? new Date(seat.leftAt).toISOString() : null,
-      left_early: !!seat.leftEarly,
-      cpu_took_over: !!seat.cpuTookOver,
-      disconnect_count: seat.disconnectCount || 0,
-      rating_before: before,
-      rating_after: delta == null ? before : before + delta,
-      rounds_won: roundStats.roundsWon,
-      stats: roundStats.stats,
-    };
+    const rows = roster.map((seat) => {
+      const position = completed ? positionBySeat[seat.seatIndex] ?? null : null;
+      const reward = completed && position ? REWARDS[position - 1] || REWARDS.at(-1) : null;
+      const profile = seat.userId ? profiles.get(seat.userId) : null;
+      const before = profile?.rating ?? (seat.userId ? DEFAULT_RATING : null);
+      const delta = ratingDeltas.get(seat.playerKey);
+      const roundStats = roundStatsFor(seat.seatIndex);
+
+      return {
+        player_key: seat.playerKey,
+        player_id: seat.userId || null,
+        guest_name: seat.userId ? null : seat.name,
+        guest_tag: seat.userId ? null : seat.tag,
+        seat_index: seat.seatIndex,
+        final_score: state?.players?.[seat.seatIndex]?.score ?? null,
+        final_position: position,
+        is_winner: position === 1,
+        coins_earned: reward?.coins ?? 0,
+        exp_earned: reward?.exp ?? 0,
+        joined_at: seat.joinedAt ? new Date(seat.joinedAt) : null,
+        left_at: seat.leftAt ? new Date(seat.leftAt) : null,
+        left_early: !!seat.leftEarly,
+        cpu_took_over: !!seat.cpuTookOver,
+        disconnect_count: seat.disconnectCount || 0,
+        rating_before: before,
+        rating_after: delta == null ? before : before + delta,
+        rounds_won: roundStats.roundsWon,
+        stats: roundStats.stats ? JSON.stringify(roundStats.stats) : null,
+      };
+    });
+
+    for (const row of rows) {
+      const cols = Object.keys(row);
+      await client.query(
+        `insert into game_players (session_id, ${cols.join(", ")})
+         values ($1, ${cols.map((_, i) => `$${i + 2}`).join(", ")})
+         on conflict (session_id, player_key) do update
+           set ${cols.map((c) => `${c} = excluded.${c}`).join(", ")}`,
+        [rec.sessionId, ...Object.values(row)],
+      );
+    }
+
+    if (!completed) return rows;
+
+    // Progression for signed-in players.
+    for (const row of rows) {
+      if (!row.player_id) continue;
+      const profile = profiles.get(row.player_id);
+      if (!profile) continue;
+
+      const exp = profile.exp + row.exp_earned;
+      await client.query(
+        `update profiles
+            set coins = $2, exp = $3, level = $4, wins = $5, games_played = $6, rating = $7
+          where id = $1`,
+        [
+          row.player_id,
+          profile.coins + row.coins_earned,
+          exp,
+          levelForExp(exp),
+          profile.wins + (row.is_winner ? 1 : 0),
+          profile.games_played + 1,
+          row.rating_after ?? profile.rating,
+        ],
+      );
+    }
+    return rows;
   });
 
-  if (playerRows.length) {
-    const { error } = await supabaseAdmin
-      .from("game_players")
-      .upsert(playerRows, { onConflict: "session_id,player_key" });
-    if (error) {
-      console.error("[supabase] failed to write game_players:", error.message);
-    }
-  }
-
   if (!completed) {
-    console.log(`[supabase] session ${rec.sessionId} closed as abandoned`);
+    console.log(`[db] session ${rec.sessionId} closed as abandoned`);
     return;
   }
 
-  // Progression for signed-in players.
-  for (const row of playerRows) {
-    if (!row.player_id) continue;
-    const profile = profiles.get(row.player_id);
-    if (!profile) continue;
-
-    const exp = profile.exp + row.exp_earned;
-    const { error } = await supabaseAdmin
-      .from("profiles")
-      .update({
-        coins: profile.coins + row.coins_earned,
-        exp,
-        level: levelForExp(exp),
-        wins: profile.wins + (row.is_winner ? 1 : 0),
-        games_played: profile.games_played + 1,
-        rating: row.rating_after ?? profile.rating,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", row.player_id);
-    if (error) {
-      console.error("[supabase] failed to update profile:", error.message);
-    }
-  }
-
   console.log(
-    `[supabase] recorded match ${rec.sessionId} (${playerRows.length} seats, ` +
+    `[db] recorded match ${rec.sessionId} (${playerRows.length} seats, ` +
       `${rounds.length} rounds, ` +
       `${playerRows.filter((r) => r.left_early).length} left early)`,
   );

@@ -31,13 +31,13 @@ Two design commitments follow from that and explain most of what is below:
 
 ## 2. Current build state
 
-Honest status, as of the initial Supabase schema landing.
+Honest status, as of the move off Supabase to self-hosted Postgres.
 
 | Area | State |
 |---|---|
 | Main menu, settings, avatar painter | Built |
-| Auth (email + OAuth) via Supabase | Built; OAuth providers need enabling in the dashboard |
-| Database schema, RLS, triggers | Built and applied |
+| Auth (email + password) in the Node server | Built. OAuth buttons are shown but not wired up yet |
+| Database schema, views | Built; applied automatically on server start |
 | **Thirteen** | **Playable.** Server-authoritative, reconnect handling, match recording |
 | **Muushig** | **Not implemented.** UI mockup only — see below |
 | Shop / economy | Not started; `coins` accrues in the DB |
@@ -57,21 +57,22 @@ end-to-end, needs a running server on :3001).
 ## 3. Tech stack
 
 **Client** — React 19 + Vite 7, Tailwind CSS v4, React Router v7, GSAP 3 (with
-`@gsap/react`) for animation, `socket.io-client` v4, `@supabase/supabase-js`.
+`@gsap/react`) for animation, `socket.io-client` v4.
 
-**Server** (`server/`) — Node + Express 5, Socket.IO v4, `@supabase/supabase-js`
-with the service role key. ES modules throughout.
+**Server** (`server/`) — Node + Express 5, Socket.IO v4, `pg` for Postgres,
+`bcryptjs` + `jsonwebtoken` for accounts. ES modules throughout.
 
-**Supabase** — Postgres 17 for persistence, Supabase Auth for identity.
+**Postgres 17** — persistence. Locally it runs in a container; in production
+any managed Postgres works, because nothing in the schema is vendor-specific.
 
-> **Do not use Supabase Realtime or Presence.** All transient in-game
-> communication — matchmaking, lobbies, moves, chat — goes through the Socket.IO
-> server. Supabase is storage and identity only. Two sources of realtime truth
-> is the bug you cannot debug later.
+> **One source of realtime truth.** All transient in-game communication —
+> matchmaking, lobbies, moves, chat — goes through the Socket.IO server.
+> Postgres is storage only.
 
-Object storage is deliberately **not** used. Painted avatars serialize to ~2KB
-of JSON and live in `profiles.custom_avatar`; card art and skins are build
-assets under `src/assets/`. Revisit only when users upload arbitrary files.
+The project previously used Supabase for Postgres and Auth. It moved off it
+because a paused free-tier project took the whole site down with it. The old
+migrations are in git history; `server/db/migrations/001_initial.sql` is their
+consolidated plain-Postgres equivalent.
 
 ## 4. Repository layout
 
@@ -80,15 +81,15 @@ src/
   pages/          MainMenu, AvatarPaint, thirteen/, muushig/
   components/     PixelCard (design primitives), auth/, thirteen/
   hooks/          useAuth (session + profile), useServerStats
-  lib/            supabase client, guestIdentity
+  lib/            api (HTTP client + session token), guestIdentity
   utils/          socket, SoundManager, avatarConstants,
                   + a client-side copy of the game rules (display only)
 server/
   index.js        Socket.IO entry, auth middleware, lobby management
   game/           engine.js (ThirteenGame, redactState) + rules modules
-  persistence.js  JWT verification and match recording
-supabase/
-  migrations/     the schema — source of truth
+  auth.js         sign-up/login, JWTs, profile routes (/api/auth/*)
+  persistence.js  match recording
+  db/             pg pool, migration runner, migrations/ — the schema
 docs/             this file, STYLEGUIDE.md, the two rulebooks
 ```
 
@@ -99,24 +100,25 @@ for optimistic rendering and hints. Do not let them diverge in rules.
 ## 5. Runtime architecture
 
 ```
-Browser ──HTTP──> Supabase Auth ──> JWT
-   │
-   ├──supabase-js (publishable key)──> Postgres    profile reads/writes, leaderboards
-   │                                               (RLS enforced)
-   └──Socket.IO (JWT in handshake)───> Node server  lobbies, moves, chat
-                                            │
-                                            └──service role──> Postgres
-                                                               match results
+Browser ──HTTP  /api/auth/*──────────> Node server ──pg──> Postgres
+   │            signup, login, me,          │              profiles, matches
+   │            PATCH profile               │
+   └──Socket.IO (JWT in handshake)──────────┘
+                lobbies, moves, chat
 ```
 
+The browser never talks to Postgres. Every read and write goes through the
+Node server, so authorization lives in its routes rather than in database
+policies.
+
 **Game state lives in RAM on the Node server**, in a `Map` of lobbies. Each
-lobby holds its members keyed by a stable `playerKey` (the Supabase user id, or
+lobby holds its members keyed by a stable `playerKey` (the user id, or
 `name#tag` for a guest) and a `ThirteenGame` instance. Socket ids are rebound to
 the player key on reconnect, which is what makes refresh-and-rejoin work.
 
 **Connection identity** (`server/index.js`) — the handshake carries either a
-Supabase access token or a guest name/tag. `verifyToken` resolves the token via
-`supabase.auth.getUser()`; failure means guest, not rejection.
+session JWT or a guest name/tag. `verifyToken` (`server/auth.js`) checks the
+signature locally; failure means guest, not rejection.
 
 **Move flow** — the client emits `request_move`; the server checks turn order,
 card ownership and combination legality, then either updates state and
@@ -148,19 +150,25 @@ Server emits: `lobby_joined`, `game_state_update`, `move_rejected`,
 
 ## 6. Database
 
-**Source of truth is `supabase/migrations/`.** Do not edit the schema in the
-dashboard — write a migration, so the database can be recreated from the repo.
+**Source of truth is `server/db/migrations/`.** The server applies any
+unapplied file at startup, in filename order, and records it in
+`schema_migrations`. Never edit an applied file — add `002_….sql` instead.
+
+### `users`
+
+`id`, `email` (unique case-insensitively), `password_hash` (bcrypt). Only
+`server/auth.js` reads it.
 
 ### `profiles`
 
-One row per `auth.users` entry, created automatically by the
-`on_auth_user_created` trigger. `username` is NULL until the player completes
+One row per `users` entry, inserted in the same transaction as the user at
+sign-up. `username` is NULL until the player completes
 setup, and the client treats that as its "needs setup" signal — which is what
-makes OAuth work, since the OAuth redirect skips the signup form entirely.
+will make OAuth work later, since an OAuth redirect skips the signup form.
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | `uuid` PK | → `auth.users(id)`, `on delete cascade` |
+| `id` | `uuid` PK | → `users(id)`, `on delete cascade` |
 | `username` | `text` | NULL until setup; 1–6 chars |
 | `tag` | `text` | NULL until setup; `^[A-Z0-9]{4}$` |
 | `avatar` | `text` | `'1'`–`'5'`, or `'custom'` |
@@ -268,64 +276,62 @@ penalties for cards left in hand), so `best_score` is a `MIN`.
 
 ### `leaderboards`
 
-A **view** (`security_invoker = true`) aggregating `game_players` — not a table.
+A **view** aggregating `game_players` — not a table.
 Nothing to keep in sync, and it cannot drift from the match records. Exposes
 wins, losses, abandons, `cpu_finished`, average and best position, per-game-type
 wins, and `last_played_at`.
 
 ## 7. Security model
 
-**Row Level Security** is enabled and forced on all three tables.
+**The database is not exposed.** Postgres listens only for the Node server;
+the browser has no connection string and no key. There is no RLS because there
+is no untrusted database client.
 
-* `profiles` — world-readable; INSERT/UPDATE only where `id = (select auth.uid())`.
-* `game_sessions`, `game_players` — world-readable, **no client write policy at
-  all**. The server writes them through the service role, which has `BYPASSRLS`.
+**Accounts.** Passwords are bcrypt-hashed (cost 10). Sessions are HS256 JWTs
+signed with `JWT_SECRET`, valid 30 days, stored in `localStorage` and sent as
+`Authorization: Bearer` on HTTP and as `auth.token` in the socket handshake.
+Tokens are stateless, so signing out only forgets the token client-side;
+rotating `JWT_SECRET` signs everyone out.
 
-`auth.uid()` is wrapped in a `SELECT` in every policy so it is evaluated once per
-statement rather than once per row.
+**Column-level anti-tamper.** `PATCH /api/auth/profile` writes only the
+whitelisted identity fields (`username`, `tag`, `avatar`, `custom_avatar`,
+`custom_colors`). `coins`, `exp`, `level`, `wins`, `games_played` and `rating`
+are written only by `persistence.js` when a match finishes, inside one
+transaction that locks the affected profile rows.
 
-**Column-level anti-tamper.** RLS restricts rows, not columns — so
-`profiles_update_own` would otherwise let any signed-in user `PATCH /profiles`
-and mint themselves coins with the publishable key. The `profiles_guard_stats`
-BEFORE UPDATE trigger reverts `coins`, `exp`, `level`, `wins`, `games_played`
-and `rating` to their previous values unless `current_user = 'service_role'`. Identity fields
-stay client-editable.
-
-**Keys.** The publishable/anon key is safe in the browser; RLS is what protects
-the data behind it. The **service role key bypasses RLS entirely** and must only
-ever exist in `server/.env`.
+**Restart recovery.** Game state is in RAM, so on boot any session still
+`in_progress` is marked `abandoned`. This assumes one game server per
+database.
 
 ## 8. Local development
 
 ```bash
-npm install && npm run dev          # client on :5173
-cd server && npm install && npm run dev   # server on :3001
-```
+# Postgres 17 in a container (podman or docker — same flags)
+podman run -d --name khuzur-db -p 5432:5432 \
+  -e POSTGRES_USER=khuzur -e POSTGRES_PASSWORD=khuzur -e POSTGRES_DB=khuzur \
+  -v khuzur-pgdata:/var/lib/postgresql/data docker.io/library/postgres:17
+podman start khuzur-db                     # on later days
 
-Postgres and Auth are the **hosted Supabase project**; only the game server runs
-locally. Applying a schema change means writing a migration file and applying it
-to that project.
+cd server && npm install && npm run dev    # server on :3001, applies migrations
+npm install && npm run dev                 # client on :5173
+```
 
 ```bash
 # .env  (client)
-VITE_SUPABASE_URL=https://<ref>.supabase.co
-VITE_SUPABASE_ANON_KEY=<publishable key>
 VITE_WEBSOCKET_URL=http://localhost:3001
 
 # server/.env
 PORT=3001
-SUPABASE_URL=https://<ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<secret — never in the client>
+DATABASE_URL=postgres://khuzur:khuzur@localhost:5432/khuzur
+JWT_SECRET=<openssl rand -hex 32>
 CORS_ORIGIN=http://localhost:5173
 ```
 
-Both are gitignored. Without them the client's `supabase` export is `null` and
-the app degrades to guest-only; the server logs a warning and skips match
-recording. That degradation is intentional but easy to mistake for a bug.
+Both are gitignored; copy the `.env.example` next to each. Without
+`DATABASE_URL` the server still runs guest-only and skips match recording —
+intentional, but easy to mistake for a bug.
 
-OAuth providers must be enabled in the Supabase dashboard, with
-`http://localhost:5173` on the redirect allowlist — `signInWithOAuth` passes
-`window.location.origin` as `redirectTo`.
+Inspect data with `podman exec -it khuzur-db psql -U khuzur`.
 
 ## 9. What's next
 
@@ -334,11 +340,13 @@ Roughly in dependency order:
 1. **Implement Muushig for real** — a `MuushigGame` engine in `server/game/`
    mirroring `ThirteenGame`, then replace the mockup with socket-driven state.
    `recordMatch` stops hardcoding `game_type` at that point.
-2. **Deploy** — client to Vercel, server to Render (it needs persistent
-   WebSocket support), and add the deployed origins to `CORS_ORIGIN` and the
-   Supabase redirect allowlist.
-3. **Tests.** There is no frontend test runner. The rules engines in
+2. **Deploy** — client as static files, server on a host with persistent
+   WebSocket support, Postgres managed. Add the deployed origin to
+   `CORS_ORIGIN`.
+3. **OAuth** — Google/Discord sign-in in `server/auth.js`; the profile setup
+   flow already handles a user with no username.
+4. **Tests.** There is no frontend test runner. The rules engines in
    `server/game/` are pure functions and the obvious place to start.
-4. **Shop and economy** — `coins` already accrues; nothing spends it.
-5. **Progression** — the third menu slot is gated behind "Rank V" in the UI with
+5. **Shop and economy** — `coins` already accrues; nothing spends it.
+6. **Progression** — the third menu slot is gated behind "Rank V" in the UI with
    no rank system behind it yet.

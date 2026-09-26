@@ -8,7 +8,9 @@ import http from "http";
 import cors from "cors";
 import { Server } from "socket.io";
 import { ThirteenGame, redactState } from "./game/engine.js";
-import { verifyToken, createSession, finishSession } from "./persistence.js";
+import { createSession, finishSession, closeOrphanedSessions } from "./persistence.js";
+import { authRouter, verifyToken } from "./auth.js";
+import { migrate } from "./db/index.js";
 
 const PORT = process.env.PORT || 3001;
 const CORS_ORIGINS = (process.env.CORS_ORIGIN || "http://localhost:5173")
@@ -21,6 +23,7 @@ const DISCONNECT_GRACE_MS = 60_000;
 const app = express();
 app.use(cors({ origin: CORS_ORIGINS }));
 app.get("/", (_req, res) => res.json({ ok: true, service: "card-game-server" }));
+app.use("/api/auth", authRouter);
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -48,11 +51,11 @@ const io = new Server(server, {
 const lobbies = new Map();
 
 // ---------- AUTH MIDDLEWARE ----------
-// Signed-in players pass their Supabase access token; guests pass name + tag.
+// Signed-in players pass their JWT from /api/auth; guests pass name + tag.
 // Identity (playerKey) is what survives refreshes and reconnects.
 io.use(async (socket, next) => {
   const { token, name, tag } = socket.handshake.auth || {};
-  const user = await verifyToken(token);
+  const user = verifyToken(token);
 
   const safeName = String(name || "PLAYER").slice(0, 12);
   const safeTag = String(tag || "0000").slice(0, 4);
@@ -189,7 +192,7 @@ function closeSession(lobby, { completed, endedReason }) {
 
   lobby.sessionPromise
     .then((sessionId) => sessionId && finishSession({ sessionId, ...snapshot }))
-    .catch((err) => console.error("[supabase] finishSession failed:", err));
+    .catch((err) => console.error("[db] finishSession failed:", err));
 }
 
 /**
@@ -218,7 +221,7 @@ function beginSession(lobby) {
     playerCount: lobby.roster.size,
     startedAt: lobby.game?.startedAt,
   }).catch((err) => {
-    console.error("[supabase] createSession failed:", err);
+    console.error("[db] createSession failed:", err);
     return null;
   });
 }
@@ -503,6 +506,10 @@ io.on("connection", (socket) => {
   });
 });
 
+// Schema first: a server that accepted players before its tables existed would
+// fail every match write.
+await migrate();
+await closeOrphanedSessions();
 server.listen(PORT, () => {
   console.log(`CARD GAME SERVER RUNNING ON PORT ${PORT}`);
 });
