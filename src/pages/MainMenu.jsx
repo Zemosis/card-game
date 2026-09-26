@@ -23,7 +23,7 @@ const MainMenu = () => {
   const stats = useServerStats();
 
   useEffect(() => {
-    connectSocket({ name: identity.name, tag: identity.tag });
+    connectSocket(identity);
   }, [identity.name, identity.tag]);
 
   return (

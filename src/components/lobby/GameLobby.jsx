@@ -345,7 +345,7 @@ export default function GameLobby({ game }) {
   const ev = game.events;
 
   useEffect(() => {
-    connectSocket({ name: identity.name, tag: identity.tag });
+    connectSocket(identity);
   }, [identity.name, identity.tag]);
 
   useEffect(() => {

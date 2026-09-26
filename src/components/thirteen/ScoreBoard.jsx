@@ -24,7 +24,7 @@ function StatusChip({ label, bg, fg = "#1a1024", blink = false }) {
   );
 }
 
-const ScoreBoard = ({ players = [], currentPlayerIndex = 0, roundNumber = 1, matchWins = [0, 0, 0, 0], myIndex = -1, myAvatar }) => {
+const ScoreBoard = ({ players = [], currentPlayerIndex = 0, roundNumber = 1, matchWins = [0, 0, 0, 0], myIndex = -1, faceFor }) => {
   const maxScore = GAME_SETTINGS.ELIMINATION_SCORE;
 
   const ranked = players
@@ -66,8 +66,8 @@ const ScoreBoard = ({ players = [], currentPlayerIndex = 0, roundNumber = 1, mat
                 #{rankIdx + 1}
               </span>
               <PixelAvatar
-                variant={isMe && myAvatar ? myAvatar.variant : ((player.id ?? index) % 5) + 1}
-                customAvatarData={isMe ? myAvatar?.custom : null}
+                variant={faceFor ? faceFor(index).variant : ((player.id ?? index) % 5) + 1}
+                customAvatarData={faceFor?.(index).customAvatarData}
                 size={32}
                 eliminated={player.isEliminated}
               />

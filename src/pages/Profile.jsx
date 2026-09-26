@@ -358,7 +358,7 @@ export default function Profile() {
 
   // Keeps the top bar's server status live, as on every other screen.
   useEffect(() => {
-    connectSocket({ name: identity.name, tag: identity.tag });
+    connectSocket(identity);
   }, [identity.name, identity.tag]);
   const [showLogin, setShowLogin] = useState(false);
 

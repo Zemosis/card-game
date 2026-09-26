@@ -59,6 +59,20 @@ export function presetAvatar(variant) {
 }
 
 /** Device-pixel side (a multiple of 16) and CSS side for a requested size. */
+/**
+ * The face shown for a seat at the table: a player's own avatar when the
+ * server sent one ({ variant, custom }), else a stock face for CPUs.
+ * Returns props for PixelAvatar: { variant, customAvatarData }.
+ */
+export function seatAvatar(player, index = 0) {
+  const a = player?.avatar;
+  if (a?.variant === "custom" && a.custom) {
+    return { variant: "custom", customAvatarData: deserializeAvatar(a.custom) };
+  }
+  if (a?.variant) return { variant: a.variant, customAvatarData: null };
+  return { variant: ((player?.id ?? index) % 5) + 1, customAvatarData: null };
+}
+
 export function snapAvatarSize(size, dpr = 1) {
   const cells = Math.max(1, Math.round((size * dpr) / GRID_SIZE));
   const device = cells * GRID_SIZE;

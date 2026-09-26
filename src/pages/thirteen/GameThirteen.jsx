@@ -26,6 +26,7 @@ import {
 } from "../../utils/gameLogic";
 import { validatePlay, identifyCombination } from "../../utils/handEvaluator";
 import { useTableMetrics } from "../../hooks/useTableMetrics";
+import { seatAvatar } from "../../utils/avatarConstants";
 import { COMBO_NAMES, GAME_STATES, GAME_SETTINGS } from "../../utils/constants";
 import { makeAIDecision } from "../../utils/aiPlayer";
 
@@ -166,7 +167,7 @@ const GameThirteen = () => {
       socket.emit("check_game_status", { lobbyId });
     };
 
-    connectSocket({ name: identity.name, tag: identity.tag }).then(() => {
+    connectSocket(identity).then(() => {
       if (socket.connected) joinGame();
     });
 
@@ -560,19 +561,23 @@ const GameThirteen = () => {
     }
   }
 
-  const myAvatar = { variant: identity.avatar, custom: identity.customAvatar };
+  // PixelAvatar props for a seat: your own avatar comes straight from your
+  // profile (always current); everyone else's from the server's game state.
+  const faceFor = (index) =>
+    index === myIndex && !iAmSpectator
+      ? { variant: identity.avatar, customAvatarData: identity.customAvatar }
+      : seatAvatar(playersList[index], index);
   const avatarFor = (msg) => {
-    if (msg.isMe) return myAvatar;
+    if (msg.isMe) return faceFor(myIndex);
     const idx = playersList.findIndex((p) => p.name.split(" #")[0] === msg.sender?.split(" #")[0]);
-    return { variant: idx >= 0 ? ((playersList[idx].id ?? idx) % 5) + 1 : 2 };
+    return idx >= 0 ? faceFor(idx) : { variant: 2 };
   };
 
   // Log names use the colour of the avatar shown for that seat.
   const colorFor = (playerIndex) => {
     const p = playersList[playerIndex];
     if (!p) return "#ead8b1";
-    const variant = playerIndex === myIndex ? myAvatar.variant : ((p.id ?? playerIndex) % 5) + 1;
-    return AVATAR_COLOR[variant] || "#ead8b1";
+    return AVATAR_COLOR[faceFor(playerIndex).variant] || "#ead8b1";
   };
 
   const comboInfo = (() => {
@@ -793,6 +798,7 @@ const GameThirteen = () => {
               isActive={!isDealing && gameState.currentPlayerIndex === topPlayer.id}
               hasPassed={topPlayer.hasPassed}
               position="top"
+              face={faceFor(topPlayer.id)}
             />
           </div>
 
@@ -808,6 +814,7 @@ const GameThirteen = () => {
               isActive={!isDealing && gameState.currentPlayerIndex === leftPlayer.id}
               hasPassed={leftPlayer.hasPassed}
               position="left"
+              face={faceFor(leftPlayer.id)}
             />
             <div ref={tableCenterRef} className="h-full min-w-0 flex items-center justify-center relative">
               <PlayArea
@@ -832,6 +839,7 @@ const GameThirteen = () => {
               isActive={!isDealing && gameState.currentPlayerIndex === rightPlayer.id}
               hasPassed={rightPlayer.hasPassed}
               position="right"
+              face={faceFor(rightPlayer.id)}
             />
           </div>
 
@@ -885,7 +893,7 @@ const GameThirteen = () => {
             roundNumber={gameState.roundNumber}
             matchWins={gameState.matchWins || [0, 0, 0, 0]}
             myIndex={myIndex}
-            myAvatar={myAvatar}
+            faceFor={faceFor}
           />
           <GameChat
             messages={messages}

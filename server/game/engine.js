@@ -23,7 +23,7 @@ const cardValue = (card) => card.rankValue * 4 + card.suitValue;
 export class ThirteenGame {
   /**
    * @param {Object} opts
-   * @param {Array} opts.seats - 4 entries of { type: "HUMAN"|"AI", name, socketId }
+   * @param {Array} opts.seats - 4 entries of { type: "HUMAN"|"AI", name, socketId, avatar? }
    * @param {String} opts.aiDifficulty
    * @param {Function} opts.onState - called after every state change
    * @param {Function} opts.onRoundEnd - called once per completed round
@@ -54,6 +54,7 @@ export class ThirteenGame {
       name: seats[i].name,
       type: seats[i].type,
       socketId: seats[i].socketId || null,
+      avatar: seats[i].avatar || null,
     }));
     this.startedAt = new Date();
     this.finishedAt = null;
@@ -70,6 +71,7 @@ export class ThirteenGame {
       type: p.type,
       name: p.name,
       socketId: p.socketId,
+      avatar: p.avatar,
     }));
     const matchMeta = {
       matchNumber: (this.state.matchNumber || 1) + 1,
@@ -128,11 +130,12 @@ export class ThirteenGame {
   }
 
   /** Swap a seat's occupant (player join/rejoin or CPU takeover on disconnect). */
-  replaceSeat(seatIndex, { type, name, socketId }) {
+  replaceSeat(seatIndex, { type, name, socketId, avatar }) {
     const s = this.state;
     if (!s || !s.players[seatIndex]) return;
+    // A CPU taking over gets a stock face (avatar null).
     s.players = s.players.map((p, i) =>
-      i === seatIndex ? { ...p, type, name, socketId: socketId || null } : p,
+      i === seatIndex ? { ...p, type, name, socketId: socketId || null, avatar: avatar || null } : p,
     );
     this.broadcast();
     this.scheduleAI();

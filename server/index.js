@@ -10,7 +10,7 @@ import { Server } from "socket.io";
 import { ThirteenGame, redactState } from "./game/engine.js";
 import { createSession, finishSession, closeOrphanedSessions } from "./persistence.js";
 import { authRouter, verifyToken } from "./auth.js";
-import { migrate } from "./db/index.js";
+import { migrate, pool } from "./db/index.js";
 
 const PORT = process.env.PORT || 3001;
 const CORS_ORIGINS = (process.env.CORS_ORIGIN || "http://localhost:5173")
@@ -54,7 +54,7 @@ const lobbies = new Map();
 // Signed-in players pass their JWT from /api/auth; guests pass name + tag.
 // Identity (playerKey) is what survives refreshes and reconnects.
 io.use(async (socket, next) => {
-  const { token, name, tag } = socket.handshake.auth || {};
+  const { token, name, tag, avatar } = socket.handshake.auth || {};
   const user = verifyToken(token);
 
   const safeName = String(name || "PLAYER").slice(0, 12);
@@ -65,10 +65,34 @@ io.use(async (socket, next) => {
   socket.data.tag = safeTag;
   socket.data.displayName = `${safeName} #${safeTag}`;
   socket.data.playerKey = user?.id || `guest:${safeName}#${safeTag}`;
+  socket.data.avatar = await loadAvatar(user, avatar);
   next();
 });
 
 // ---------- HELPERS ----------
+
+const PRESET_AVATARS = new Set(["1", "2", "3", "4", "5"]);
+
+/**
+ * The avatar other players see at the table: { variant, custom }.
+ * Signed-in players get what their profile says (painted avatars were already
+ * shape-checked by the profiles constraint); guests may only pick a preset.
+ */
+async function loadAvatar(user, requested) {
+  if (user && pool) {
+    try {
+      const { rows } = await pool.query("select avatar, custom_avatar from profiles where id = $1", [user.id]);
+      if (rows[0]) {
+        const custom = rows[0].avatar === "custom" ? rows[0].custom_avatar : null;
+        return { variant: custom ? "custom" : rows[0].avatar, custom };
+      }
+    } catch (err) {
+      console.error("[auth] avatar lookup failed:", err.message);
+    }
+  }
+  const preset = String(requested ?? "");
+  return { variant: PRESET_AVATARS.has(preset) ? preset : "1", custom: null };
+}
 
 const makeLobbyId = (isPrivate) => {
   const code = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -102,6 +126,7 @@ function addMember(lobby, socket) {
     name: socket.data.name,
     tag: socket.data.tag,
     displayName: socket.data.displayName,
+    avatar: socket.data.avatar,
     socketId: socket.id,
     connected: true,
     seatIndex: null,
@@ -231,7 +256,7 @@ function startGame(lobby) {
   for (const member of lobby.members.values()) {
     if (seats.length >= 4) break;
     member.seatIndex = seats.length;
-    seats.push({ type: "HUMAN", name: member.displayName, socketId: member.socketId });
+    seats.push({ type: "HUMAN", name: member.displayName, socketId: member.socketId, avatar: member.avatar });
   }
   let cpu = 1;
   while (seats.length < 4) {
@@ -373,6 +398,7 @@ io.on("connection", (socket) => {
           type: "HUMAN",
           name: member.displayName,
           socketId: socket.id,
+          avatar: member.avatar,
         });
         rosterEnter(lobby, member);
       }

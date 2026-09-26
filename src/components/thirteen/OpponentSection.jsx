@@ -58,7 +58,11 @@ function HandPreview({ count, position }) {
       >
         {Array.from({ length: drawn }, (_, i) => {
           const d = i - mid;
-          const blurred = blurLast && i === drawn - 1;
+          // The "+N" card ends the fan in reading order. The top fan is turned
+          // 180 degrees, so there its last card is the first one drawn; it is
+          // stacked on top either way.
+          const endIndex = position === "top" ? 0 : drawn - 1;
+          const blurred = blurLast && i === endIndex;
           const rotation = d * ANGLE;
           return (
             <div
@@ -69,7 +73,7 @@ function HandPreview({ count, position }) {
                 bottom: 4 - d * d * 1.4,
                 transform: `rotate(${rotation}deg)`,
                 transformOrigin: "50% 100%",
-                zIndex: i,
+                zIndex: position === "top" ? drawn - i : i,
               }}
             >
               <div style={{ filter: blurred ? "blur(1.5px) brightness(0.7)" : "none" }}>
@@ -94,7 +98,7 @@ function HandPreview({ count, position }) {
 const TOP_PLATE_W = 184;
 const SIDE_PLATE_W = 124;
 
-const OpponentSection = ({ player, isActive = false, hasPassed = false, position = "top" }) => {
+const OpponentSection = ({ player, isActive = false, hasPassed = false, position = "top", face }) => {
   const { name, hand, isEliminated } = player;
   const count = hand.length;
   const vertical = position !== "top";
@@ -126,7 +130,7 @@ const OpponentSection = ({ player, isActive = false, hasPassed = false, position
         ) : hasPassed ? (
           <StatusChip label="PASS" bg="#463a78" fg="#ead8b1" />
         ) : null}
-        <PixelAvatar variant={((player.id || 0) % 5) + 1} size={vertical ? 56 : 44} active={isActive} eliminated={isEliminated} />
+        <PixelAvatar variant={face?.variant ?? ((player.id || 0) % 5) + 1} customAvatarData={face?.customAvatarData} size={vertical ? 56 : 44} active={isActive} eliminated={isEliminated} />
         <div className="min-w-0 max-w-full">
           <div className="font-pixel-display text-[11px] text-parchment truncate">{name.split(" #")[0]}</div>
           <div className="font-pixel-body text-[18px] leading-none mt-1.5 text-bone/70 whitespace-nowrap">
