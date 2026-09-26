@@ -37,7 +37,7 @@ const GameControls = ({
       >
         {errorMessage ? (
           <div className="font-pixel-display text-[10px]" style={{ color: "#e85a7a" }}>
-            ⚠ {errorMessage}
+            {errorMessage}
           </div>
         ) : (
           <div className="font-pixel-body text-sm text-bone/70">
@@ -57,7 +57,7 @@ const GameControls = ({
           color: "#ead8b1",
         }}
       >
-        ✕ PASS {canPass && isPlayerTurn && <span className="text-[8px] ml-1">(P)</span>}
+        PASS {canPass && isPlayerTurn && <span className="text-[8px] ml-1">(P)</span>}
       </button>
       <button
         onClick={onPlay}
@@ -69,7 +69,7 @@ const GameControls = ({
           color: "#1a1024",
         }}
       >
-        ► PLAY {canPlay && isPlayerTurn && <span className="text-[8px] ml-1">(SPACE)</span>}
+        PLAY {canPlay && isPlayerTurn && <span className="text-[8px] ml-1">(SPACE)</span>}
       </button>
     </div>
   );

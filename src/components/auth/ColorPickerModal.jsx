@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { PixelButton } from "../PixelCard";
 import { hsbToHex, hexToHsb } from "../../utils/avatarConstants";
+import PixelIcon from "../PixelIcon";
 
 const SB_SIZE = 220;
 const HUE_WIDTH = 24;
@@ -133,7 +134,7 @@ export default function ColorPickerModal({ initialColor, onSelect, onClose }) {
           style={{ backgroundColor: "#f4c430", borderBottom: "4px solid #0a0712" }}
         >
           <span className="font-pixel-display text-[10px]" style={{ color: "#1a1024" }}>
-            ✦ EDIT COLORS ✦
+            EDIT COLORS
           </span>
           <button
             onClick={onClose}
@@ -145,7 +146,7 @@ export default function ColorPickerModal({ initialColor, onSelect, onClose }) {
               cursor: "pointer",
             }}
           >
-            ✕
+            <PixelIcon name="close" size={12} title="Close" />
           </button>
         </div>
 
@@ -261,7 +262,7 @@ export default function ColorPickerModal({ initialColor, onSelect, onClose }) {
               onClick={() => onSelect(currentHex)}
               className="flex-1"
             >
-              ✦ SELECT COLOR
+              SELECT COLOR
             </PixelButton>
             <PixelButton
               color="dusk"

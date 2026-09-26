@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { soundManager } from "../utils/SoundManager";
+import PixelIcon from "./PixelIcon";
 
 const SettingsModal = ({ onClose }) => {
   const [isMuted, setIsMuted] = useState(soundManager.isMuted);
@@ -42,13 +43,13 @@ const SettingsModal = ({ onClose }) => {
       >
         <div className="flex items-center justify-between mb-4">
           <span className="font-pixel-display text-[11px] text-glow-gold">
-            âš™ SETTINGS
+            SETTINGS
           </span>
           <button
             onClick={onClose}
             className="font-pixel-display text-[11px] text-rose"
           >
-            âœ•
+            <PixelIcon name="close" size={12} title="Close" />
           </button>
         </div>
 
@@ -62,7 +63,7 @@ const SettingsModal = ({ onClose }) => {
               color: "#ead8b1",
             }}
           >
-            {isMuted ? "ðŸ”‡ SOUND OFF" : "ðŸ”Š SOUND ON"}
+            <span className="flex items-center justify-center gap-2"><PixelIcon name={isMuted ? "mute" : "speaker"} size={12} />{isMuted ? "SOUND OFF" : "SOUND ON"}</span>
           </button>
 
           <div>

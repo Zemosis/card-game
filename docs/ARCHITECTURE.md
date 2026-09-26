@@ -107,6 +107,10 @@ Browser ──HTTP  /api/auth/*──────────> Node server ─�
                 lobbies, moves, chat
 ```
 
+Account routes: `POST /signup`, `POST /login`, `GET /me`, `PATCH /profile`
+and `GET /stats` (everything the profile page charts, read from the derived
+stat views in one round trip).
+
 The browser never talks to Postgres. Every read and write goes through the
 Node server, so authorization lives in its routes rather than in database
 policies.

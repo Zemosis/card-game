@@ -10,6 +10,7 @@ import {
   createEmptyGrid,
   serializeAvatar,
 } from "../utils/avatarConstants";
+import PixelIcon from "../components/PixelIcon";
 
 const CANVAS_SIZE = 480;
 const CELL_SIZE = CANVAS_SIZE / GRID_SIZE;
@@ -235,10 +236,10 @@ const AvatarPaint = () => {
       >
         <div className="flex items-center gap-4">
           <PixelButton color="dusk" size="sm" onClick={() => navigate(-1)}>
-            ◄ BACK
+            <span className="flex items-center gap-2"><PixelIcon name="back" size={12} />BACK</span>
           </PixelButton>
           <div className="flex items-center gap-2 font-pixel-display text-[10px] tracking-wider">
-            <span className="text-bone/60">PROFILE ▸</span>
+            <span className="text-bone/60">PROFILE /</span>
             <span className="text-glow-gold">AVATAR PAINT</span>
           </div>
         </div>
@@ -255,7 +256,7 @@ const AvatarPaint = () => {
         {/* LEFT — Colors & Tools */}
         <div className="flex flex-col gap-3" style={{ width: 260 }}>
           {/* Basic Colors */}
-          <PixelPanel accent="gold" title="✦ BASIC COLORS ✦">
+          <PixelPanel accent="gold" title="BASIC COLORS">
             <div className="p-2">
               <div
                 style={{
@@ -276,7 +277,7 @@ const AvatarPaint = () => {
           </PixelPanel>
 
           {/* Custom Colors */}
-          <PixelPanel accent="cyan" title="⚒ CUSTOM COLORS ⚒">
+          <PixelPanel accent="cyan" title="CUSTOM COLORS">
             <div className="p-2">
               <div
                 style={{
@@ -291,7 +292,7 @@ const AvatarPaint = () => {
           </PixelPanel>
 
           {/* Current Color */}
-          <PixelPanel accent="gold" title="✦ CURRENT COLOR ✦">
+          <PixelPanel accent="gold" title="CURRENT COLOR">
             <div className="p-2 flex items-center gap-3">
               <div
                 style={{
@@ -314,7 +315,7 @@ const AvatarPaint = () => {
           </PixelPanel>
 
           {/* Tools */}
-          <PixelPanel accent="dusk" title="⚒ TOOLS ⚒">
+          <PixelPanel accent="dusk" title="TOOLS">
             <div className="p-2 flex gap-2 flex-wrap">
               <PixelButton
                 color={tool === "paint" ? "gold" : "dusk"}
@@ -322,7 +323,7 @@ const AvatarPaint = () => {
                 onClick={() => setTool("paint")}
                 className="flex-1"
               >
-                ✎ PAINT
+                PAINT
               </PixelButton>
               <PixelButton
                 color={tool === "eraser" ? "gold" : "dusk"}
@@ -330,10 +331,10 @@ const AvatarPaint = () => {
                 onClick={() => setTool("eraser")}
                 className="flex-1"
               >
-                ✕ ERASER
+                ERASER
               </PixelButton>
               <PixelButton color="dusk" size="sm" onClick={handleClear} className="flex-1">
-                ☐ CLEAR
+                CLEAR
               </PixelButton>
             </div>
           </PixelPanel>
@@ -341,7 +342,7 @@ const AvatarPaint = () => {
 
         {/* CENTER — Canvas */}
         <div>
-          <PixelPanel accent="gold" title="✦ CANVAS ✦">
+          <PixelPanel accent="gold" title="CANVAS">
             <div className="p-2">
               <canvas
                 ref={canvasRef}
@@ -366,7 +367,7 @@ const AvatarPaint = () => {
         {/* RIGHT — Storage, Preview & Actions */}
         <div className="flex flex-col gap-3" style={{ width: 180 }}>
           {/* Avatar Storage */}
-          <PixelPanel accent="cyan" title="⚒ AVATAR STORAGE ⚒">
+          <PixelPanel accent="cyan" title="AVATAR STORAGE">
             <div className="p-2">
               <div className="flex gap-2">
                 {/* Slot 1 — saved avatar */}
@@ -413,7 +414,7 @@ const AvatarPaint = () => {
                   }}
                   title="Unlock with coins (coming soon)"
                 >
-                  <span className="font-pixel-display text-[10px] text-bone/30">🔒</span>
+                  <span className="text-bone/30"><PixelIcon name="lock" size={12} title="Locked" /></span>
                 </div>
                 <div
                   style={{
@@ -427,7 +428,7 @@ const AvatarPaint = () => {
                   }}
                   title="Unlock with coins (coming soon)"
                 >
-                  <span className="font-pixel-display text-[10px] text-bone/30">🔒</span>
+                  <span className="text-bone/30"><PixelIcon name="lock" size={12} title="Locked" /></span>
                 </div>
               </div>
               <div className="mt-2">
@@ -439,7 +440,7 @@ const AvatarPaint = () => {
           </PixelPanel>
 
           {/* Preview */}
-          <PixelPanel accent="gold" title="✦ PREVIEW ✦">
+          <PixelPanel accent="gold" title="PREVIEW">
             <div className="p-3 flex flex-col items-center gap-3">
               <div className="flex items-center gap-2">
                 <div className="text-center">
@@ -466,7 +467,7 @@ const AvatarPaint = () => {
               disabled={saving || !dirty}
               className="w-full"
             >
-              {saving ? "SAVING..." : "✦ SAVE"}
+              {saving ? "SAVING..." : "SAVE"}
             </PixelButton>
             <PixelButton
               color="dusk"
@@ -474,7 +475,7 @@ const AvatarPaint = () => {
               onClick={() => navigate(-1)}
               className="w-full"
             >
-              ✕ CANCEL
+              CANCEL
             </PixelButton>
           </div>
         </div>

@@ -29,6 +29,8 @@ import { COMBO_NAMES, GAME_STATES, GAME_SETTINGS } from "../../utils/constants";
 import { makeAIDecision } from "../../utils/aiPlayer";
 
 import { soundManager } from "../../utils/SoundManager";
+import PixelIcon from "../../components/PixelIcon";
+import { SignalBars } from "../../components/PixelUI";
 
 const GameThirteen = () => {
   const navigate = useNavigate();
@@ -542,7 +544,7 @@ const GameThirteen = () => {
               color: "#ead8b1",
             }}
           >
-            ◄ EXIT
+            <span className="flex items-center gap-2"><PixelIcon name="back" size={12} />EXIT</span>
           </button>
           <div className="font-pixel-display text-[10px] text-bone/60 ml-2">
             LOBBY <span className="text-glow-cyan">#{lobbyId}</span>
@@ -586,28 +588,20 @@ const GameThirteen = () => {
           <div className="flex items-center gap-1.5 font-pixel-body text-sm">
             {isSoloGame ? (
               <>
-                <span style={{ color: "#9bd14f" }}>●●●</span>
+                <SignalBars level={3} color="#9bd14f" />
                 <span className="text-bone/70">LOCAL</span>
               </>
             ) : !connected ? (
               <>
-                <span style={{ color: "#e85a7a" }}>●○○</span>
+                <SignalBars level={1} color="#e85a7a" />
                 <span style={{ color: "#e85a7a" }}>OFFLINE</span>
               </>
             ) : (
               <>
-                <span
-                  style={{
-                    color:
-                      ping == null || ping < 80
-                        ? "#9bd14f"
-                        : ping < 160
-                          ? "#f4c430"
-                          : "#e85a7a",
-                  }}
-                >
-                  {ping == null || ping < 80 ? "●●●" : ping < 160 ? "●●○" : "●○○"}
-                </span>
+                <SignalBars
+                  level={ping == null || ping < 80 ? 3 : ping < 160 ? 2 : 1}
+                  color={ping == null || ping < 80 ? "#9bd14f" : ping < 160 ? "#f4c430" : "#e85a7a"}
+                />
                 <span className="text-bone/70">
                   {ping != null ? `${ping}ms` : "..."}
                 </span>
@@ -626,8 +620,9 @@ const GameThirteen = () => {
               padding: 0,
               fontSize: 12,
             }}
+            title="Settings"
           >
-            ⚙
+            <PixelIcon name="gear" size={16} className="mx-auto" />
           </button>
         </div>
       </div>
@@ -644,13 +639,13 @@ const GameThirteen = () => {
         >
           <div className="flex items-center justify-between mb-3">
             <span className="font-pixel-display text-[10px] text-glow-gold">
-              ⚙ SETTINGS
+              SETTINGS
             </span>
             <button
               onClick={() => setShowSettings(false)}
               className="font-pixel-display text-[10px] text-rose"
             >
-              ✕
+              <PixelIcon name="close" size={12} title="Close" />
             </button>
           </div>
           <div className="flex flex-col gap-3">
@@ -663,7 +658,7 @@ const GameThirteen = () => {
                 color: "#ead8b1",
               }}
             >
-              {isMuted ? "🔇 SOUND OFF" : "🔊 SOUND ON"}
+              <span className="flex items-center justify-center gap-2"><PixelIcon name={isMuted ? "mute" : "speaker"} size={12} />{isMuted ? "SOUND OFF" : "SOUND ON"}</span>
             </button>
             <div>
               <label className="font-pixel-display text-[9px] text-bone/60">

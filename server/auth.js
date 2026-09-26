@@ -122,6 +122,45 @@ authRouter.get("/me", requireUser, async (req, res) => {
   res.json({ user: req.user, profile });
 });
 
+// Everything the profile page charts, in one round trip. All of it is derived
+// from the match rows by the views in 001_initial.sql.
+const HISTORY_LIMIT = 30;
+
+authRouter.get("/stats", requireUser, async (req, res) => {
+  const id = req.user.id;
+  const [stats, streaks, gameTypes, placements, history] = await Promise.all([
+    pool.query("select * from player_stats where player_id = $1", [id]),
+    pool.query("select * from player_streaks where player_id = $1", [id]),
+    pool.query(
+      "select * from player_game_type_stats where player_id = $1 order by game_type",
+      [id],
+    ),
+    pool.query(
+      `select final_position, sum(times)::int as times
+         from player_placement_stats where player_id = $1
+        group by final_position order by final_position`,
+      [id],
+    ),
+    pool.query(
+      `select session_id, game_type, final_position, final_score, is_winner,
+              left_early, rating_after, rating_delta, coins_earned, exp_earned,
+              finished_at, duration_seconds
+         from player_match_history where player_id = $1
+        order by finished_at desc limit $2`,
+      [id, HISTORY_LIMIT],
+    ),
+  ]);
+
+  res.json({
+    stats: stats.rows[0] || null,
+    streaks: streaks.rows[0] || null,
+    gameTypes: gameTypes.rows,
+    placements: placements.rows,
+    // Oldest first, which is the order a chart reads left to right.
+    history: history.rows.reverse(),
+  });
+});
+
 authRouter.patch("/profile", requireUser, async (req, res) => {
   const updates = Object.entries(req.body || {}).filter(([key]) =>
     EDITABLE_PROFILE_FIELDS.includes(key),

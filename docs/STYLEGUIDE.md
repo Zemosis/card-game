@@ -16,10 +16,26 @@ Reference this document when building any new UI components, pages, modals, or p
 | Body text, values, chat | `VT323` | `.font-pixel-body` | Descriptions, player names, messages, numeric values |
 | Mid-weight UI | `Silkscreen` | `.font-pixel-mid` | Breadcrumbs, secondary labels |
 
-**Sizing convention:**
-- Display headings: `text-[9px]` to `text-[14px]` (Press Start 2P is naturally large)
-- Body text: `text-sm` to `text-xl` (VT323 is thin, needs larger sizes)
-- All text uppercase where thematic (headings, labels, buttons)
+**Sizing convention — minimums, not suggestions:**
+- Press Start 2P: **10px minimum** (badges, header buttons), 11–12px for panel
+  titles and buttons, 15–18px for names and screen titles.
+- VT323: **18px minimum** (secondary notes), 20–22px for body text and values.
+  VT323 is thin and short; `text-sm`/`text-xs` sizes are unreadable in it.
+- Uppercase for panel titles and buttons; sentence case for body copy.
+
+## Icons
+
+**Never put symbol characters (⚔ ✦ ⚙ ☠ ► ● ✕ …) in UI text.** Press Start 2P
+and VT323 have no glyphs for them, so the browser substitutes a system font —
+or shows nothing — and they render as tiny, misaligned or missing marks.
+
+Use `PixelIcon` (`src/components/PixelIcon.jsx`) instead: 8×8 bitmaps drawn as
+crisp SVG that take the current text color. Add new icons there as 8-row maps
+of `#` and `.`. Decorative flourishes around titles (`✦ TITLE ✦`) are dropped
+entirely — the colored header bar already marks a title. Card suits (♠♥♦♣) on
+cards are content and stay as text.
+
+For connection quality use `SignalBars` from `PixelUI.jsx`.
 
 ## Color Palette
 
@@ -133,9 +149,10 @@ Defined in `index.css` via `@theme`:
 - Guest identity shown with muted styling (e.g., `text-bone/60` label "Guest")
 - No stats persistence server-side
 
-### Signed-in Users (Supabase Auth)
+### Signed-in Users
 - **Can change** display name (6 char max), hashtag ID (4 char max), and avatar
-- Profile editable in the lobby "Adventurer" panel
+- The lobby "Adventurer" card is read-only (name, tag, level, XP bar); its
+  Edit button opens `/profile`, which holds the editor and the stats sheet
 - Name/ID validated for uniqueness server-side (via `profiles` table)
 - Stats (EXP, wins, level) persist and display with glow accents
 - Avatar selection: clickable grid of all variants, selected one gets gold border highlight
@@ -149,6 +166,18 @@ Defined in `index.css` via `@theme`:
 - After signup: prompt for display name + ID + avatar pick (profile setup step)
 - After login: close modal, update top-bar identity from profile data
 - Error states: red-tinted inline messages using rose accent
+
+## Shared screens
+
+- **Lobby:** every game uses `components/lobby/GameLobby.jsx`, configured with
+  a title, accent, route and socket event names. Don't fork it per game.
+- **Building blocks:** `components/PixelUI.jsx` (`Panel`, `Btn`, `HeaderBtn`,
+  `TopBar`, `SignalBars`) and `components/pixelTokens.js` (`INK`, `TONES`,
+  `inputStyle`).
+- **Fit the viewport:** lobby-style screens size vertically from the `--ctl`,
+  `--gap`, `--hdr` and `--pad` variables in `index.css`, which scale with
+  viewport height. Check any change at 1366×657 (a laptop at 100% zoom) and
+  1920×969: no page scroll, no clipped panels.
 
 ## Spacing & Layout Conventions
 

@@ -3,6 +3,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { PixelCard, PixelAvatar, CardFan } from "../../components/PixelCard";
+import PixelIcon from "../../components/PixelIcon";
+import { SignalBars } from "../../components/PixelUI";
 
 // Placeholder game state for UI preview
 const SEATS = [
@@ -53,7 +55,7 @@ const GameMuushig = () => {
       {/* HEADER */}
       <div className="relative flex items-center justify-between px-5 py-3 z-10" style={{ backgroundColor: "rgba(10,7,18,0.85)", borderBottom: "4px solid #0a0712" }}>
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/")} className="pixel-btn font-pixel-display text-[10px] px-3 py-2" style={{ backgroundColor: "#7a1530", borderColor: "#3a0a18", color: "#ead8b1" }}>◄ EXIT</button>
+          <button onClick={() => navigate("/")} className="pixel-btn font-pixel-display text-[10px] px-3 py-2" style={{ backgroundColor: "#7a1530", borderColor: "#3a0a18", color: "#ead8b1" }}><span className="flex items-center gap-2"><PixelIcon name="back" size={12} />EXIT</span></button>
           <div className="font-pixel-display text-[10px] text-bone/60 ml-2">
             LOBBY <span className="text-glow-cyan">#JADE12</span>
           </div>
@@ -74,10 +76,10 @@ const GameMuushig = () => {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 font-pixel-body text-sm">
-            <span style={{ color: "#9bd14f" }}>●●●</span>
+            <SignalBars level={3} color="#9bd14f" />
             <span className="text-bone/70">22ms</span>
           </div>
-          <button className="pixel-btn font-pixel-display" style={{ backgroundColor: "#463a78", borderColor: "#2a234d", color: "#ead8b1", width: 36, height: 36, padding: 0, fontSize: 12 }}>⚙</button>
+          <button className="pixel-btn font-pixel-display" style={{ backgroundColor: "#463a78", borderColor: "#2a234d", color: "#ead8b1", width: 36, height: 36, padding: 0, fontSize: 12 }} title="Settings"><PixelIcon name="gear" size={16} className="mx-auto" /></button>
         </div>
       </div>
 
@@ -105,7 +107,7 @@ const GameMuushig = () => {
                       <div key={i} style={{ position: "absolute", left: i * 1.5 - 2, top: i * 1.5, width: 46, height: 60, background: "repeating-linear-gradient(45deg, #2a1a4d 0 3px, #1a0e3a 3px 6px)", border: "2px solid #0a0712", transform: `rotate(${(i - 1.5) * 4}deg)`, boxShadow: "inset 0 0 0 1px #6a4ab0" }} />
                     ))}
                   </div>
-                  <div className="font-pixel-display text-[7px] mt-1" style={{ color: "#7a6abf" }}>×17</div>
+                  <div className="font-pixel-display text-[7px] mt-1" style={{ color: "#7a6abf" }}>x17</div>
                 </div>
 
                 {/* THE PILE */}
@@ -182,7 +184,7 @@ function SeatPanel({ seat }) {
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="font-pixel-body text-xs text-bone/70">{seat.cards}c</span>
-              <span className="font-pixel-body text-xs" style={{ color: "#f4c430" }}>● {seat.score}pt</span>
+              <span className="font-pixel-body text-xs" style={{ color: "#f4c430" }}>{seat.score}pt</span>
             </div>
           </div>
         </div>
@@ -253,8 +255,8 @@ function MyHand({ hand, me, trumpSuit }) {
           </div>
           <PipRow won={me.wins} total={5} />
         </div>
-        <button className="pixel-btn font-pixel-display text-sm px-6 py-3" style={{ backgroundColor: "#7a1530", borderColor: "#3a0a18", color: "#ead8b1" }}>✕ DISCARD</button>
-        <button className="pixel-btn font-pixel-display text-sm px-8 py-3" style={{ backgroundColor: "#9bd14f", borderColor: "#6a9a30", color: "#1a3a0e" }}>► THROW CARD</button>
+        <button className="pixel-btn font-pixel-display text-sm px-6 py-3" style={{ backgroundColor: "#7a1530", borderColor: "#3a0a18", color: "#ead8b1" }}>DISCARD</button>
+        <button className="pixel-btn font-pixel-display text-sm px-8 py-3" style={{ backgroundColor: "#9bd14f", borderColor: "#6a9a30", color: "#1a3a0e" }}>THROW CARD</button>
       </div>
     </div>
   );
@@ -269,7 +271,7 @@ function Sidebar5({ seats, messages }) {
       {/* SCOREBOARD */}
       <div style={{ borderBottom: "4px solid #0a0712" }}>
         <div className="px-3 py-2 font-pixel-display text-[10px] tracking-wider flex items-center justify-between" style={{ backgroundColor: "#1a1024", color: "#f4c430" }}>
-          <span>✦ SCOREBOARD ✦</span>
+          <span>SCOREBOARD</span>
           <span className="text-bone/60">RD 4 · TO 0</span>
         </div>
         <div className="px-3 py-2 flex flex-col gap-1.5">
@@ -304,8 +306,8 @@ function Sidebar5({ seats, messages }) {
       <div className="flex flex-col flex-1 min-h-0">
         <div className="px-3 py-2 font-pixel-display text-[10px] tracking-wider flex items-center justify-between" style={{ backgroundColor: "#1a1024", color: "#5fd4d6" }}>
           <div className="flex gap-3">
-            <button onClick={() => setTab("chat")} style={{ color: tab === "chat" ? "#5fd4d6" : "#7a6abf" }}>✉ CHAT</button>
-            <button onClick={() => setTab("log")} style={{ color: tab === "log" ? "#5fd4d6" : "#7a6abf" }}>☰ LOG</button>
+            <button onClick={() => setTab("chat")} style={{ color: tab === "chat" ? "#5fd4d6" : "#7a6abf" }}>CHAT</button>
+            <button onClick={() => setTab("log")} style={{ color: tab === "log" ? "#5fd4d6" : "#7a6abf" }}>LOG</button>
           </div>
           <span className="text-bone/60 text-[8px]">{messages.length} MSGS</span>
         </div>
@@ -318,7 +320,7 @@ function Sidebar5({ seats, messages }) {
 
         <div className="p-2 flex gap-1.5" style={{ borderTop: "3px solid #1f1a3d", backgroundColor: "#14102a" }}>
           <input placeholder="Say something..." className="flex-1 font-pixel-body text-base px-2 py-2 text-parchment" style={{ backgroundColor: "#0a0712", border: "2px solid #1f1a3d", boxShadow: "inset 0 2px 0 0 rgba(0,0,0,0.5)" }} />
-          <button className="pixel-btn font-pixel-display text-[10px] px-3" style={{ backgroundColor: "#5fd4d6", borderColor: "#2a8a8c", color: "#0a3a3a" }}>►</button>
+          <button className="pixel-btn font-pixel-display text-[10px] px-3" style={{ backgroundColor: "#5fd4d6", borderColor: "#2a8a8c", color: "#0a3a3a" }} aria-label="Send"><PixelIcon name="right" size={12} /></button>
         </div>
         <div className="px-2 pb-2 flex gap-1 flex-wrap">
           {["gg", "wp", "eat", "cat?", "lol", "?"].map((q) => (
@@ -334,7 +336,7 @@ function ChatBubble({ m }) {
   if (m.type === "SYSTEM") {
     return (
       <div className="font-pixel-body text-sm text-bone/60 italic px-2">
-        <span className="text-mist">› </span>{m.text} <span className="text-bone/30 text-xs">{m.timestamp}</span>
+        <span className="text-mist">&gt; </span>{m.text} <span className="text-bone/30 text-xs">{m.timestamp}</span>
       </div>
     );
   }

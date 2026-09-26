@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { PixelButton } from "../PixelCard";
 import { useAuth } from "../../hooks/useAuth";
 import AvatarPicker from "./AvatarPicker";
+import PixelIcon from "../PixelIcon";
 
 const TABS = ["SIGN IN", "SIGN UP"];
 
@@ -134,7 +135,7 @@ export default function LoginModal({ onClose, initialSetup = false }) {
             className="font-pixel-display text-[10px]"
             style={{ color: "#1a1024" }}
           >
-            {setupMode ? "✦ CREATE PROFILE ✦" : "✦ CARD-LORE AUTH ✦"}
+            {setupMode ? "CREATE PROFILE" : "SIGN IN TO CARD-LORE"}
           </span>
           <button
             onClick={onClose}
@@ -146,7 +147,7 @@ export default function LoginModal({ onClose, initialSetup = false }) {
               cursor: "pointer",
             }}
           >
-            ✕
+            <PixelIcon name="close" size={12} title="Close" />
           </button>
         </div>
 
@@ -242,7 +243,7 @@ export default function LoginModal({ onClose, initialSetup = false }) {
               disabled={busy}
               className="w-full"
             >
-              {busy ? "SAVING..." : "► ENTER THE HALL"}
+              {busy ? "SAVING..." : "ENTER THE HALL"}
             </PixelButton>
           </form>
         ) : (
@@ -304,7 +305,7 @@ export default function LoginModal({ onClose, initialSetup = false }) {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Password"
                   required
                   className="w-full font-pixel-body text-base px-3 py-2 text-parchment"
                   style={{
@@ -324,7 +325,7 @@ export default function LoginModal({ onClose, initialSetup = false }) {
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Password"
                     required
                     className="w-full font-pixel-body text-base px-3 py-2 text-parchment"
                     style={{
@@ -358,8 +359,8 @@ export default function LoginModal({ onClose, initialSetup = false }) {
                 {busy
                   ? "LOADING..."
                   : tab === 0
-                    ? "► SIGN IN"
-                    : "► CREATE ACCOUNT"}
+                    ? "SIGN IN"
+                    : "CREATE ACCOUNT"}
               </PixelButton>
 
               {/* Divider */}

@@ -60,6 +60,16 @@ body {
 
 html, body, #root { height: 100%; }
 
+/* Layout scale for PixelUI screens (lobby, profile). Every vertical measure
+   follows viewport height, so a lobby column fits a 657px-tall laptop
+   viewport exactly and fills a 1080p one. */
+:root {
+  --ctl: clamp(34px, 6vh, 60px);   /* control height */
+  --gap: clamp(10px, 1.7vh, 16px); /* gap between panels */
+  --hdr: clamp(30px, 4.6vh, 36px); /* panel header bar */
+  --pad: clamp(8px, 1.3vh, 12px);  /* panel body padding */
+}
+
 /* ============ PIXEL BORDERS ============ */
 .pixel-border {
   box-shadow:

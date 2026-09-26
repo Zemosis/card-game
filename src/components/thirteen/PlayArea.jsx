@@ -106,7 +106,7 @@ const PlayArea = ({
               >
                 {lastPlayerName ? `${lastPlayerName.toUpperCase()} PLAYED ` : ""}
                 <span className="text-glow-gold text-[11px]">
-                  ✦ {(COMBO_NAMES[currentPlay.type] || "CARDS").toUpperCase()} ✦
+                  {(COMBO_NAMES[currentPlay.type] || "CARDS").toUpperCase()}
                 </span>
               </div>
 
@@ -142,7 +142,7 @@ const PlayArea = ({
               </div>
 
               <div className="absolute bottom-2 left-0 right-0 text-center font-pixel-display text-[8px] text-rose/80 tracking-wider">
-                ▼ BEAT THIS OR PASS ▼
+                BEAT THIS OR PASS
               </div>
             </>
           )}

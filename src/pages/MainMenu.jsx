@@ -12,6 +12,7 @@ import { connectSocket } from "../utils/socket";
 import LoginModal from "../components/auth/LoginModal";
 import AvatarPickerDropdown from "../components/auth/AvatarPickerDropdown";
 import SettingsModal from "../components/SettingsModal";
+import PixelIcon from "../components/PixelIcon";
 
 const MainMenu = () => {
   const navigate = useNavigate();
@@ -96,13 +97,11 @@ const MainMenu = () => {
           </div>
           {isGuest ? (
             <PixelButton color="gold" size="md" onClick={() => setShowLogin(true)}>
-              <span>☻</span>
-              <span className="ml-2">Sign In</span>
+              <span>Sign In</span>
             </PixelButton>
           ) : (
             <PixelButton color="dusk" size="md" onClick={signOut}>
-              <span>◄</span>
-              <span className="ml-2">Sign Out</span>
+              <span>Sign Out</span>
             </PixelButton>
           )}
           <button
@@ -114,7 +113,6 @@ const MainMenu = () => {
             }}
             title="Coming soon — spend coins on card skins"
           >
-            <span style={{ marginRight: 6 }}>◉</span>
             Shop
             <span
               className="font-pixel-display"
@@ -145,8 +143,9 @@ const MainMenu = () => {
               padding: 0,
               fontSize: 16,
             }}
+            title="Settings"
           >
-            ⚙
+            <PixelIcon name="gear" size={16} className="mx-auto" />
           </button>
         </div>
       </div>
@@ -154,7 +153,7 @@ const MainMenu = () => {
       {/* HERO */}
       <div className="relative flex flex-col items-center pt-4 pb-2">
         <div className="font-pixel-body text-bone text-sm tracking-[0.4em] uppercase mb-1">
-          ▰ Khuzur Card Hall ▰
+          Khuzur Card Hall
         </div>
         <h1
           className="font-pixel-display text-[36px] leading-tight mb-1"
@@ -235,7 +234,7 @@ const MainMenu = () => {
         <div className="checker-strip h-2" />
         <div className="flex items-center justify-between px-8 py-2 bg-void">
           <div className="font-pixel-body text-bone/60 text-sm">
-            <span className="text-glow-cyan">▼</span> v1.0.0 — patch{" "}
+            v1.0.0 — patch{" "}
             <span className="text-parchment">"CUTE RAY"</span>
           </div>
           <div className="flex items-center gap-4 font-pixel-body text-bone/70 text-sm">
@@ -250,7 +249,7 @@ const MainMenu = () => {
                 </span>
               </>
             ) : (
-              <span style={{ color: "#e85a7a" }}>● SERVER OFFLINE</span>
+              <span style={{ color: "#e85a7a" }}>SERVER OFFLINE</span>
             )}
           </div>
         </div>
@@ -350,7 +349,7 @@ function GameTile({
           >
             {Array.from({ length: 5 }).map((_, i) => (
               <span key={i} style={{ opacity: i < difficulty ? 1 : 0.25 }}>
-                ★
+                <PixelIcon name="star" size={9} />
               </span>
             ))}
           </span>
@@ -430,8 +429,7 @@ function GameTile({
 
           <div className="flex items-center justify-between">
             <div className="font-pixel-body text-bone/70 text-sm">
-              <span style={{ color: "#5fd4d6" }}>☻</span>
-              <span className="ml-1">
+              <span>
                 {locked ? "—" : plays.toLocaleString()} plays
               </span>
             </div>
@@ -451,7 +449,7 @@ function GameTile({
                 color={accent === "gold" ? "gold" : "rose"}
                 size="md"
               >
-                ► PLAY
+                PLAY
               </PixelButton>
             )}
           </div>

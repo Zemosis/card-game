@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { PixelAvatar } from "../PixelCard";
+import PixelIcon from "../PixelIcon";
 
 const GameChat = ({
   messages = [],
@@ -49,7 +50,7 @@ const GameChat = ({
             }}
             style={{ color: tab === "chat" ? "#5fd4d6" : "#7a6abf" }}
           >
-            ✉ CHAT
+            CHAT
           </button>
           <button
             onClick={(e) => {
@@ -58,11 +59,11 @@ const GameChat = ({
             }}
             style={{ color: tab === "log" ? "#5fd4d6" : "#7a6abf" }}
           >
-            ☰ LOG
+            LOG
           </button>
         </div>
         <span className="text-bone/60 text-[8px]">
-          {visibleMessages.length} MSGS {isCollapsed ? "▲" : "▼"}
+          <span className="inline-flex items-center gap-1.5">{visibleMessages.length} MSGS <PixelIcon name={isCollapsed ? "up" : "down"} size={10} /></span>
         </span>
       </div>
 
@@ -113,8 +114,9 @@ const GameChat = ({
                 borderColor: "#2a8a8c",
                 color: "#0a3a3a",
               }}
+              aria-label="Send"
             >
-              ►
+              <PixelIcon name="right" size={12} />
             </button>
           </form>
           {/* Quick replies */}
@@ -144,7 +146,7 @@ function ChatMessage({ msg }) {
   if (msg.type === "SYSTEM") {
     return (
       <div className="font-pixel-body text-sm text-bone/60 italic px-2">
-        <span className="text-mist">› </span>
+        <span className="text-mist">&gt; </span>
         {msg.text}{" "}
         <span className="text-bone/30 text-xs">{msg.timestamp}</span>
       </div>

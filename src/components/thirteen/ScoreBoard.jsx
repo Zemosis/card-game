@@ -27,7 +27,7 @@ const ScoreBoard = ({
         className="px-3 py-2 font-pixel-display text-[10px] tracking-wider flex items-center justify-between"
         style={{ backgroundColor: "#1a1024", color: "#f4c430" }}
       >
-        <span>✦ SCOREBOARD ✦</span>
+        <span>SCOREBOARD</span>
         <span className="text-bone/60">RD {roundNumber}</span>
       </div>
       <div className="px-3 py-2 flex flex-col gap-1.5">

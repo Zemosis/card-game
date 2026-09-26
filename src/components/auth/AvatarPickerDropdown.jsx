@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { PixelAvatar } from "../PixelCard";
+import PixelIcon from "../PixelIcon";
 
 const VARIANTS = [1, 2, 3, 4, 5];
 const CUSTOM_VISIBLE = 4;
@@ -152,8 +153,9 @@ export default function AvatarPickerDropdown({
                 <button
                   onClick={() => canScrollLeft && setScrollIdx((i) => i - 1)}
                   style={arrowBtnStyle(canScrollLeft)}
+                  aria-label="Previous"
                 >
-                  ◄
+                  <PixelIcon name="left" size={10} />
                 </button>
               )}
 
@@ -212,8 +214,9 @@ export default function AvatarPickerDropdown({
                 <button
                   onClick={() => canScrollRight && setScrollIdx((i) => i + 1)}
                   style={arrowBtnStyle(canScrollRight)}
+                  aria-label="Next"
                 >
-                  ►
+                  <PixelIcon name="right" size={10} />
                 </button>
               )}
             </div>

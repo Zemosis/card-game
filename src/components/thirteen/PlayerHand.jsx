@@ -318,7 +318,7 @@ const PlayerHand = ({
                       color: comboInfo.isValid ? "#f4c430" : "#e85a7a",
                     }}
                   >
-                    → {comboInfo.text}
+                    {comboInfo.text}
                   </span>
                 )}
               </>

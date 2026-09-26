@@ -10,6 +10,7 @@ const LobbySelection = lazy(() => import("./pages/thirteen/LobbySelection"));
 const GameMuushig = lazy(() => import("./pages/muushig/GameMuushig"));
 const LobbyMuushig = lazy(() => import("./pages/muushig/LobbyMuushig"));
 const AvatarPaint = lazy(() => import("./pages/AvatarPaint"));
+const Profile = lazy(() => import("./pages/Profile"));
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
               <Route path="/lobby-muushig" element={<LobbyMuushig />} />
               <Route path="/game-muushig" element={<GameMuushig />} />
               <Route path="/avatar-paint" element={<AvatarPaint />} />
+              <Route path="/profile" element={<Profile />} />
             </Routes>
           </Suspense>
         </div>
