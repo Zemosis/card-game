@@ -160,6 +160,7 @@ const OpponentSection = ({
       {/* Card fan — reserve space during dealing so layout doesn't shift */}
       {!isEliminated && (cardCount > 0 || isDealing) && (
         <div
+          data-deal-seat={position}
           style={{
             minWidth: vertical ? CARD_H + 8 : undefined,
             minHeight: vertical ? undefined : CARD_H + 10,

@@ -3,6 +3,7 @@
 import React from "react";
 import CustomAvatarCanvas from "./CustomAvatarCanvas";
 import { presetAvatar } from "../utils/avatarConstants";
+import { cardSizeStyle } from "./pixelTokens";
 
 const SUIT_COLOR = {
   "♠": "suit-black",
@@ -22,15 +23,19 @@ export function PixelCard({
   onClick,
   style,
   rotate = 0,
+  width,
+  className = "",
 }) {
-  const sizeClass = size === "large" ? "large" : size === "small" ? "small" : "";
+  const sized = cardSizeStyle(width);
+  const sizeClass = sized ? "sized" : size === "large" ? "large" : size === "small" ? "small" : "";
   const colorClass = SUIT_COLOR[suit] || "suit-black";
 
   if (faceDown) {
     return (
       <div
-        className={`pixel-card pixel-card-back ${sizeClass}`}
+        className={`pixel-card pixel-card-back ${sizeClass} ${className}`}
         style={{
+          ...sized,
           ...style,
           transform: rotate ? `rotate(${rotate}deg)` : style?.transform,
         }}
@@ -44,7 +49,7 @@ export function PixelCard({
             justifyContent: "center",
             color: "#f4c430",
             fontFamily: "'Press Start 2P', monospace",
-            fontSize: size === "large" ? 24 : size === "small" ? 12 : 18,
+            fontSize: sized ? "var(--back-fs)" : size === "large" ? 24 : size === "small" ? 12 : 18,
             textShadow: "1px 1px 0 #000",
           }}
         >
@@ -56,9 +61,10 @@ export function PixelCard({
 
   return (
     <div
-      className={`pixel-card ${sizeClass} ${selected ? "selected" : ""} ${dim ? "dim" : ""} ${selectable ? "selectable" : ""}`}
+      className={`pixel-card ${sizeClass} ${selected ? "selected" : ""} ${dim ? "dim" : ""} ${selectable ? "selectable" : ""} ${className}`}
       onClick={selectable ? onClick : undefined}
       style={{
+        ...sized,
         ...style,
         transform:
           rotate && !selected ? `rotate(${rotate}deg)` : style?.transform,

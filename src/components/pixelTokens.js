@@ -15,3 +15,22 @@ export const inputStyle = {
   border: "3px solid #2a234d",
   boxShadow: "inset 0 3px 0 rgba(0,0,0,0.5)",
 };
+
+// Press Start 2P is drawn on an 8px grid, so free-sized cards snap their
+// text to whole multiples of 4 to stay crisp.
+const snap4 = (n) => Math.max(8, Math.round(n / 4) * 4);
+
+/** Inline size + font variables for a card `width` px wide (64:92 ratio). */
+export function cardSizeStyle(width) {
+  if (!width) return null;
+  const w = Math.round(width);
+  return {
+    width: w,
+    height: Math.round(w * 1.4375),
+    borderWidth: w >= 96 ? 4 : 3,
+    "--corner-fs": `${snap4(w * 0.135)}px`,
+    "--corner-inset": `${Math.round(w * 0.08)}px`,
+    "--center-fs": `${snap4(w * 0.36)}px`,
+    "--back-fs": `${snap4(w * 0.28)}px`,
+  };
+}

@@ -9,6 +9,8 @@ const PlayArea = ({
   currentPlay = null,
   lastPlayerName = null,
   roundNumber = 1,
+  isDealing = false,
+  cardWidth = 80,
 }) => {
   const cardElsRef = useRef([]);
   const prevPlayKeyRef = useRef(null);
@@ -88,7 +90,7 @@ const PlayArea = ({
             ROUND {roundNumber}
           </div>
 
-          {!currentPlay && (
+          {!currentPlay && !isDealing && (
             <div className="text-center py-4">
               <div className="font-pixel-display text-[10px] text-bone/50 tracking-wider">
                 WAITING FOR FIRST PLAY...
@@ -133,7 +135,7 @@ const PlayArea = ({
                             animationDelay: `${i * 0.18}s`,
                           }}
                         >
-                          <PixelCard rank={c.rank} suit={c.suit} size="large" />
+                          <PixelCard rank={c.rank} suit={c.suit} width={cardWidth} />
                         </div>
                       </div>
                     </div>

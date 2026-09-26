@@ -10,6 +10,11 @@ const GameControls = ({
   isPlayerTurn = false,
   message = "",
   errorMessage = "",
+  selectedCount = 0,
+  comboInfo = null,
+  onClear,
+  onSelectAll,
+  canSelect = false,
 }) => {
   useEffect(() => {
     if (!isPlayerTurn) return;
@@ -40,11 +45,39 @@ const GameControls = ({
             {errorMessage}
           </div>
         ) : (
-          <div className="font-pixel-body text-sm text-bone/70">
+          <div className="font-pixel-body text-[20px] leading-none text-bone/80">
             {message}
+            {selectedCount > 0 && (
+              <>
+                <span className="text-bone/40"> · </span>
+                <span className="text-glow-cyan">{selectedCount} selected</span>
+                {comboInfo && (
+                  <span className="ml-2" style={{ color: comboInfo.isValid ? "#f4c430" : "#e85a7a" }}>
+                    {comboInfo.text}
+                  </span>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
+
+      <button
+        onClick={onClear}
+        disabled={!canSelect || selectedCount === 0}
+        className="pixel-btn font-pixel-display text-[10px] px-3 py-3"
+        style={{ backgroundColor: "#1f1a3d", borderColor: "#0a0712", color: "#ead8b1" }}
+      >
+        CLEAR
+      </button>
+      <button
+        onClick={onSelectAll}
+        disabled={!canSelect}
+        className="pixel-btn font-pixel-display text-[10px] px-3 py-3"
+        style={{ backgroundColor: "#463a78", borderColor: "#2a234d", color: "#ead8b1" }}
+      >
+        ALL
+      </button>
 
       {/* Buttons */}
       <button

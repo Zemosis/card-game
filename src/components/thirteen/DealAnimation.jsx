@@ -1,10 +1,15 @@
-// DEAL ANIMATION - GSAP-driven shuffle + deal
-// Cards fly from the center deck toward the actual seat directions
-// (percent-based targets, so it tracks the real table size).
+// DEAL ANIMATION — riffle shuffle, then a one-card-at-a-time deal.
+//
+// The deck sits at the table center. Two riffles split it into halves and
+// interleave them back, then 52 cards go out round-robin from the dealer's
+// left. Opponent cards fly to their seat's fan (found by data-deal-seat) and
+// only count once they land. The player's own cards are flown by PlayerHand
+// itself, so the real card lands in its real slot; here they only count.
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import { PixelCard } from "../PixelCard";
 import { soundManager } from "../../utils/SoundManager";
+import { CARD_RATIO, DEAL_FLY, DEAL_STAGGER, prefersReducedMotion } from "../../hooks/useTableMetrics";
 import gsap from "gsap";
 
 const safeSound = (method) => {
@@ -16,171 +21,172 @@ const safeSound = (method) => {
 };
 
 const TOTAL_CARDS = 52;
-const DEAL_STAGGER = 0.03;
-const FLY_DURATION = 0.34;
-const SHUFFLE_HALF = 4; // cards per riffle half
-const POOL_SIZE = 14; // flying sprites reused round-robin
+const DECK_LAYERS = 12;
+const POOL_SIZE = 8; // flying sprites reused round-robin
+const FAN_CARD_W = 44; // PixelCard "small", used by opponent fans
+const SEATS = ["bottom", "left", "top", "right"];
+// Landing rotation per seat: side fans hold cards sideways, the top seat's
+// cards turn to face the player across the table.
+const SEAT_ROTATION = { left: 90, top: 180, right: 270 };
 
-const DealAnimation = ({
-  dealerIndex = 0,
-  viewIndex = 0,
-  onDealProgress,
-  onComplete,
-}) => {
+const stackY = (k) => -k * 1.5;
+
+const DealAnimation = ({ dealerIndex = 0, viewIndex = 0, deckWidth = 72, onDealProgress, onComplete }) => {
   const [phase, setPhase] = useState("shuffle");
   const containerRef = useRef(null);
   const deckRef = useRef(null);
-  const shuffleRefs = useRef([]);
+  const layerRefs = useRef([]);
   const poolRefs = useRef([]);
   const progressRef = useRef(onDealProgress);
   const completeRef = useRef(onComplete);
   progressRef.current = onDealProgress;
   completeRef.current = onComplete;
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  const deckH = Math.round(deckWidth * CARD_RATIO);
 
-    const rect = container.getBoundingClientRect();
-    // Seat directions relative to the table center (bottom/left/top/right)
-    const targets = {
-      0: { x: 0, y: rect.height * 0.62, r: 10 },
-      1: { x: -rect.width * 0.44, y: 0, r: -80 },
-      2: { x: 0, y: -rect.height * 0.55, r: -10 },
-      3: { x: rect.width * 0.44, y: 0, r: 80 },
-    };
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const layers = layerRefs.current.filter(Boolean);
+    const pool = poolRefs.current.filter(Boolean);
+    if (!container || layers.length < DECK_LAYERS) return;
+
+    const reduce = prefersReducedMotion();
+    const fly = reduce ? 0.12 : DEAL_FLY;
+    const stagger = reduce ? 0.02 : DEAL_STAGGER;
+
+    let order = [...layers];
+    // Explicit values everywhere: StrictMode runs this effect twice, and a
+    // from() tween would pick up the half-run first pass as its end state.
+    order.forEach((el, k) => gsap.set(el, { x: 0, y: stackY(k), rotation: 0, zIndex: k, autoAlpha: 1 }));
+    gsap.set(deckRef.current, { y: 0 });
+    gsap.set(pool, { autoAlpha: 0 });
 
     const tl = gsap.timeline();
 
-    // --- riffle shuffle: split the stack, slide back together, twice ---
-    const halves = [
-      shuffleRefs.current.slice(0, SHUFFLE_HALF).filter(Boolean),
-      shuffleRefs.current.slice(SHUFFLE_HALF).filter(Boolean),
-    ];
-    for (let pass = 0; pass < 2; pass++) {
-      tl.call(() => safeSound("playShuffle"));
-      tl.to(halves[0], { x: -34, rotation: -7, duration: 0.16, ease: "power2.out" }, ">");
-      tl.to(halves[1], { x: 34, rotation: 7, duration: 0.16, ease: "power2.out" }, "<");
-      tl.to(halves[0], { x: 0, rotation: 0, duration: 0.2, ease: "power2.in", stagger: 0.035 }, ">0.05");
-      tl.to(halves[1], { x: 0, rotation: 0, duration: 0.2, ease: "power2.in", stagger: 0.035 }, "<");
+    if (!reduce) {
+      tl.fromTo(
+        layers,
+        { y: (k) => stackY(k) - 36, autoAlpha: 0 },
+        { y: (k) => stackY(k), autoAlpha: 1, duration: 0.24, stagger: 0.015, ease: "power2.out" },
+      );
+
+      // Riffle: bottom half left, top half right, then drop them back one
+      // card at a time, alternating sides, each new card landing on top.
+      const half = DECK_LAYERS / 2;
+      const spread = deckWidth * 0.7;
+      for (let pass = 0; pass < 2; pass++) {
+        const left = order.slice(0, half);
+        const right = order.slice(half);
+        tl.call(() => safeSound("playShuffle"), null, ">0.06");
+        tl.to(left, { x: -spread, rotation: -9, y: (i) => stackY(i), duration: 0.2, ease: "power2.out" }, "<");
+        tl.to(right, { x: spread, rotation: 9, y: (i) => stackY(i), duration: 0.2, ease: "power2.out" }, "<");
+        const merged = [];
+        for (let i = 0; i < half; i++) merged.push(left[i], right[i]);
+        const start = tl.duration() + 0.05;
+        merged.forEach((el, k) => {
+          const at = start + k * 0.032;
+          tl.set(el, { zIndex: 100 + k }, at);
+          tl.to(el, { x: 0, rotation: 0, y: stackY(k), duration: 0.14, ease: "power2.in" }, at);
+        });
+        tl.set(merged, { zIndex: (k) => k });
+        order = merged;
+      }
+
+      // Square the deck up with a tap on the table.
+      tl.to(deckRef.current, { y: -8, duration: 0.09, ease: "power2.out" }, ">0.04");
+      tl.to(deckRef.current, { y: 0, duration: 0.14, ease: "power2.in" });
     }
 
     tl.call(() => setPhase("dealing"));
 
-    // --- deal 52 cards round-robin from the dealer's left ---
+    const seatTarget = (seat) => {
+      const el = document.querySelector(`[data-deal-seat="${seat}"]`);
+      const c = container.getBoundingClientRect();
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return {
+        x: r.left + r.width / 2 - (c.left + c.width / 2),
+        y: r.top + r.height / 2 - (c.top + c.height / 2),
+      };
+    };
+
     const counts = [0, 0, 0, 0];
+    const land = (seat) => {
+      counts[seat]++;
+      progressRef.current?.([...counts]);
+    };
+
     for (let i = 0; i < TOTAL_CARDS; i++) {
       const seat = (dealerIndex + 1 + i) % 4;
-      const rotated = (seat - viewIndex + 4) % 4;
-      const t = targets[rotated];
+      const pos = SEATS[(seat - viewIndex + 4) % 4];
 
       tl.call(
         () => {
-          counts[seat]++;
-          progressRef.current?.([...counts]);
-          if (i % 4 === 0) safeSound("playDeal");
+          // The deck thins as it deals.
+          const visible = Math.ceil(((TOTAL_CARDS - i - 1) / TOTAL_CARDS) * DECK_LAYERS);
+          order.forEach((el, k) => gsap.set(el, { autoAlpha: k < visible ? 1 : 0 }));
+          if (i % 2 === 0) safeSound("playDeal");
 
-          const el = poolRefs.current[i % POOL_SIZE];
-          if (!el) return;
+          if (pos === "bottom") return land(seat);
+
+          const el = pool[i % POOL_SIZE];
+          const t = seatTarget(pos);
+          if (!el || !t) return land(seat);
           gsap.fromTo(
             el,
-            { x: 0, y: 0, rotation: 0, scale: 0.9, opacity: 1 },
+            { x: 0, y: stackY(DECK_LAYERS), rotation: 0, scale: 1, autoAlpha: 1 },
             {
               x: t.x,
               y: t.y,
-              rotation: t.r + gsap.utils.random(-12, 12),
-              scale: 0.5,
-              opacity: 0,
-              duration: FLY_DURATION,
-              ease: "power2.in",
+              rotation: SEAT_ROTATION[pos] + gsap.utils.random(-6, 6),
+              scale: FAN_CARD_W / deckWidth,
+              duration: fly,
+              ease: "power2.out",
               overwrite: true,
+              onComplete: () => {
+                land(seat);
+                gsap.set(el, { autoAlpha: 0 });
+              },
             },
           );
         },
         null,
-        `>${i === 0 ? 0.05 : DEAL_STAGGER}`,
+        i === 0 ? ">0.1" : `>${stagger}`,
       );
     }
 
-    // --- deck fades, hand sorting takes over ---
-    tl.to(deckRef.current, { opacity: 0, duration: 0.25 }, `>+${FLY_DURATION}`);
-    tl.call(() => completeRef.current?.(), null, ">0.1");
+    tl.call(() => completeRef.current?.(), null, `>${fly + 0.2}`);
 
-    return () => tl.kill();
-  }, [dealerIndex, viewIndex]);
+    return () => {
+      tl.kill();
+      gsap.killTweensOf(pool);
+    };
+  }, [dealerIndex, viewIndex, deckWidth]);
+
+  const cardBox = { position: "absolute", marginLeft: -deckWidth / 2, marginTop: -deckH / 2 };
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute inset-0 z-30 pointer-events-none"
-      style={{ overflow: "visible" }}
-    >
-      {/* Center anchor */}
-      <div
-        className="absolute"
-        style={{ left: "50%", top: "50%", width: 0, height: 0 }}
-      >
-        {/* Deck stack */}
+    <div ref={containerRef} className="absolute inset-0 z-30 pointer-events-none" style={{ overflow: "visible" }}>
+      <div className="absolute" style={{ left: "50%", top: "50%", width: 0, height: 0 }}>
         <div ref={deckRef}>
-          {[...Array(5)].map((_, i) => (
-            <div
-              key={`deck-${i}`}
-              className="absolute"
-              style={{
-                transform: `translate(calc(-50% - ${i}px), calc(-50% - ${i * 2}px))`,
-                zIndex: 5 - i,
-              }}
-            >
-              <PixelCard faceDown size="small" />
+          {Array.from({ length: DECK_LAYERS }, (_, i) => (
+            <div key={i} ref={(el) => (layerRefs.current[i] = el)} style={cardBox}>
+              <PixelCard faceDown width={deckWidth} />
             </div>
           ))}
         </div>
 
-        {/* Riffle shuffle cards */}
-        {phase === "shuffle" &&
-          [...Array(SHUFFLE_HALF * 2)].map((_, i) => (
-            <div
-              key={`shuf-${i}`}
-              ref={(el) => (shuffleRefs.current[i] = el)}
-              className="absolute"
-              style={{
-                marginLeft: -22,
-                marginTop: -32,
-                zIndex: 10 + i,
-              }}
-            >
-              <PixelCard faceDown size="small" />
-            </div>
-          ))}
-
-        {/* Flying card pool */}
-        {[...Array(POOL_SIZE)].map((_, i) => (
-          <div
-            key={`fly-${i}`}
-            ref={(el) => (poolRefs.current[i] = el)}
-            className="absolute"
-            style={{
-              marginLeft: -22,
-              marginTop: -32,
-              opacity: 0,
-              zIndex: 20,
-            }}
-          >
-            <PixelCard faceDown size="small" />
+        {Array.from({ length: POOL_SIZE }, (_, i) => (
+          <div key={i} ref={(el) => (poolRefs.current[i] = el)} style={{ ...cardBox, zIndex: 200 }}>
+            <PixelCard faceDown width={deckWidth} />
           </div>
         ))}
 
-        {/* Label */}
         <div
-          className="absolute font-pixel-display text-[9px] text-glow-gold"
-          style={{
-            left: 0,
-            top: -64,
-            transform: "translateX(-50%)",
-            whiteSpace: "nowrap",
-          }}
+          className="absolute font-pixel-display text-[12px] text-glow-gold"
+          style={{ left: 0, top: -(deckH / 2 + 40), transform: "translateX(-50%)", whiteSpace: "nowrap", letterSpacing: "0.15em" }}
         >
-          {phase === "shuffle" ? "SHUFFLING..." : "DEALING..."}
+          {phase === "shuffle" ? "SHUFFLING" : "DEALING"}
         </div>
       </div>
     </div>

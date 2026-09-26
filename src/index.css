@@ -282,16 +282,19 @@ html, body, #root { height: 100%; }
 
 .pixel-card.selectable { cursor: pointer; }
 .pixel-card.selectable:hover {
-  transform: translateY(-12px);
+  transform: translateY(calc(-1 * var(--hover-lift, 12px)));
 }
 .pixel-card.selected {
-  transform: translateY(-22px);
+  transform: translateY(calc(-1 * var(--lift, 22px)));
   box-shadow:
     0 0 0 3px var(--color-gold),
     0 0 0 6px var(--color-void),
     0 0 14px rgba(244, 196, 48, 0.7),
     inset 0 0 0 1px #fff7d8,
     2px 2px 0 #1a1024;
+}
+.pixel-card.selected.selectable:hover {
+  transform: translateY(calc(-1 * var(--lift, 22px) - 4px));
 }
 .pixel-card.dim {
   filter: brightness(0.7) saturate(0.6);
@@ -326,6 +329,9 @@ html, body, #root { height: 100%; }
   margin-top: 2px;
   font-size: 1.1em;
 }
+.pixel-card.sized .corner { font-size: var(--corner-fs); }
+.pixel-card.sized .corner.tl { top: var(--corner-inset); left: var(--corner-inset); }
+.pixel-card.sized .corner.br { bottom: var(--corner-inset); right: var(--corner-inset); }
 .pixel-card .center-suit {
   position: absolute;
   inset: 0;
@@ -337,6 +343,7 @@ html, body, #root { height: 100%; }
 .pixel-card.large .center-suit { font-size: 32px; }
 .pixel-card .center-suit { font-size: 22px; }
 .pixel-card.small .center-suit { font-size: 14px; }
+.pixel-card.sized .center-suit { font-size: var(--center-fs); }
 
 .suit-red { color: #c0203a; }
 .suit-black { color: #1a1024; }

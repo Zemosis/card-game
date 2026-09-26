@@ -1,412 +1,248 @@
-// PLAYER HAND - Pixel Retro Fanned Hand
+// PLAYER HAND — big fanned hand; every card's position is owned by GSAP.
+//
+// Each card is a stack of layers so no two animations fight over one
+// transform:
+//   slot  — x / y / rotation / scale / zIndex, tweened by GSAP only
+//   flip  — scaleX, for the face-down → face-up turn after a deal
+//   card  — PixelCard; hover and selection lift it with CSS
+// While dealing, the hand is laid out as 13 fixed slots and each new card
+// flies in from the deck. When the deal ends the hand is shown unsorted for
+// a beat, then every card arcs to its sorted slot.
 
-import React, {
-  useState,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useCallback,
-} from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import gsap from "gsap";
 import { PixelCard } from "../PixelCard";
 import { sortHand } from "../../utils/deckUtils";
-import { identifyCombination } from "../../utils/handEvaluator";
-import { COMBO_NAMES } from "../../utils/constants";
-import gsap from "gsap";
+import { CARD_RATIO, DEAL_FLY, prefersReducedMotion } from "../../hooks/useTableMetrics";
 
-// Sorting choreography: hold the unsorted hand so the player can see it,
-// then cards lift, slide to their sorted slot, and drop — one after another.
-const SORT_HOLD = 0.65;
-const SORT_STAGGER = 0.05;
-const SORT_SLIDE = 0.45;
-const SORT_LIFT = 26;
-const SORT_TIMEOUT_MS = 4500;
-const HAND_HEIGHT = 156;
+const HAND_SIZE = 13;
+const SORT_HOLD = 0.5;
+const SORT_STAGGER = 0.035;
+const SORT_SLIDE = 0.42;
+const REFLOW = 0.32;
 
-// Fan geometry: cards sit on an arc as if held — edges tilt outward and dip
-// slightly lower than the center.
-const getCardPosition = (index, total) => {
-  const mid = (total - 1) / 2;
-  const d = index - mid;
-  const spacing = total > 1 ? Math.min(46, 640 / (total - 1)) : 0;
-  const rotation = d * Math.min(2.4, 30 / Math.max(total - 1, 1));
-  const y = Math.pow(Math.abs(d) * 2.1, 2) * 0.07; // arc dip at the edges
-  return { offset: d * spacing, rotation, y };
-};
+/** Bottom-center of card i of n, relative to the hand's anchor point. */
+function handSlot(i, n, cardW, width) {
+  const mid = (n - 1) / 2;
+  const d = i - mid;
+  const room = Math.max(0, width - cardW - 48);
+  const spacing = n > 1 ? Math.min(cardW * 0.74, room / (n - 1)) : 0;
+  const dip = cardW * 0.1; // how far the outermost cards sit below the middle
+  return {
+    x: d * spacing,
+    y: mid ? (d * d * dip) / (mid * mid) : 0,
+    rotation: d * Math.min(2.2, 26 / Math.max(n - 1, 1)),
+  };
+}
 
 const PlayerHand = ({
   hand = [],
   selectedCards = [],
   onSelectionChange,
   isActive = true,
-  showCardCount = true,
   isDealing = false,
-  onSortComplete,
+  cardWidth = 96,
+  deckWidth = 68,
+  dealOriginRef,
 }) => {
-  const [displayHand, setDisplayHand] = useState([]);
-  const [isSorting, setIsSorting] = useState(false);
-  const lastSelectedIndex = useRef(-1);
-  const cardRefsMap = useRef(new Map());
   const containerRef = useRef(null);
-  const prevIsDealingRef = useRef(isDealing);
-  const dealingHandRef = useRef([]);
-  const sortDataRef = useRef(null);
-  const timelineRef = useRef(null);
-  const knownIdsRef = useRef(new Set());
+  const [width, setWidth] = useState(0);
+  const elsRef = useRef(new Map());
+  const placedRef = useRef(new Set());
+  const prevDealingRef = useRef(isDealing);
+  const sortTlRef = useRef(null);
+  const sortingRef = useRef(false);
+  const lastSelectedIndex = useRef(-1);
+
+  const cardH = Math.round(cardWidth * CARD_RATIO);
+  // Room below the anchor for the outer cards: their arc dip plus the corner
+  // that drops as they tilt (up to ~14 degrees).
+  const base = Math.round(cardWidth * 0.1 + (cardWidth / 2) * Math.sin((14 * Math.PI) / 180)) + 8;
+  const displayHand = useMemo(() => (isDealing ? hand : sortHand(hand)), [hand, isDealing]);
 
   useEffect(() => {
-    const wasDealing = prevIsDealingRef.current;
-    prevIsDealingRef.current = isDealing;
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
-    if (isDealing) {
-      setDisplayHand(hand);
-      dealingHandRef.current = hand;
-      return;
+  useLayoutEffect(() => {
+    const w = width || containerRef.current?.clientWidth;
+    if (!w) return;
+    const wasDealing = prevDealingRef.current;
+    prevDealingRef.current = isDealing;
+
+    // Forget cards that left the hand (played, or a new round's deal).
+    const ids = new Set(displayHand.map((c) => c.id));
+    placedRef.current.forEach((id) => !ids.has(id) && placedRef.current.delete(id));
+
+    const n = isDealing ? Math.max(HAND_SIZE, displayHand.length) : displayHand.length;
+    const slots = displayHand.map((_, i) => handSlot(i, n, cardWidth, w));
+    const reduce = prefersReducedMotion();
+    const startSort = wasDealing && !isDealing && displayHand.length > 1 && !reduce;
+
+    if (startSort || !isDealing) {
+      sortTlRef.current?.kill();
+      sortTlRef.current = null;
+      sortingRef.current = false;
     }
 
-    // Transition from dealing -> not dealing: run sort animation
-    if (wasDealing && hand.length > 0) {
-      const preSortHand =
-        dealingHandRef.current.length > 0 ? dealingHandRef.current : hand;
-      dealingHandRef.current = [];
-      const sorted = sortHand(hand);
+    let sortTl = null;
+    if (startSort) {
+      sortingRef.current = true;
+      sortTl = gsap.timeline({
+        delay: SORT_HOLD,
+        onComplete: () => {
+          sortingRef.current = false;
+          sortTlRef.current = null;
+        },
+      });
+      sortTlRef.current = sortTl;
+    }
 
-      if (preSortHand.length === 0) {
-        setDisplayHand(sorted);
+    displayHand.forEach((card, i) => {
+      const els = elsRef.current.get(card.id);
+      if (!els) return;
+      const s = slots[i];
+
+      if (!placedRef.current.has(card.id)) {
+        placedRef.current.add(card.id);
+        const origin = dealOriginRef?.current?.getBoundingClientRect();
+        if (!isDealing || !origin || reduce) {
+          gsap.set(els.slot, { ...s, scale: 1, zIndex: i });
+          gsap.set(els.back, { autoAlpha: 0 });
+          return;
+        }
+        // Fly face-down from the deck, then turn face-up on landing.
+        const c = containerRef.current.getBoundingClientRect();
+        const scale = deckWidth / cardWidth;
+        const from = {
+          x: origin.left + origin.width / 2 - (c.left + c.width / 2),
+          y: origin.top + origin.height / 2 + (cardH * scale) / 2 - (c.bottom - base),
+          rotation: gsap.utils.random(-20, 20),
+          scale,
+          zIndex: i,
+        };
+        gsap.set(els.back, { autoAlpha: 1 });
+        gsap
+          .timeline()
+          .fromTo(els.slot, from, { ...s, scale: 1, duration: DEAL_FLY, ease: "power2.out" })
+          .to(els.flip, { scaleX: 0, duration: 0.07, ease: "power1.in" })
+          .set(els.back, { autoAlpha: 0 })
+          .to(els.flip, { scaleX: 1, duration: 0.09, ease: "power1.out" });
         return;
       }
 
-      const oldPositions = {};
-      preSortHand.forEach((card, i) => {
-        oldPositions[card.id] = getCardPosition(i, preSortHand.length);
-      });
+      // Dealt cards keep their slot until the deal is over.
+      if (isDealing) return;
 
-      const newPositions = {};
-      sorted.forEach((card, i) => {
-        newPositions[card.id] = getCardPosition(i, sorted.length);
-      });
-
-      sortDataRef.current = { oldPositions, newPositions, sorted };
-      setDisplayHand(sorted);
-      setIsSorting(true);
-      return;
-    }
-
-    dealingHandRef.current = [];
-    setDisplayHand(sortHand(hand));
-  }, [isDealing, hand]);
-
-  // Fly newly dealt cards in from the table center so the deal feels connected
-  useLayoutEffect(() => {
-    if (!isDealing) {
-      knownIdsRef.current = new Set(displayHand.map((c) => c.id));
-      return;
-    }
-    const fresh = displayHand.filter((c) => !knownIdsRef.current.has(c.id));
-    displayHand.forEach((c) => knownIdsRef.current.add(c.id));
-    fresh.forEach((card) => {
-      const el = cardRefsMap.current.get(card.id);
-      if (!el) return;
-      gsap.fromTo(
-        el,
-        {
-          y: -150,
-          x: gsap.utils.random(-30, 30),
-          rotation: gsap.utils.random(-20, 20),
-          scale: 0.7,
-          opacity: 0,
-        },
-        {
-          y: 0,
-          x: 0,
-          rotation: 0,
-          scale: 1,
-          opacity: 1,
-          duration: 0.32,
-          ease: "power2.out",
-          overwrite: true,
-        },
-      );
-    });
-  }, [displayHand, isDealing]);
-
-  useLayoutEffect(() => {
-    if (!isSorting) return;
-
-    const data = sortDataRef.current;
-    if (!data) {
-      setIsSorting(false);
-      return;
-    }
-
-    const { oldPositions, newPositions, sorted } = data;
-
-    if (timelineRef.current) timelineRef.current.kill();
-
-    const tl = gsap.timeline({
-      onComplete: () => {
-        sorted.forEach((card) => {
-          const el = cardRefsMap.current.get(card.id);
-          if (el) gsap.set(el, { clearProps: "all" });
-        });
-        timelineRef.current = null;
-        sortDataRef.current = null;
-        setIsSorting(false);
-        if (onSortComplete) onSortComplete();
-      },
-    });
-    timelineRef.current = tl;
-
-    let hasTweens = false;
-    sorted.forEach((card, sortedIndex) => {
-      const el = cardRefsMap.current.get(card.id);
-      if (!el) return;
-
-      const oldPos = oldPositions[card.id];
-      const newPos = newPositions[card.id];
-      if (!oldPos || !newPos) return;
-
-      const deltaX = oldPos.offset - newPos.offset;
-      const deltaY = oldPos.y - newPos.y;
-      const deltaR = oldPos.rotation - newPos.rotation;
-
-      if (Math.abs(deltaX) < 0.5 && Math.abs(deltaR) < 0.1) return;
-
-      // Keep the card visually where it was dealt, then move it on its cue
-      gsap.set(el, { x: deltaX, y: deltaY, rotation: deltaR });
-      const cue = SORT_HOLD + sortedIndex * SORT_STAGGER;
-      tl.to(
-        el,
-        {
-          keyframes: [
-            { y: deltaY - SORT_LIFT, duration: 0.16, ease: "power2.out" },
-            { y: 0, duration: SORT_SLIDE - 0.16, ease: "power2.inOut" },
-          ],
-        },
-        cue,
-      );
-      tl.to(
-        el,
-        {
-          x: 0,
-          rotation: 0,
-          duration: SORT_SLIDE,
-          ease: "power2.inOut",
-        },
-        cue,
-      );
-      hasTweens = true;
-    });
-
-    if (!hasTweens) {
-      timelineRef.current = null;
-      sortDataRef.current = null;
-      setIsSorting(false);
-    }
-
-    return () => {
-      if (timelineRef.current) {
-        timelineRef.current.kill();
-        timelineRef.current = null;
+      if (sortTl) {
+        const at = i * SORT_STAGGER;
+        const lift = cardH * 0.28;
+        sortTl.to(els.slot, { x: s.x, rotation: s.rotation, duration: SORT_SLIDE, ease: "power2.inOut" }, at);
+        sortTl.to(
+          els.slot,
+          {
+            keyframes: [
+              { y: s.y - lift, duration: SORT_SLIDE * 0.45, ease: "power2.out" },
+              { y: s.y, duration: SORT_SLIDE * 0.55, ease: "power2.in" },
+            ],
+          },
+          at,
+        );
+        // Over the top of the arc the card passes above the others, then
+        // settles into its final stacking order.
+        sortTl.set(els.slot, { zIndex: 100 + i }, at + SORT_SLIDE * 0.4);
+        sortTl.set(els.slot, { zIndex: i }, at + SORT_SLIDE);
+        return;
       }
-    };
-  }, [isSorting, onSortComplete]);
 
-  // Safety: guarantee isSorting always resets so cards stay clickable
-  useEffect(() => {
-    if (!isSorting) return;
-    const timeout = setTimeout(() => {
-      if (timelineRef.current) {
-        timelineRef.current.kill();
-        timelineRef.current = null;
-      }
-      sortDataRef.current = null;
-      setIsSorting(false);
-    }, SORT_TIMEOUT_MS);
-    return () => clearTimeout(timeout);
-  }, [isSorting]);
+      gsap.to(els.slot, { ...s, scale: 1, duration: REFLOW, ease: "power3.out", overwrite: "auto" });
+      gsap.set(els.slot, { zIndex: i });
+    });
+  }, [displayHand, isDealing, cardWidth, deckWidth, cardH, base, width, dealOriginRef]);
 
-  useEffect(() => {
-    return () => {
-      if (timelineRef.current) timelineRef.current.kill();
-    };
+  useEffect(() => () => sortTlRef.current?.kill(), []);
+
+  const setEls = useCallback((id, part, el) => {
+    const map = elsRef.current;
+    if (!el) {
+      if (part === "slot") map.delete(id);
+      return;
+    }
+    const entry = map.get(id) || {};
+    entry[part] = el;
+    map.set(id, entry);
   }, []);
+
+  const canSelect = isActive && !isDealing;
 
   const toggleCardSelection = (card, e) => {
-    if (!isActive || isSorting) return;
-
+    if (!canSelect || sortingRef.current) return;
     const currentIndex = displayHand.findIndex((c) => c.id === card.id);
 
-    if (e && e.shiftKey && lastSelectedIndex.current !== -1) {
+    if (e?.shiftKey && lastSelectedIndex.current !== -1) {
       const start = Math.min(lastSelectedIndex.current, currentIndex);
       const end = Math.max(lastSelectedIndex.current, currentIndex);
-      const rangeCards = displayHand.slice(start, end + 1);
-      const newSelectionMap = new Map();
-      selectedCards.forEach((c) => newSelectionMap.set(c.id, c));
-      rangeCards.forEach((c) => newSelectionMap.set(c.id, c));
-      onSelectionChange(Array.from(newSelectionMap.values()));
-    } else {
-      lastSelectedIndex.current = currentIndex;
-      const isSelected = selectedCards.some((c) => c.id === card.id);
-      if (isSelected) {
-        onSelectionChange(selectedCards.filter((c) => c.id !== card.id));
-      } else {
-        onSelectionChange([...selectedCards, card]);
-      }
+      const next = new Map(selectedCards.map((c) => [c.id, c]));
+      displayHand.slice(start, end + 1).forEach((c) => next.set(c.id, c));
+      onSelectionChange(Array.from(next.values()));
+      return;
     }
+    lastSelectedIndex.current = currentIndex;
+    const isSelected = selectedCards.some((c) => c.id === card.id);
+    onSelectionChange(isSelected ? selectedCards.filter((c) => c.id !== card.id) : [...selectedCards, card]);
   };
 
-  const handleSelectAll = () => {
-    if (!isActive || isSorting) return;
-    onSelectionChange([...displayHand]);
-    lastSelectedIndex.current = -1;
+  const liftVars = {
+    "--lift": `${Math.round(cardH * 0.18)}px`,
+    "--hover-lift": `${Math.round(cardH * 0.08)}px`,
   };
-
-  const handleClearSelection = () => {
-    if (!isActive || isSorting) return;
-    onSelectionChange([]);
-    lastSelectedIndex.current = -1;
-  };
-
-  const isCardSelected = (card) => selectedCards.some((c) => c.id === card.id);
-
-  const getCombinationInfo = () => {
-    if (selectedCards.length === 0) return null;
-    const combo = identifyCombination(selectedCards);
-    if (!combo) return { text: "Invalid", isValid: false };
-    return { text: COMBO_NAMES[combo.type] || "Valid", isValid: true };
-  };
-
-  const comboInfo = getCombinationInfo();
-
-  const setCardRef = useCallback((id, el) => {
-    if (el) cardRefsMap.current.set(id, el);
-    else cardRefsMap.current.delete(id);
-  }, []);
 
   return (
-    <div className="relative">
-      {/* Status bar above hand */}
-      <div className="flex items-center justify-between mb-1 px-2">
-        <div className="flex items-center gap-3">
-          <div
-            className="font-pixel-display text-[10px] text-glow-gold"
-            style={{ opacity: isActive ? 1 : 0.5 }}
-          >
-            {isActive ? "YOUR TURN" : "WAITING"}
-          </div>
-          {isSorting && (
-            <div
-              className="font-pixel-display text-[9px] shimmer-text"
-              style={{ letterSpacing: "0.15em" }}
-            >
-              SORTING...
-            </div>
-          )}
-          <div className="font-pixel-body text-base text-bone/70">
-            {showCardCount && <>{displayHand.length} cards</>}
-            {selectedCards.length > 0 && (
-              <>
-                {" "}
-                ·{" "}
-                <span className="text-glow-cyan">
-                  {selectedCards.length} selected
-                </span>
-                {comboInfo && (
-                  <span
-                    className="ml-2"
-                    style={{
-                      color: comboInfo.isValid ? "#f4c430" : "#e85a7a",
-                    }}
-                  >
-                    {comboInfo.text}
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-        <div
-          className="flex items-center gap-2"
-          style={{
-            visibility: hand.length > 0 ? "visible" : "hidden",
-            opacity: isActive ? 1 : 0.5,
-          }}
-        >
-          <button
-            onClick={handleClearSelection}
-            disabled={selectedCards.length === 0 || !isActive}
-            className="pixel-btn font-pixel-display text-[9px] px-2.5 py-1.5"
-            style={{
-              backgroundColor: "#1f1a3d",
-              borderColor: "#0a0712",
-              color: "#ead8b1",
-            }}
-          >
-            CLEAR
-          </button>
-          <button
-            onClick={handleSelectAll}
-            disabled={!isActive}
-            className="pixel-btn font-pixel-display text-[9px] px-2.5 py-1.5"
-            style={{
-              backgroundColor: "#463a78",
-              borderColor: "#2a234d",
-              color: "#ead8b1",
-            }}
-          >
-            ALL
-          </button>
-        </div>
-      </div>
-
-      {/* Hand fan */}
+    <div
+      ref={containerRef}
+      className="relative"
+      style={{ height: cardH + base + Math.round(cardH * 0.08), overflow: "visible" }}
+      aria-label="Your hand"
+    >
       {hand.length === 0 && !isDealing ? (
-        <div
-          className="flex items-center justify-center"
-          style={{ height: HAND_HEIGHT }}
-        >
-          <div className="font-pixel-display text-[11px] text-glow-gold">
-            NO CARDS — YOU WIN!
-          </div>
+        <div className="absolute inset-0 flex items-center justify-center font-pixel-display text-[12px] text-glow-gold">
+          NO CARDS — YOU WIN!
         </div>
       ) : (
-        <div
-          ref={containerRef}
-          className="relative"
-          style={{ height: HAND_HEIGHT, overflow: "visible" }}
-        >
-          {displayHand.map((card, i) => {
-            const isSel = isCardSelected(card);
-            const { offset, rotation, y } = getCardPosition(
-              i,
-              displayHand.length,
-            );
-            return (
-              <div
-                key={card.id}
-                style={{
-                  position: "absolute",
-                  left: "50%",
-                  bottom: 24,
-                  transform: `translateX(calc(-50% + ${offset}px)) translateY(${y}px) rotate(${rotation}deg)`,
-                  transformOrigin: "bottom center",
-                  zIndex: i,
-                }}
-              >
-                <div ref={(el) => setCardRef(card.id, el)}>
-                  <PixelCard
-                    rank={card.rank}
-                    suit={card.suit}
-                    size="medium"
-                    selected={isSel}
-                    selectable={isActive && !isSorting}
-                    onClick={() => toggleCardSelection(card)}
-                  />
-                </div>
+        displayHand.map((card) => (
+          <div
+            key={card.id}
+            ref={(el) => setEls(card.id, "slot", el)}
+            style={{
+              position: "absolute",
+              left: "50%",
+              bottom: base,
+              width: cardWidth,
+              height: cardH,
+              marginLeft: -cardWidth / 2,
+              transformOrigin: "50% 100%",
+            }}
+          >
+            <div ref={(el) => setEls(card.id, "flip", el)} className="relative w-full h-full">
+              <PixelCard
+                rank={card.rank}
+                suit={card.suit}
+                width={cardWidth}
+                selected={selectedCards.some((c) => c.id === card.id)}
+                selectable={canSelect}
+                onClick={(e) => toggleCardSelection(card, e)}
+                style={liftVars}
+              />
+              <div ref={(el) => setEls(card.id, "back", el)} className="absolute inset-0 pointer-events-none invisible">
+                <PixelCard faceDown width={cardWidth} />
               </div>
-            );
-          })}
-        </div>
+            </div>
+          </div>
+        ))
       )}
     </div>
   );

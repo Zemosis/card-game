@@ -24,7 +24,8 @@ import {
   passAction,
   startNextRound,
 } from "../../utils/gameLogic";
-import { validatePlay } from "../../utils/handEvaluator";
+import { validatePlay, identifyCombination } from "../../utils/handEvaluator";
+import { useTableMetrics } from "../../hooks/useTableMetrics";
 import { COMBO_NAMES, GAME_STATES, GAME_SETTINGS } from "../../utils/constants";
 import { makeAIDecision } from "../../utils/aiPlayer";
 
@@ -60,6 +61,8 @@ const GameThirteen = () => {
 
   const [volumes, setVolumes] = useState({ master: 50, sfx: 50 });
 
+  const { handW, deckW } = useTableMetrics();
+  const tableCenterRef = useRef(null);
   const lastHistoryLengthRef = useRef(0);
   const gameStateRef = useRef(gameState);
   const dealOrderRef = useRef(null);
@@ -505,6 +508,14 @@ const GameThirteen = () => {
   const isMyTurn = !isDealing && gameState.currentPlayerIndex === myIndex;
   const canPlay = selectedCards.length > 0 && isMyTurn;
   const canPass = isMyTurn && gameState.currentPlay !== null;
+  const comboInfo = (() => {
+    if (!selectedCards.length) return null;
+    const combo = identifyCombination(selectedCards);
+    return combo
+      ? { text: COMBO_NAMES[combo.type] || "Valid", isValid: true }
+      : { text: "Invalid", isValid: false };
+  })();
+  const canSelect = isMyTurn && !bottomPlayer.isEliminated;
   const currentPlayerName =
     gameState.lastPlayedBy !== null
       ? playersList[gameState.lastPlayedBy].name
@@ -701,7 +712,7 @@ const GameThirteen = () => {
           <div className="flex justify-center relative z-10">
             <OpponentSection
               player={topPlayer}
-              isActive={gameState.currentPlayerIndex === topPlayer.id}
+              isActive={!isDealing && gameState.currentPlayerIndex === topPlayer.id}
               hasPassed={topPlayer.hasPassed}
               position="top"
               isDealing={isDealing}
@@ -712,21 +723,24 @@ const GameThirteen = () => {
           <div className="flex-1 flex items-center justify-between gap-4 my-2 min-h-0">
             <OpponentSection
               player={leftPlayer}
-              isActive={gameState.currentPlayerIndex === leftPlayer.id}
+              isActive={!isDealing && gameState.currentPlayerIndex === leftPlayer.id}
               hasPassed={leftPlayer.hasPassed}
               position="left"
               isDealing={isDealing}
             />
-            <div className="flex-1 h-full flex items-center justify-center relative">
+            <div ref={tableCenterRef} className="flex-1 h-full flex items-center justify-center relative">
               <PlayArea
                 currentPlay={isDealing ? null : gameState.currentPlay}
                 lastPlayerName={isDealing ? null : currentPlayerName}
                 roundNumber={gameState.roundNumber}
+                isDealing={isDealing}
+                cardWidth={deckW}
               />
               {isDealing && gameState && (
                 <DealAnimation
                   dealerIndex={gameState.dealerIndex}
                   viewIndex={viewIndex}
+                  deckWidth={deckW}
                   onDealProgress={handleDealProgress}
                   onComplete={handleDealComplete}
                 />
@@ -734,7 +748,7 @@ const GameThirteen = () => {
             </div>
             <OpponentSection
               player={rightPlayer}
-              isActive={gameState.currentPlayerIndex === rightPlayer.id}
+              isActive={!isDealing && gameState.currentPlayerIndex === rightPlayer.id}
               hasPassed={rightPlayer.hasPassed}
               position="right"
               isDealing={isDealing}
@@ -749,9 +763,11 @@ const GameThirteen = () => {
               setSelectedCards(cards);
               safePlay("playClick");
             }}
-            isActive={isMyTurn && !bottomPlayer.isEliminated}
-            showCardCount={true}
+            isActive={canSelect}
             isDealing={isDealing}
+            cardWidth={handW}
+            deckWidth={deckW}
+            dealOriginRef={tableCenterRef}
           />
           <GameControls
             onPlay={handlePlay}
@@ -760,11 +776,18 @@ const GameThirteen = () => {
             canPass={canPass}
             isPlayerTurn={isMyTurn && !bottomPlayer.isEliminated}
             message={
-              isMyTurn
+              isDealing
+                ? "Dealing..."
+                : isMyTurn
                 ? "Your turn!"
                 : `Waiting for ${playersList[gameState.currentPlayerIndex].name}...`
             }
             errorMessage={errorMessage}
+            selectedCount={selectedCards.length}
+            comboInfo={comboInfo}
+            canSelect={canSelect}
+            onClear={() => setSelectedCards([])}
+            onSelectAll={() => setSelectedCards([...bottomPlayer.hand])}
           />
         </div>
 
@@ -775,7 +798,7 @@ const GameThirteen = () => {
         >
           <ScoreBoard
             players={gameState.players}
-            currentPlayerIndex={gameState.currentPlayerIndex}
+            currentPlayerIndex={isDealing ? -1 : gameState.currentPlayerIndex}
             roundNumber={gameState.roundNumber}
             matchWins={gameState.matchWins || [0, 0, 0, 0]}
             myIndex={myIndex}
