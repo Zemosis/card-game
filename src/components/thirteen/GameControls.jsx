@@ -15,6 +15,8 @@ const GameControls = ({
   onClear,
   onSelectAll,
   canSelect = false,
+  sortMode = "rank",
+  onSortModeChange,
 }) => {
   useEffect(() => {
     if (!isPlayerTurn) return;
@@ -60,6 +62,37 @@ const GameControls = ({
             )}
           </div>
         )}
+      </div>
+
+      {/* Sort toggle — works any time, not just on your turn */}
+      <div
+        className="flex items-stretch gap-1 p-1"
+        role="group"
+        aria-label="Sort hand"
+        style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}
+      >
+        <span className="font-pixel-display text-[10px] text-bone/60 self-center px-2">SORT</span>
+        {[
+          ["rank", "RANK"],
+          ["suit", "SUIT"],
+        ].map(([mode, label]) => {
+          const on = sortMode === mode;
+          return (
+            <button
+              key={mode}
+              onClick={() => onSortModeChange?.(mode)}
+              aria-pressed={on}
+              className="pixel-btn font-pixel-display text-[10px] px-3 py-2"
+              style={{
+                backgroundColor: on ? "#f4c430" : "#1f1a3d",
+                borderColor: on ? "#c89820" : "#0a0712",
+                color: on ? "#1a1024" : "#ead8b1",
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       <button

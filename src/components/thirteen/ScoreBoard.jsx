@@ -1,159 +1,113 @@
-// SCOREBOARD - Pixel Retro Style
+// SCOREBOARD — standings for the current match, lowest score first.
+//
+// Names only (no #tag: it can't fit at a readable size). Each row: place,
+// avatar, name + status chip, cards left, and score against the elimination
+// limit. The player whose turn it is gets a gold frame; your own row has a
+// cyan marker on the left.
 
 import React from "react";
 import { PixelAvatar } from "../PixelCard";
 import { GAME_SETTINGS } from "../../utils/constants";
 
-const ScoreBoard = ({
-  players = [],
-  currentPlayerIndex = 0,
-  roundNumber = 1,
-  matchWins = [0, 0, 0, 0],
-  myIndex = -1,
-}) => {
+const PLACE_COLOR = ["#f4c430", "#ead8b1", "#c89820", "#8a7fb0"];
+
+const baseName = (name = "") => name.split(" #")[0];
+
+function StatusChip({ label, bg, fg = "#1a1024", blink = false }) {
+  return (
+    <span
+      className={`font-pixel-display text-[10px] leading-none px-1.5 py-1 shrink-0 ${blink ? "blink" : ""}`}
+      style={{ backgroundColor: bg, color: fg }}
+    >
+      {label}
+    </span>
+  );
+}
+
+const ScoreBoard = ({ players = [], currentPlayerIndex = 0, roundNumber = 1, matchWins = [0, 0, 0, 0], myIndex = -1, myAvatar }) => {
   const maxScore = GAME_SETTINGS.ELIMINATION_SCORE;
 
-  // Sort by score to determine place
-  const ranked = [...players]
+  const ranked = players
     .map((p, i) => ({ ...p, originalIndex: i }))
-    .sort((a, b) => a.score - b.score);
+    .sort((a, b) => a.score - b.score || a.originalIndex - b.originalIndex);
 
   return (
-    <div
-      className="flex flex-col"
-      style={{ borderBottom: "4px solid #0a0712" }}
-    >
+    <section className="flex flex-col" style={{ borderBottom: "4px solid #0a0712" }} aria-label="Scoreboard">
       <div
-        className="px-3 py-2 font-pixel-display text-[10px] tracking-wider flex items-center justify-between"
-        style={{ backgroundColor: "#1a1024", color: "#f4c430" }}
+        className="px-3 flex items-center justify-between font-pixel-display text-[12px] tracking-wider"
+        style={{ height: 40, backgroundColor: "#1a1024", color: "#f4c430" }}
       >
         <span>SCOREBOARD</span>
-        <span className="text-bone/60">RD {roundNumber}</span>
+        <span className="text-[10px] text-bone/70">ROUND {roundNumber}</span>
       </div>
-      <div className="px-3 py-2 flex flex-col gap-1.5">
+
+      <ol className="p-2 flex flex-col gap-1">
         {ranked.map((player, rankIdx) => {
           const index = player.originalIndex;
-          const isActive = index === currentPlayerIndex;
-          const place = rankIdx + 1;
-          const scorePercentage = (player.score / maxScore) * 100;
-
+          const isActive = index === currentPlayerIndex && !player.isEliminated;
           const isMe = index === myIndex;
-          // "NAME #TAG" → tight name + dimmed tag (the font's space is wide)
-          const [baseName, nameTag] = player.name.split(" #");
+          const pct = Math.min((player.score / maxScore) * 100, 100);
+          const wins = matchWins[index] || 0;
 
           return (
-            <div
-              key={player.id}
-              className="flex items-center gap-2 px-2 py-1.5"
+            <li
+              key={player.id ?? index}
+              className="relative flex items-center gap-2 pl-2.5 pr-2 py-1"
               style={{
                 backgroundColor: isActive ? "#2e1a3a" : "#14102a",
-                border: isMe ? "2px solid #5fd4d6" : "2px solid #1f1a3d",
+                border: `2px solid ${isActive ? "#f4c430" : "#1f1a3d"}`,
+                opacity: player.isEliminated ? 0.6 : 1,
               }}
             >
-              <div
-                className="font-pixel-display text-[10px]"
-                style={{
-                  color:
-                    place === 1
-                      ? "#f4c430"
-                      : place === 2
-                        ? "#c8b890"
-                        : place === 3
-                          ? "#c89820"
-                          : "#7a1530",
-                  width: 20,
-                  flexShrink: 0,
-                }}
-              >
-                #{place}
-              </div>
+              {isMe && (
+                <span className="absolute left-0 top-0 bottom-0" style={{ width: 4, backgroundColor: "#5fd4d6" }} aria-label="You" />
+              )}
+              <span className="font-pixel-display text-[10px] shrink-0" style={{ width: 22, color: PLACE_COLOR[rankIdx] }}>
+                #{rankIdx + 1}
+              </span>
               <PixelAvatar
-                variant={isMe ? "me" : ((player.id % 5) + 1)}
-                size={24}
-                active={isActive}
+                variant={isMe && myAvatar ? myAvatar.variant : ((player.id ?? index) % 5) + 1}
+                customAvatarData={isMe ? myAvatar?.custom : null}
+                size={32}
                 eliminated={player.isEliminated}
               />
               <div className="flex-1 min-w-0">
-                <div className="font-pixel-display text-[9px] text-parchment truncate">
-                  {baseName}
-                  {nameTag && (
-                    <span className="text-bone/50" style={{ marginLeft: 2 }}>
-                      #{nameTag}
-                    </span>
-                  )}
-                  {isActive && !player.isEliminated && (
-                    <span
-                      className="ml-1 blink"
-                      style={{
-                        fontSize: 7,
-                        padding: "1px 3px",
-                        backgroundColor: "#f4c430",
-                        color: "#1a1024",
-                      }}
-                    >
-                      TURN
-                    </span>
-                  )}
-                  {player.isEliminated && (
-                    <span
-                      className="ml-1"
-                      style={{
-                        fontSize: 7,
-                        padding: "1px 3px",
-                        backgroundColor: "#7a1530",
-                        color: "#ead8b1",
-                      }}
-                    >
-                      OUT
-                    </span>
-                  )}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-pixel-display text-[10px] text-parchment truncate">{baseName(player.name)}</span>
+                  {player.isEliminated ? (
+                    <StatusChip label="OUT" bg="#7a1530" fg="#ead8b1" />
+                  ) : isActive ? (
+                    <StatusChip label="TURN" bg="#f4c430" blink />
+                  ) : player.hasPassed ? (
+                    <StatusChip label="PASS" bg="#463a78" fg="#ead8b1" />
+                  ) : null}
                 </div>
-                <div className="font-pixel-body text-xs text-bone/60">
+                <div className="font-pixel-body text-[18px] leading-none mt-1 text-bone/70 whitespace-nowrap">
                   {player.hand.length} cards
-                  {matchWins[player.originalIndex] > 0 && (
-                    <span className="ml-1 text-glow-gold">
-                      · {matchWins[player.originalIndex]}W
-                    </span>
-                  )}
+                  {wins > 0 && <span className="text-glow-gold"> · {wins}W</span>}
                 </div>
               </div>
-              <div className="text-right" style={{ width: 52, flexShrink: 0 }}>
-                <div className="font-pixel-display text-[10px] text-glow-gold">
+              <div className="shrink-0 text-right" style={{ width: 58 }}>
+                <div className="font-pixel-display text-[12px] text-glow-gold leading-none">
                   {player.score}
-                  <span className="text-bone/50 text-[7px] ml-0.5">
-                    /{maxScore}
-                  </span>
+                  <span className="text-[10px] text-bone/50">/{maxScore}</span>
                 </div>
-                {/* Score bar */}
-                <div
-                  style={{
-                    width: "100%",
-                    height: 4,
-                    backgroundColor: "#0a0712",
-                    border: "1px solid #1f1a3d",
-                    marginTop: 2,
-                  }}
-                >
+                <div className="mt-1.5" style={{ height: 6, backgroundColor: "#0a0712", boxShadow: "0 0 0 1px #1f1a3d" }}>
                   <div
                     style={{
-                      width: `${Math.min(scorePercentage, 100)}%`,
+                      width: `${pct}%`,
                       height: "100%",
                       transition: "width 300ms ease",
-                      background:
-                        scorePercentage >= 80
-                          ? "#e85a7a"
-                          : scorePercentage >= 60
-                            ? "#f4c430"
-                            : "#9bd14f",
+                      backgroundColor: pct >= 80 ? "#e85a7a" : pct >= 60 ? "#f4c430" : "#9bd14f",
                     }}
                   />
                 </div>
               </div>
-            </div>
+            </li>
           );
         })}
-      </div>
-    </div>
+      </ol>
+    </section>
   );
 };
 

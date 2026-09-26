@@ -7,12 +7,13 @@
 //   card  — PixelCard; hover and selection lift it with CSS
 // While dealing, the hand is laid out as 13 fixed slots and each new card
 // flies in from the deck. When the deal ends the hand is shown unsorted for
-// a beat, then every card arcs to its sorted slot.
+// a beat, then every card arcs to its sorted slot. Switching the sort mode
+// (rank / suit) replays the same arc.
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { PixelCard } from "../PixelCard";
-import { sortHand } from "../../utils/deckUtils";
+import { sortHand, sortHandBySuit } from "../../utils/deckUtils";
 import { CARD_RATIO, DEAL_FLY, prefersReducedMotion } from "../../hooks/useTableMetrics";
 
 const HAND_SIZE = 13;
@@ -44,12 +45,14 @@ const PlayerHand = ({
   cardWidth = 96,
   deckWidth = 68,
   dealOriginRef,
+  sortMode = "rank",
 }) => {
   const containerRef = useRef(null);
   const [width, setWidth] = useState(0);
   const elsRef = useRef(new Map());
   const placedRef = useRef(new Set());
   const prevDealingRef = useRef(isDealing);
+  const prevSortModeRef = useRef(sortMode);
   const sortTlRef = useRef(null);
   const sortingRef = useRef(false);
   const lastSelectedIndex = useRef(-1);
@@ -58,7 +61,10 @@ const PlayerHand = ({
   // Room below the anchor for the outer cards: their arc dip plus the corner
   // that drops as they tilt (up to ~14 degrees).
   const base = Math.round(cardWidth * 0.1 + (cardWidth / 2) * Math.sin((14 * Math.PI) / 180)) + 8;
-  const displayHand = useMemo(() => (isDealing ? hand : sortHand(hand)), [hand, isDealing]);
+  const displayHand = useMemo(
+    () => (isDealing ? hand : sortMode === "suit" ? sortHandBySuit(hand) : sortHand(hand)),
+    [hand, isDealing, sortMode],
+  );
 
   useEffect(() => {
     const el = containerRef.current;
@@ -73,6 +79,9 @@ const PlayerHand = ({
     if (!w) return;
     const wasDealing = prevDealingRef.current;
     prevDealingRef.current = isDealing;
+    const resorted = prevSortModeRef.current !== sortMode;
+    prevSortModeRef.current = sortMode;
+    if (resorted) lastSelectedIndex.current = -1; // shift-range anchor moved
 
     // Forget cards that left the hand (played, or a new round's deal).
     const ids = new Set(displayHand.map((c) => c.id));
@@ -81,7 +90,8 @@ const PlayerHand = ({
     const n = isDealing ? Math.max(HAND_SIZE, displayHand.length) : displayHand.length;
     const slots = displayHand.map((_, i) => handSlot(i, n, cardWidth, w));
     const reduce = prefersReducedMotion();
-    const startSort = wasDealing && !isDealing && displayHand.length > 1 && !reduce;
+    const dealEnded = wasDealing && !isDealing;
+    const startSort = (dealEnded || (resorted && !isDealing)) && displayHand.length > 1 && !reduce;
 
     if (startSort || !isDealing) {
       sortTlRef.current?.kill();
@@ -93,7 +103,7 @@ const PlayerHand = ({
     if (startSort) {
       sortingRef.current = true;
       sortTl = gsap.timeline({
-        delay: SORT_HOLD,
+        delay: dealEnded ? SORT_HOLD : 0,
         onComplete: () => {
           sortingRef.current = false;
           sortTlRef.current = null;
@@ -162,7 +172,7 @@ const PlayerHand = ({
       gsap.to(els.slot, { ...s, scale: 1, duration: REFLOW, ease: "power3.out", overwrite: "auto" });
       gsap.set(els.slot, { zIndex: i });
     });
-  }, [displayHand, isDealing, cardWidth, deckWidth, cardH, base, width, dealOriginRef]);
+  }, [displayHand, isDealing, sortMode, cardWidth, deckWidth, cardH, base, width, dealOriginRef]);
 
   useEffect(() => () => sortTlRef.current?.kill(), []);
 

@@ -84,6 +84,18 @@ export const sortHand = (hand) => {
   });
 };
 
+/**
+ * Sorts a hand by suit (primary, weakest suit first) and rank (secondary)
+ * @param {Array} hand - Array of cards
+ * @returns {Array} Sorted hand
+ */
+export const sortHandBySuit = (hand) => {
+  return [...hand].sort((a, b) => {
+    if (a.suitValue !== b.suitValue) return a.suitValue - b.suitValue;
+    return a.rankValue - b.rankValue;
+  });
+};
+
 // CARD COMPARISON
 /**
  * Compares two single cards

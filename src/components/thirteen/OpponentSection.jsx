@@ -103,7 +103,7 @@ const OpponentSection = ({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <div className="font-pixel-display text-[9px] text-parchment truncate">
-                {name}
+                {name.split(" #")[0]}
               </div>
               {isActive && !isEliminated && (
                 <span

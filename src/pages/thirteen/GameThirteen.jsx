@@ -57,7 +57,22 @@ const GameThirteen = () => {
 
   const [showSettings, setShowSettings] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const [sortMode, setSortMode] = useState(() => {
+    try {
+      return localStorage.getItem("khuzur_sort") === "suit" ? "suit" : "rank";
+    } catch {
+      return "rank";
+    }
+  });
+  const changeSortMode = (mode) => {
+    setSortMode(mode);
+    safePlay("playClick");
+    try {
+      localStorage.setItem("khuzur_sort", mode);
+    } catch {
+      /* private window: the choice just won't persist */
+    }
+  };
 
   const [volumes, setVolumes] = useState({ master: 50, sfx: 50 });
 
@@ -430,7 +445,7 @@ const GameThirteen = () => {
             minute: "2-digit",
           });
           let text = "";
-          const pName = gameState.players[move.playerIndex]?.name || "System";
+          const pName = (gameState.players[move.playerIndex]?.name || "System").split(" #")[0];
 
           if (move.type === "PLAY") {
             const comboName = COMBO_NAMES[move.combination.type] || "cards";
@@ -508,6 +523,32 @@ const GameThirteen = () => {
   const isMyTurn = !isDealing && gameState.currentPlayerIndex === myIndex;
   const canPlay = selectedCards.length > 0 && isMyTurn;
   const canPass = isMyTurn && gameState.currentPlay !== null;
+  // This trick's plays, oldest first: everything since the last reset.
+  const pile = [];
+  if (!isDealing) {
+    const history = gameState.moveHistory || [];
+    for (let i = history.length - 1; i >= 0; i--) {
+      const move = history[i];
+      if (move.type !== "PLAY" && move.type !== "PASS") break;
+      if (move.type === "PLAY") {
+        pile.unshift({
+          key: `${gameState.matchNumber || 1}-${gameState.roundNumber}-${i}`,
+          index: i,
+          cards: move.cards,
+          type: move.combination?.type,
+          seat: ["bottom", "left", "top", "right"][(move.playerIndex - viewIndex + 4) % 4],
+        });
+      }
+    }
+  }
+
+  const myAvatar = { variant: identity.avatar, custom: identity.customAvatar };
+  const avatarFor = (msg) => {
+    if (msg.isMe) return myAvatar;
+    const idx = playersList.findIndex((p) => p.name.split(" #")[0] === msg.sender?.split(" #")[0]);
+    return { variant: idx >= 0 ? ((playersList[idx].id ?? idx) % 5) + 1 : 2 };
+  };
+
   const comboInfo = (() => {
     if (!selectedCards.length) return null;
     const combo = identifyCombination(selectedCards);
@@ -730,8 +771,8 @@ const GameThirteen = () => {
             />
             <div ref={tableCenterRef} className="flex-1 h-full flex items-center justify-center relative">
               <PlayArea
-                currentPlay={isDealing ? null : gameState.currentPlay}
-                lastPlayerName={isDealing ? null : currentPlayerName}
+                pile={pile}
+                lastPlayerName={isDealing ? null : currentPlayerName?.split(" #")[0]}
                 roundNumber={gameState.roundNumber}
                 isDealing={isDealing}
                 cardWidth={deckW}
@@ -768,6 +809,7 @@ const GameThirteen = () => {
             cardWidth={handW}
             deckWidth={deckW}
             dealOriginRef={tableCenterRef}
+            sortMode={sortMode}
           />
           <GameControls
             onPlay={handlePlay}
@@ -788,6 +830,8 @@ const GameThirteen = () => {
             canSelect={canSelect}
             onClear={() => setSelectedCards([])}
             onSelectAll={() => setSelectedCards([...bottomPlayer.hand])}
+            sortMode={sortMode}
+            onSortModeChange={changeSortMode}
           />
         </div>
 
@@ -802,12 +846,12 @@ const GameThirteen = () => {
             roundNumber={gameState.roundNumber}
             matchWins={gameState.matchWins || [0, 0, 0, 0]}
             myIndex={myIndex}
+            myAvatar={myAvatar}
           />
           <GameChat
             messages={messages}
             onSendMessage={handleSendMessage}
-            isCollapsed={isChatCollapsed}
-            onToggleCollapse={() => setIsChatCollapsed(!isChatCollapsed)}
+            avatarFor={avatarFor}
           />
         </div>
       </div>
