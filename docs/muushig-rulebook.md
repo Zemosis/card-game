@@ -104,8 +104,10 @@ table; only its suit remains trump.
 - If you hold a card of the led suit that is **higher** than the highest card of
   that suit on the table, you **must** play one of them.
 - Otherwise you may play **any card** — including a trump, to eat the pile.
+- But if someone has already **trumped in** (played a trump on it), the trump
+  rules below apply to you too.
 
-**Trump led:**
+**Trump led, or trumped in:**
 
 - You should play a **higher trump** if you have one.
 - If you have no higher trump, you should play **any trump**.
@@ -129,9 +131,10 @@ card is on top eats the pile**.
 You get a **debuffed card** when you hold back a trump you were supposed to
 play:
 
-1. **Trump rule.** Trump was led and you didn't play a higher trump (or any
-   trump, when you had no higher one). Your **highest trump left in hand** is
-   debuffed.
+1. **Trump rule.** A trump was on the table — led, or played on top of another
+   suit — and you didn't play a higher trump (or any trump, when you had no
+   higher one). Your **highest trump left in hand** is debuffed. (If you must
+   follow the led suit with a higher card, you do that instead: no debuff.)
 2. **The Ace rule.** You hold the **Ace of trumps** and, on any trick where you
    are allowed to play it, you play something else. The Ace is debuffed. (If
    you're leading, you're always allowed to play it — so lead with it.)

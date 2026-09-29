@@ -210,6 +210,41 @@ describe("debuffs", () => {
     expect(penaltyFor(s, 0, c("7♣")).id).toBe("8♦");
   });
 
+  it("trumped in, no higher trump: holding your trumps back debuffs the highest", () => {
+    // ♠ led, K♦ trumped on top; you have no ♠ and only lower trumps.
+    let s = playState({ hands: ["7♣ 9♣ 10♦ J♦", "", "", "", ""], trick: [[2, "7♠"], [3, "K♦"]], turn: 0 });
+    expect(penaltyFor(s, 0, c("10♦"))).toBeNull();
+    expect(penaltyFor(s, 0, c("J♦"))).toBeNull();
+    expect(penaltyFor(s, 0, c("9♣")).id).toBe("J♦");
+    s = playCard(s, 0, "9♣");
+    expect(s.players[0].hand.find((x) => x.id === "J♦").debuffed).toBe(true);
+    expect(s.events.at(-1)).toMatchObject({ type: "debuff", seat: 0, reason: "trump" });
+  });
+
+  it("trumped in, higher trump held: anything but a higher trump debuffs it", () => {
+    const s = playState({ hands: ["K♦ 8♦ 7♣", "", "", "", ""], trick: [[2, "9♠"], [3, "10♦"]], turn: 0 });
+    expect(penaltyFor(s, 0, c("K♦"))).toBeNull();
+    expect(penaltyFor(s, 0, c("8♦")).id).toBe("K♦");
+    expect(penaltyFor(s, 0, c("7♣")).id).toBe("K♦");
+  });
+
+  it("trumped in, but you must follow the led suit: no trump debuff", () => {
+    const s = playState({ hands: ["10♠ K♦ 7♣", "", "", "", ""], trick: [[2, "9♠"], [3, "10♦"]], turn: 0 });
+    expect(idsOf(allowedPlays(s, 0))).toEqual(["10♠"]);
+    expect(penaltyFor(s, 0, c("10♠"))).toBeNull();
+  });
+
+  it("no trump on the table: you don't have to trump in", () => {
+    const s = playState({ hands: ["8♦ 7♣", "", "", "", ""], trick: [[2, "9♠"]], turn: 0 });
+    expect(penaltyFor(s, 0, c("7♣"))).toBeNull();
+  });
+
+  it("a debuffed trump on the table doesn't count as trumping in", () => {
+    const s = playState({ hands: ["8♦ 7♣", "", "", "", ""], trick: [[2, "9♠"]], turn: 0 });
+    s.trick.push({ seat: 3, card: { ...c("K♦"), debuffed: true } });
+    expect(penaltyFor(s, 0, c("7♣"))).toBeNull();
+  });
+
   it("Ace rule: leading with the trump ace in hand, anything else debuffs it", () => {
     const s = playState({ hands: ["A♦ Q♣", "", "", "", ""], turn: 0 });
     expect(penaltyFor(s, 0, c("Q♣")).id).toBe("A♦");

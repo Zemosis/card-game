@@ -347,8 +347,10 @@ export function allowedPlays(state, seat) {
  * The card that playing `card` would debuff, or null. Two rules:
  *   Ace rule   holding the trump ace and playing something else when the ace
  *              was allowed debuffs the ace.
- *   Trump rule when trump is led, not playing a higher trump (or any trump,
- *              with no higher one) debuffs your highest trump left.
+ *   Trump rule when a trump is on the table (led, or played on top of
+ *              another suit) and you're free to play one, not playing a
+ *              higher trump (or any trump, with no higher one) debuffs your
+ *              highest trump left.
  */
 export function penaltyFor(state, seat, card) {
   const hand = state.players[seat].hand;
@@ -359,10 +361,12 @@ export function penaltyFor(state, seat, card) {
   const ace = hand.find((c) => c.suit === trump && c.rank === "A");
   if (ace && card.id !== ace.id && allowed.some((c) => c.id === ace.id)) return ace;
 
-  if (ledSuit(state.trick) !== trump) return null;
-  const trumps = hand.filter((c) => c.suit === trump);
+  const onTable = state.trick.filter((p) => p.card.suit === trump && !p.card.debuffed);
+  if (!onTable.length) return null;
+  // Following a higher card of the led suit comes first: then trumps aren't allowed.
+  const trumps = allowed.filter((c) => c.suit === trump);
   if (!trumps.length) return null;
-  const best = Math.max(-1, ...state.trick.filter((p) => p.card.suit === trump && !p.card.debuffed).map((p) => p.card.rankValue));
+  const best = Math.max(...onTable.map((p) => p.card.rankValue));
   const higher = trumps.filter((c) => c.rankValue > best);
   const required = higher.length ? higher : trumps;
   if (required.some((c) => c.id === card.id)) return null;
