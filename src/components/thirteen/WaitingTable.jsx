@@ -82,8 +82,16 @@ function SeatSlot({ seat, index, isHost, onAddCpu, onRemoveCpu, face }) {
   );
 }
 
-function InvitePanel({ table, seatedCount, hostName, onStart }) {
+function InvitePanel({ table, seatedCount, hostName, onStart, errorMessage }) {
   const [copied, setCopied] = useState(null);
+  // One START per press: a double-click would be rejected after the game has
+  // already begun. A rejection (e.g. no longer host) re-arms the button.
+  const [starting, setStarting] = useState(false);
+  const [seenError, setSeenError] = useState(errorMessage);
+  if (errorMessage !== seenError) {
+    setSeenError(errorMessage);
+    if (errorMessage) setStarting(false);
+  }
   const copy = async (what, text) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -134,7 +142,11 @@ function InvitePanel({ table, seatedCount, hostName, onStart }) {
       {table.isHost ? (
         <>
           <button
-            onClick={onStart}
+            onClick={() => {
+              setStarting(true);
+              onStart();
+            }}
+            disabled={starting}
             className="pixel-btn font-pixel-display text-[14px] px-8 py-4 flex items-center gap-3"
             style={{ backgroundColor: "#f4c430", borderColor: "#c89820", color: "#1a1024" }}
           >
@@ -200,7 +212,7 @@ export default function WaitingTable({ table, messages, onSendMessage, onExit, o
           >
             <div className="flex justify-center">{slot("left")}</div>
             <div className="flex flex-col items-center gap-3">
-              <InvitePanel table={table} seatedCount={seatedCount} hostName={hostName} onStart={onStart} />
+              <InvitePanel table={table} seatedCount={seatedCount} hostName={hostName} onStart={onStart} errorMessage={errorMessage} />
               {errorMessage && (
                 <div role="alert" className="font-pixel-body text-[20px] px-3 py-1" style={{ backgroundColor: "#7a1530", color: "#ead8b1" }}>
                   {errorMessage}

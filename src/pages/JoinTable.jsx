@@ -9,12 +9,15 @@ import { useAuth } from "../hooks/useAuth";
 export default function JoinTable() {
   const { code = "" } = useParams();
   const navigate = useNavigate();
-  const { identity } = useAuth();
+  // While a saved session loads, identity is still the guest one; joining then
+  // would seat a signed-in player under their guest name.
+  const { identity, loading } = useAuth();
   const [error, setError] = useState("");
   const lobbyId = code.trim().toUpperCase();
   const playerName = `${identity.name} #${identity.tag}`;
 
   useEffect(() => {
+    if (loading) return;
     const join = () => socket.emit("join_lobby", { lobbyId, playerName });
     const onJoined = (data) => navigate("/game-13", { replace: true, state: { ...data, playerName } });
     const onError = (msg) => setError(String(msg || "Lobby not found"));
@@ -30,9 +33,9 @@ export default function JoinTable() {
       socket.off("lobby_joined", onJoined);
       socket.off("error_message", onError);
     };
-    // Join once per code; identity changes reconnect through connectSocket elsewhere.
+    // Join once per code, after the session has loaded.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lobbyId]);
+  }, [lobbyId, loading]);
 
   return (
     <div className="flex flex-col items-center justify-center gap-5 h-screen starfield font-pixel-body text-parchment text-center px-4">

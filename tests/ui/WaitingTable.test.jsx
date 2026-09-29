@@ -85,6 +85,19 @@ describe("WaitingTable", () => {
     expect(screen.getAllByText("EMPTY SEAT")).toHaveLength(2);
   });
 
+  it("START can only be pressed once, until the server rejects it", async () => {
+    const user = userEvent.setup();
+    const p = props();
+    const { rerender } = render(<WaitingTable {...p} />);
+    const start = screen.getByRole("button", { name: /start game/i });
+    await user.click(start);
+    await user.click(start);
+    expect(p.onStart).toHaveBeenCalledTimes(1);
+    expect(start).toBeDisabled();
+    rerender(<WaitingTable {...p} errorMessage="Only the host can do that" />);
+    expect(screen.getByRole("button", { name: /start game/i })).toBeEnabled();
+  });
+
   it("shows a rejected command's reason", () => {
     render(<WaitingTable {...props({ errorMessage: "That seat isn't empty" })} />);
     expect(screen.getByRole("alert")).toHaveTextContent("That seat isn't empty");

@@ -74,6 +74,45 @@ describe("GameThirteen before the deal", () => {
     expect(fakeSocket.emit).toHaveBeenCalledWith("start_game", { lobbyId: "PUB-ABC123" });
   });
 
+  it("tells the server when the page closes without EXIT (browser Back)", async () => {
+    const { unmount } = renderGame();
+    await act(async () => {});
+    unmount();
+    expect(fakeSocket.emit).toHaveBeenCalledWith("leave_page", { lobbyId: "PUB-ABC123" });
+  });
+
+  it("offers REMATCH to whoever the server says is host, not the router state", async () => {
+    const player = (id, name, type = "AI") => ({
+      id, name, type, hand: [], score: id * 5, isEliminated: id > 1, hasPassed: false, socketId: id === 1 ? "sock-1" : null,
+    });
+    const over = {
+      gameState: "GAME_OVER",
+      players: [player(0, "HOSTY #0001", "HUMAN"), player(1, "PROMOTED #0002", "HUMAN"), player(2, "CPU 1"), player(3, "CPU 2")],
+      currentPlayerIndex: 0,
+      currentPlay: null,
+      lastPlayedBy: null,
+      moveHistory: [],
+      roundNumber: 3,
+      matchNumber: 1,
+      matchWins: [1, 0, 0, 0],
+      dealerIndex: 0,
+      winnerIndex: 0,
+    };
+    // Joined as a guest (router isHost: false), then promoted by the server.
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/game-13", state: { lobbyId: "PUB-ABC123", isHost: false, playerName: "PROMOTED #0002" } }]}>
+        <Routes>
+          <Route path="/game-13" element={<GameThirteen />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await act(async () => {});
+    serverSends("game_state_update", { ...over, amHost: true });
+    expect(await screen.findByRole("button", { name: "REMATCH" })).toBeInTheDocument();
+    serverSends("game_state_update", { ...over, amHost: false });
+    expect(screen.queryByRole("button", { name: "REMATCH" })).not.toBeInTheDocument();
+  });
+
   it("shows a rejected command on the waiting table", async () => {
     renderGame();
     await act(async () => {});

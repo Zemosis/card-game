@@ -125,6 +125,9 @@ const GameThirteen = () => {
   };
 
   const isSoloGame = lobbyId?.startsWith("SOLO-");
+  // The server says who hosts (it moves when a host leaves); router state is
+  // only what was true when this page was opened.
+  const amHost = gameState?.amHost ?? table?.isHost ?? !!isHost;
   const { connected, ping } = useServerStats({ enabled: !isSoloGame });
 
   // --- HELPER: FIND MY INDEX ---
@@ -228,6 +231,9 @@ const GameThirteen = () => {
       socket.off("receive_chat", handleReceiveChat);
       socket.off("move_rejected", handleMoveRejected);
       socket.off("table_update", setTable);
+      // Left without EXIT (browser Back): the server holds the seat for the
+      // grace period; coming back re-joins and reclaims it.
+      socket.emit("leave_page", { lobbyId });
     };
   }, [lobbyId]);
 
@@ -419,7 +425,7 @@ const GameThirteen = () => {
   // --- REMATCH ---
   const handleRematch = () => {
     if (!isSoloGame) {
-      if (isHost) socket.emit("request_rematch", { lobbyId });
+      if (amHost) socket.emit("request_rematch", { lobbyId });
       return;
     }
 
@@ -1049,7 +1055,7 @@ const GameThirteen = () => {
 
             {roundEndData.isGameOver ? (
               <div className="flex flex-col items-center gap-3 mt-4">
-                {isHost || isSoloGame ? (
+                {amHost || isSoloGame ? (
                   <>
                     <button
                       onClick={handleRematch}

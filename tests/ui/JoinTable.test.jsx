@@ -4,10 +4,11 @@ import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import JoinTable from "../../src/pages/JoinTable";
 
 // vi.mock factories are hoisted above imports, so the fake lives in vi.hoisted.
-const { handlers, fakeSocket } = vi.hoisted(() => {
+const { handlers, fakeSocket, auth } = vi.hoisted(() => {
   const handlers = {};
   return {
     handlers,
+    auth: { loading: false },
     fakeSocket: {
       connected: true,
       on: (ev, fn) => (handlers[ev] ||= new Set()).add(fn),
@@ -20,7 +21,7 @@ const serverSends = (ev, data) => act(() => handlers[ev]?.forEach((fn) => fn(dat
 
 vi.mock("../../src/utils/socket", () => ({ socket: fakeSocket, connectSocket: () => Promise.resolve() }));
 vi.mock("../../src/hooks/useAuth", () => ({
-  useAuth: () => ({ identity: { name: "FRIEND", tag: "0007", avatar: "2" } }),
+  useAuth: () => ({ identity: { name: "FRIEND", tag: "0007", avatar: "2" }, loading: auth.loading }),
 }));
 
 function GamePage() {
@@ -40,6 +41,7 @@ const renderAt = (path) =>
   );
 
 beforeEach(() => {
+  auth.loading = false;
   fakeSocket.emit.mockClear();
   for (const k of Object.keys(handlers)) delete handlers[k];
 });
@@ -52,6 +54,23 @@ describe("JoinTable", () => {
     expect(screen.getByText(/joining table ABC123/i)).toBeInTheDocument();
     serverSends("lobby_joined", { lobbyId: "PUB-ABC123", isHost: false, mySocketId: "s1" });
     expect(screen.getByText("GAME PAGE PUB-ABC123 FRIEND #0007")).toBeInTheDocument();
+  });
+
+  it("waits for a signed-in session to load before joining, so the right name is used", async () => {
+    auth.loading = true;
+    const { rerender } = renderAt("/join/abc123");
+    await act(async () => {});
+    expect(fakeSocket.emit).not.toHaveBeenCalled();
+    auth.loading = false;
+    rerender(
+      <MemoryRouter initialEntries={["/join/abc123"]}>
+        <Routes>
+          <Route path="/join/:code" element={<JoinTable />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await act(async () => {});
+    expect(fakeSocket.emit).toHaveBeenCalledWith("join_lobby", { lobbyId: "ABC123", playerName: "FRIEND #0007" });
   });
 
   it("accepts a code that still carries the PUB- prefix", async () => {
