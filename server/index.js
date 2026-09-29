@@ -358,6 +358,11 @@ function removeMember(lobby, member, { convertSeat = true } = {}) {
   if (member.disconnectTimer) clearTimeout(member.disconnectTimer);
   lobby.members.delete(member.key);
 
+  // Waiting table: the seat simply empties (CPUs only fill in at START).
+  if (!lobby.game && member.seatIndex != null && lobby.seats[member.seatIndex]?.key === member.key) {
+    lobby.seats[member.seatIndex] = null;
+  }
+
   // Mid-game: a CPU inherits the seat and hand so the match can continue.
   const cpuTookOver = !!(convertSeat && lobby.game && member.seatIndex != null);
   if (cpuTookOver) {
@@ -373,8 +378,13 @@ function removeMember(lobby, member, { convertSeat = true } = {}) {
 
   if (lobby.members.size === 0) {
     destroyLobby(lobby);
-  } else if (lobby.hostKey === member.key) {
-    lobby.hostKey = lobby.members.keys().next().value;
+  } else {
+    if (lobby.hostKey === member.key) {
+      // Waiting: next human by seat order. Playing: first remaining member.
+      const seated = !lobby.game && lobby.seats.find((s) => s?.kind === "human");
+      lobby.hostKey = seated ? seated.key : lobby.members.keys().next().value;
+    }
+    broadcastTable(lobby);
   }
   broadcastLobbyList();
 }
@@ -647,15 +657,12 @@ io.on("connection", (socket) => {
     const entry = lobby.roster.get(member.key);
     if (entry) entry.disconnectCount += 1;
 
-    if (lobby.game) {
-      // Grace period: a refresh/rejoin within 60s keeps the seat.
-      member.disconnectTimer = setTimeout(() => {
-        member.disconnectTimer = null;
-        if (!member.connected) removeMember(lobby, member);
-      }, DISCONNECT_GRACE_MS);
-    } else {
-      removeMember(lobby, member);
-    }
+    // Grace period, waiting or playing: a refresh/rejoin within it keeps the seat.
+    member.disconnectTimer = setTimeout(() => {
+      member.disconnectTimer = null;
+      if (!member.connected) removeMember(lobby, member);
+    }, DISCONNECT_GRACE_MS);
+    broadcastTable(lobby); // the waiting table shows them as reconnecting
   });
 });
 

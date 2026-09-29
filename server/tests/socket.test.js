@@ -349,6 +349,83 @@ describe("the waiting table", () => {
     late.emit("join_lobby", { lobbyId });
     expect(await full).toBe("Lobby is full");
   });
+
+  it("a non-host leaving frees their seat (empty, not a CPU)", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    const b = await guest();
+    await joinLobby(b, lobbyId);
+    await tableWhere(host, (t) => t.seats[1]);
+    const freed = next(host, "table_update", (x) => x.seats[1] === null);
+    b.emit("leave_lobby", { lobbyId });
+    const t = await freed;
+    expect(t.seats).toEqual([expect.objectContaining({ kind: "human" }), null, null, null]);
+  });
+
+  it("the host leaving passes host to the next seated human, who is told", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    const cpuIn = next(host, "table_update", (t) => t.seats[1]);
+    host.emit("add_cpu", { lobbyId, seat: 1 });
+    await cpuIn;
+    const b = await guest("NEXT", "0404");
+    await joinLobby(b, lobbyId);
+    expect((await tableWhere(b, (t) => t.mySeat != null)).mySeat).toBe(2);
+
+    host.emit("leave_lobby", { lobbyId });
+    const t = await tableWhere(b, (x) => x.isHost);
+    expect(t.seats[0]).toBeNull();
+    expect(t.seats[2]).toMatchObject({ name: "NEXT #0404", isHost: true });
+
+    const started = next(b, "game_state_update");
+    b.emit("start_game", { lobbyId });
+    expect((await started).gameState).toBe("PLAYING");
+  });
+
+  it("the last human leaving closes the table even with CPUs seated", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host, { lobbyName: "Ghost Town" });
+    const cpuIn = next(host, "table_update", (t) => t.seats[1]);
+    host.emit("add_cpu", { lobbyId, seat: 1 });
+    await cpuIn;
+    host.emit("leave_lobby", { lobbyId });
+    const c = await guest();
+    const err = next(c, "error_message");
+    c.emit("join_lobby", { lobbyId });
+    expect(await err).toBe("Lobby not found");
+  });
+
+  it("a host who refreshes inside the grace period gets the same table back", async () => {
+    const host = await guest("REFRESH", "0505");
+    const lobbyId = await createLobby(host);
+    const cpuIn = next(host, "table_update", (t) => t.seats[3]);
+    host.emit("add_cpu", { lobbyId, seat: 3 });
+    await cpuIn;
+    const watcher = await guest();
+    await joinLobby(watcher, lobbyId);
+
+    host.disconnect();
+    const away = await tableWhere(watcher, (t) => t.seats[0] && !t.seats[0].connected);
+    expect(away.seats[0]).toMatchObject({ name: "REFRESH #0505", isHost: true, connected: false });
+
+    const back = await guest("REFRESH", "0505");
+    const joined = await joinLobby(back, lobbyId);
+    expect(joined.isHost).toBe(true);
+    const t = await tableWhere(back, (x) => x.seats[0]?.connected);
+    expect(t).toMatchObject({ mySeat: 0, isHost: true });
+    expect(t.seats[3]).toEqual({ kind: "cpu", name: "CPU 1" });
+  });
+
+  it("staying away past the grace period frees the seat", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    const b = await guest();
+    await joinLobby(b, lobbyId);
+    await tableWhere(host, (t) => t.seats[1]);
+    const freed = next(host, "table_update", (x) => x.seats[1] === null, GRACE_MS * 5);
+    b.disconnect();
+    expect((await freed).seats[1]).toBeNull();
+  });
 });
 
 describe("a running match", () => {
