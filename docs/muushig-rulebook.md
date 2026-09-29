@@ -23,7 +23,7 @@ changes here, change it there and in the in-game rulebook
 | Tricks per round | 5 |
 | Goal | Be the first to reach 0 points |
 
-A round goes: **deal → play or fold → swap cards → dealer takes the trump →
+A round goes: **deal → go in or fold → swap cards → dealer takes the trump →
 5 tricks → scoring**.
 
 ---
@@ -59,14 +59,14 @@ goes there face down. Cards in the dead pile never come back this round.
 
 ---
 
-## 4. Play or fold
+## 4. Go in or fold
 
 Starting **left of the dealer** and going clockwise (the dealer decides last),
-each player says whether they **play** this round or **fold**.
+each player says whether they **go in** this round or **fold**.
 
 - A folded player puts their hand on the dead pile and sits the round out.
   Their **score doesn't change**.
-- **At least 2 players must play.** When the players still to decide are needed
+- **At least 2 players must go in.** When the players still to decide are needed
   to reach 2, they can't fold.
 
 ---
@@ -141,7 +141,8 @@ play:
 
 A debuffed card:
 
-- is shown greyed out and blurred with a **DEBUFFED** stamp,
+- is shown greyed out and blurred, with a red slash and a **DEBUFFED** stamp.
+  Nothing warns you beforehand: the stamp lands the moment you misplay,
 - is the **weakest card** in the game — it can never eat a pile,
 - **must be played on the next trick**; it's the only card you may play. You
   have forfeited that trick.
@@ -156,12 +157,12 @@ A round has exactly **5 tricks**. When they're done:
 
 | Piles eaten this round | Score change |
 |---|---|
-| 0 (and you played) | **+5** |
+| 0 (and you went in) | **+5** |
 | 1 to 5 | **−1 per pile** |
 | Folded | no change |
 
 Eating **all 5 piles** **wins the round**: you drop 5, and everyone else who
-played ate nothing, so they each take +5.
+went in ate nothing, so they each take +5.
 
 ## 9. Winning the match
 

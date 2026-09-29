@@ -36,7 +36,7 @@ export default function MuushigRules({ onClose }) {
           pile you eat takes a point off your score. The <Key>first player to reach 0 wins the match</Key>.
         </p>
         <p>
-          Play a round and eat nothing, and you <Hi color="#e85a7a">gain {ZERO_PILES_PENALTY} points</Hi>. So every hand is a
+          Go in and eat nothing, and you <Hi color="#e85a7a">gain {ZERO_PILES_PENALTY} points</Hi>. So every hand is a
           choice: go in and fight for piles, or fold and sit it out.
         </p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-2">
@@ -193,7 +193,7 @@ export default function MuushigRules({ onClose }) {
         </div>
         <Callout tone="warn" title="EXAMPLE">
           Trumps are ♦. The leader plays K♦. You hold A♦ but play 10♦: your A♦ is debuffed, and next trick you must throw
-          it. The table warns you before you throw a card that would do this.
+          it. Nothing warns you first: the card is slashed and stamped the moment you misplay.
         </Callout>
       </Section>
 
@@ -211,7 +211,7 @@ export default function MuushigRules({ onClose }) {
             </thead>
             <tbody>
               {[
-                ["0 (and you played)", `+${ZERO_PILES_PENALTY}`, "#e85a7a"],
+                ["0 (and you went in)", `+${ZERO_PILES_PENALTY}`, "#e85a7a"],
                 ["1", "-1", "#9bd14f"],
                 ["3", "-3", "#9bd14f"],
                 ["5 (round won)", "-5", "#9bd14f"],
@@ -228,7 +228,7 @@ export default function MuushigRules({ onClose }) {
           </table>
         </div>
         <Callout tone="rule" title="5 EATEN = ROUND WON">
-          Eat <Key>all 5 piles</Key> and you <Key>win the round</Key>: you drop 5 points, and everyone else who played ate
+          Eat <Key>all 5 piles</Key> and you <Key>win the round</Key>: you drop 5 points, and everyone else who went in ate
           nothing, so they all take <Hi color="#e85a7a">+{ZERO_PILES_PENALTY}</Hi>.
         </Callout>
         <p>
@@ -240,10 +240,10 @@ export default function MuushigRules({ onClose }) {
       <Section id="controls" n={9} title="Controls">
         <div className="grid gap-2" style={{ gridTemplateColumns: "minmax(140px,auto) 1fr" }}>
           {[
-            [<>PLAY / FOLD</>, "Join the round or sit it out"],
+            [<>GO IN / FOLD</>, "Join the round or sit it out"],
             [<>Click cards</>, "Swapping: pick the cards to discard. Dealer: pick the card to give up for the trump"],
             [<>Click a card</>, "Tricks: pick the card to throw (dimmed cards aren't allowed right now)"],
-            [<Kbd>SPACE</Kbd>, "The highlighted button: PLAY, SWAP, TAKE TRUMP or THROW"],
+            [<Kbd>SPACE</Kbd>, "The highlighted button: GO IN, SWAP, TAKE TRUMP or THROW"],
             [<>SORT</>, "Arrange your hand by rank or by suit"],
           ].map(([k, v], i) => (
             <React.Fragment key={i}>
@@ -253,7 +253,7 @@ export default function MuushigRules({ onClose }) {
           ))}
         </div>
         <Callout tone="tip" title="GOOD LUCK">
-          One eaten pile beats none by six points, so don't play a hand that can't eat.
+          One eaten pile beats none by six points, so don't go in with a hand that can't eat.
         </Callout>
       </Section>
     </Rulebook>
