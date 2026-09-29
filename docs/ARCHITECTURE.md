@@ -49,10 +49,12 @@ socket and there is no Muushig logic anywhere in `server/game/`. This is why
 `recordMatch` hardcodes `game_type: 'thirteen'`. The rulebook is written; the
 implementation is not.
 
-There is **no automated test suite** for the frontend. The server has three
-ad-hoc harnesses, all currently green: `simulate.js` (engine invariants),
-`test-rounds.mjs` (round history) and `test-multiplayer.mjs` (socket
-end-to-end, needs a running server on :3001).
+Thirteen is covered by a Vitest suite (`npm test`, config in `vitest.config.js`)
+in three projects: `unit` (rules, CPU logic and seeded whole-match simulations,
+run against both the client and server copies of the logic), `server` (engine
+with fake timers, real-socket end-to-end against a spawned server, and
+Postgres suites that run only when `TEST_DATABASE_URL` is set) and `ui`
+(table components in jsdom). See the README's Testing section.
 
 ## 3. Tech stack
 

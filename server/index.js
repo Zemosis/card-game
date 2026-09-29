@@ -7,7 +7,7 @@ import express from "express";
 import http from "http";
 import cors from "cors";
 import { Server } from "socket.io";
-import { ThirteenGame, redactState } from "./game/engine.js";
+import { ThirteenGame, redactState, DEFAULT_DELAYS } from "./game/engine.js";
 import { createSession, finishSession, closeOrphanedSessions } from "./persistence.js";
 import { authRouter, verifyToken } from "./auth.js";
 import { migrate, pool } from "./db/index.js";
@@ -17,8 +17,19 @@ const CORS_ORIGINS = (process.env.CORS_ORIGIN || "http://localhost:5173")
   .split(",")
   .map((s) => s.trim());
 
+const envMs = (name, fallback) => {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n >= 0 && process.env[name] !== "" ? n : fallback;
+};
+
 // How long a disconnected player keeps their seat before a CPU takes over.
-const DISCONNECT_GRACE_MS = 60_000;
+const DISCONNECT_GRACE_MS = envMs("DISCONNECT_GRACE_MS", 60_000);
+// Engine pacing. Unset means the engine's defaults; the test suite shortens them.
+const GAME_DELAYS = {
+  aiTurn: envMs("AI_TURN_DELAY_MS", DEFAULT_DELAYS.aiTurn),
+  roundEnd: envMs("ROUND_END_DELAY_MS", DEFAULT_DELAYS.roundEnd),
+  deal: envMs("DEAL_DELAY_MS", DEFAULT_DELAYS.deal),
+};
 
 const app = express();
 app.use(cors({ origin: CORS_ORIGINS }));
@@ -265,6 +276,7 @@ function startGame(lobby) {
 
   lobby.game = new ThirteenGame({
     seats,
+    delays: GAME_DELAYS,
     // The engine hands us itself, which is what makes the constructor-time
     // broadcast work -- see broadcastState.
     onState: (game) => broadcastState(lobby, game),

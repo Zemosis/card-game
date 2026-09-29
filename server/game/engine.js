@@ -18,6 +18,12 @@ const ROUND_END_DELAY = 4500;
 // Client deal animation (shuffle + 52 cards + sort) runs ~3s; CPUs wait it out.
 const DEAL_ANIMATION_DELAY = 4000;
 
+export const DEFAULT_DELAYS = {
+  aiTurn: AI_TURN_DELAY,
+  roundEnd: ROUND_END_DELAY,
+  deal: DEAL_ANIMATION_DELAY,
+};
+
 const cardValue = (card) => card.rankValue * 4 + card.suitValue;
 
 export class ThirteenGame {
@@ -28,8 +34,10 @@ export class ThirteenGame {
    * @param {Function} opts.onState - called after every state change
    * @param {Function} opts.onRoundEnd - called once per completed round
    * @param {Function} opts.onGameOver - called once per finished match
+   * @param {Object} opts.delays - override { aiTurn, roundEnd, deal } in ms (tests)
    */
-  constructor({ seats, aiDifficulty = "MEDIUM", onState, onRoundEnd, onGameOver }) {
+  constructor({ seats, aiDifficulty = "MEDIUM", onState, onRoundEnd, onGameOver, delays }) {
+    this.delays = { ...DEFAULT_DELAYS, ...delays };
     this.onState = onState;
     this.onRoundEnd = onRoundEnd;
     this.onGameOver = onGameOver;
@@ -60,7 +68,7 @@ export class ThirteenGame {
     this.finishedAt = null;
     this.state = state;
     this.broadcast();
-    this.scheduleAI(DEAL_ANIMATION_DELAY);
+    this.scheduleAI(this.delays.deal);
   }
 
   rematch() {
@@ -160,7 +168,7 @@ export class ThirteenGame {
       this.roundTimer = setTimeout(() => {
         this.roundTimer = null;
         if (!this.destroyed) this.beginNextRound();
-      }, ROUND_END_DELAY);
+      }, this.delays.roundEnd);
     } else if (next.gameState === GAME_STATES.GAME_OVER) {
       this.finishedAt = new Date();
       this.clearAITimer();
@@ -196,10 +204,10 @@ export class ThirteenGame {
     const { hands } = initializeGame();
     this.state = startNextRound(this.state, hands);
     this.broadcast();
-    this.scheduleAI(DEAL_ANIMATION_DELAY);
+    this.scheduleAI(this.delays.deal);
   }
 
-  scheduleAI(delay = AI_TURN_DELAY) {
+  scheduleAI(delay = this.delays.aiTurn) {
     this.clearAITimer();
     const s = this.state;
     if (!s || s.gameState !== GAME_STATES.PLAYING) return;
