@@ -161,12 +161,18 @@ came — the board stayed blank indefinitely. Keep the game parameter.
 **Disconnects** — a dropped player keeps their seat for 60 seconds
 (`DISCONNECT_GRACE_MS`), whether the table is waiting or playing. After that a
 waiting seat empties, and a playing seat goes to a CPU so the match can finish.
+Leaving the game page without EXIT (browser Back) sends `leave_page`, which
+starts the same grace; the socket itself stays up in the single-page app.
+
+**Host** — each player's `game_state_update` carries `amHost`, so a player
+promoted when the host leaves gets the REMATCH button; the client trusts it over
+the router state it was opened with.
 
 ### Socket protocol
 
 Client emits: `create_lobby`, `join_lobby`, `leave_lobby`, `get_public_lobbies`,
-`check_game_status`, `add_cpu`, `remove_cpu`, `start_game`, `request_move`,
-`request_rematch`, `send_chat`, `ping_check`, `get_stats`.
+`check_game_status`, `add_cpu`, `remove_cpu`, `start_game`, `leave_page`,
+`request_move`, `request_rematch`, `send_chat`, `ping_check`, `get_stats`.
 
 Server emits: `lobby_joined`, `table_update`, `game_state_update`,
 `move_rejected`, `public_lobbies_update`, `receive_chat`, `error_message`.
