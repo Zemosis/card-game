@@ -161,10 +161,12 @@ const mediumRespondPlay = (hand, currentPlay, gameState) => {
   return { action: "pass", cards: null };
 };
 
+// Any opponent (human or CPU) one good play from going out is worth spending
+// aces and 2s to stop. The CPU deciding is the current player, so skip it.
 const isOpponentDangerous = (gameState) => {
   return gameState.players.some(
-    (p) =>
-      p.type !== "HUMAN" &&
+    (p, i) =>
+      i !== gameState.currentPlayerIndex &&
       !p.isEliminated &&
       p.hand.length > 0 &&
       p.hand.length <= 3,

@@ -434,6 +434,7 @@ io.on("connection", (socket) => {
           type: "HUMAN",
           name: member.displayName,
           socketId: socket.id,
+          avatar: member.avatar,
         });
         rosterEnter(lobby, member);
       }

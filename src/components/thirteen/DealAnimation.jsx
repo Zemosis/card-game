@@ -170,9 +170,28 @@ const DealAnimation = ({
       );
     }
 
-    tl.call(() => completeRef.current?.(), null, `>${fly + 0.2}`);
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      completeRef.current?.();
+    };
+    tl.call(finish, null, `>${fly + 0.2}`);
+
+    // A hidden tab gets no animation frames, so the timeline would stall and
+    // hold the game (solo CPUs wait on the deal) until the player tabs back.
+    // Skip straight to the dealt table instead.
+    const skipIfHidden = () => {
+      if (!document.hidden || done) return;
+      tl.kill();
+      gsap.killTweensOf(pool);
+      finish();
+    };
+    skipIfHidden();
+    document.addEventListener("visibilitychange", skipIfHidden);
 
     return () => {
+      document.removeEventListener("visibilitychange", skipIfHidden);
       tl.kill();
       gsap.killTweensOf(pool);
     };

@@ -273,8 +273,8 @@ export default function RulesModal({ onClose }) {
                     of cards) or <Key>pass</Key>.
                   </>,
                   <>
-                    Once everyone else has passed, the player who played last <Key>takes the trick</Key>, the table clears, and
-                    they lead a fresh one with anything they like.
+                    Once everyone else passes <Key>in a row</Key>, the player who played last <Key>takes the trick</Key>, the
+                    table clears, and they lead a fresh one with anything they like.
                   </>,
                   <>
                     The first player to empty their hand <Key>wins the round</Key>.
@@ -288,9 +288,9 @@ export default function RulesModal({ onClose }) {
                   </li>
                 ))}
               </ol>
-              <Callout tone="warn" title="PASSING LOCKS YOU OUT">
-                If you pass, you <Key>can't play again until the trick ends</Key> — even if you find a better card later.
-                The leader of a trick can't pass: they must play something.
+              <Callout tone="warn" title="PASSING SKIPS ONE TURN">
+                If you pass, you <Key>can't play until your turn comes around again</Key>. Then you choose again: play or
+                pass. So think before you move. The leader of a trick can't pass: they must play something.
               </Callout>
             </Section>
 

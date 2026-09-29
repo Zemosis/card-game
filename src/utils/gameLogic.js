@@ -58,7 +58,7 @@ export const getNextPlayerIndex = (gameState) => {
   const { players, currentPlayerIndex } = gameState;
   let nextIndex = (currentPlayerIndex + 1) % players.length;
 
-  // Skip eliminated players and those who passed
+  // Skip eliminated players and those who passed since the last play
   while (players[nextIndex].isEliminated || players[nextIndex].hasPassed) {
     nextIndex = (nextIndex + 1) % players.length;
 
@@ -148,9 +148,11 @@ export const playCards = (gameState, selectedCards) => {
     lastPlay: validation.combination,
   };
 
-  // Update players array
+  // Update players array. A play wipes everyone's pass: passing only skips
+  // that one turn, so a player who passed gets asked again once someone beats
+  // the table. The trick ends when everyone else passes in a row.
   const updatedPlayers = gameState.players.map((p, idx) =>
-    idx === gameState.currentPlayerIndex ? updatedPlayer : p,
+    idx === gameState.currentPlayerIndex ? updatedPlayer : { ...p, hasPassed: false },
   );
 
   // Create new game state
