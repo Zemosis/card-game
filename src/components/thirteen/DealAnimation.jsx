@@ -193,19 +193,26 @@ const DealAnimation = ({
     };
     tl.call(finish, null, `>${fly + 0.2}`);
 
-    // A hidden tab gets no animation frames, so the timeline would stall and
-    // hold the game (solo CPUs wait on the deal) until the player tabs back.
+    // Without animation frames the timeline stalls and holds the game (your
+    // turn, and solo CPUs, wait on the deal) until the player looks again.
     // Skip straight to the dealt table instead.
-    const skipIfHidden = () => {
-      if (!document.hidden || done) return;
+    const skipToEnd = () => {
+      if (done) return;
       tl.kill();
       gsap.killTweensOf(pool);
       finish();
     };
+    // A hidden tab says so...
+    const skipIfHidden = () => document.hidden && skipToEnd();
     skipIfHidden();
     document.addEventListener("visibilitychange", skipIfHidden);
+    // ...but a window merely covered by another (GNOME/Wayland) gets no frames
+    // while still counting as visible. Timers keep running there, so the deal
+    // also ends on the clock once its own length has passed.
+    const deadline = setTimeout(skipToEnd, (tl.duration() + 0.5) * 1000);
 
     return () => {
+      clearTimeout(deadline);
       document.removeEventListener("visibilitychange", skipIfHidden);
       tl.kill();
       gsap.killTweensOf(pool);

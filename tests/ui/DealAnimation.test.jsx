@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, waitFor } from "@testing-library/react";
+import gsap from "gsap";
 import DealAnimation from "../../src/components/thirteen/DealAnimation";
 
 const setHidden = (hidden) => {
@@ -36,6 +37,23 @@ describe("DealAnimation", () => {
     render(<DealAnimation onComplete={onComplete} />);
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
+
+  it("still finishes on time when animation frames stop but the page counts as visible", async () => {
+    // A window covered by another one (GNOME/Wayland) gets no frames, yet
+    // document.hidden stays false, so the visibility skip never fires.
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+    gsap.ticker.sleep(); // re-wakes on the next tween, picking up the dead rAF
+    try {
+      const onComplete = vi.fn();
+      render(<DealAnimation onComplete={onComplete} />);
+      await new Promise((r) => setTimeout(r, 4000));
+      expect(onComplete).toHaveBeenCalledTimes(1);
+    } finally {
+      raf.mockRestore();
+      gsap.ticker.sleep();
+      gsap.ticker.wake();
+    }
+  }, 8000);
 
   it("stops listening once unmounted", () => {
     const onComplete = vi.fn();
