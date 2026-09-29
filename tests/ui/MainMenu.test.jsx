@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 import MainMenu from "../../src/pages/MainMenu";
 
 let stats;
@@ -55,6 +55,20 @@ describe("MainMenu", () => {
     stats = { connected: false, online: null, tables: null, ping: null };
     renderMenu();
     expect(screen.queryByText(/lobb(y|ies) open/)).not.toBeInTheDocument();
+  });
+
+  it("opens your profile from your name on the player badge", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<MainMenu />} />
+          <Route path="/profile" element={<div>PROFILE PAGE</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole("button", { name: /view profile/i }));
+    expect(screen.getByText("PROFILE PAGE")).toBeInTheDocument();
   });
 
   it("opens either game's rulebook from the Rules picker", async () => {

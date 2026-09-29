@@ -87,14 +87,20 @@ const MainMenu = () => {
               customAvatarData={identity.customAvatar}
               onNavigatePaint={() => navigate("/avatar-paint")}
             />
-            <div>
+            {/* The avatar opens the picker; the name opens your profile. */}
+            <button
+              onClick={() => navigate("/profile")}
+              aria-label="View profile"
+              title="View profile and stats"
+              className="pixel-hbtn text-left px-1 -mx-1"
+            >
               <div className="font-pixel-display text-[8px] text-bone uppercase">
                 {isGuest ? "Guest" : "Player"}
               </div>
               <div className="font-pixel-body text-xs text-parchment leading-none">
                 {identity.name} #{identity.tag}
               </div>
-            </div>
+            </button>
           </div>
           {isGuest ? (
             <PixelButton color="gold" size="md" onClick={() => setShowLogin(true)}>
