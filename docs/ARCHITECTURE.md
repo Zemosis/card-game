@@ -130,6 +130,14 @@ lobby holds its members keyed by a stable `playerKey` (the user id, or
 `name#tag` for a guest) and a `ThirteenGame` instance. Socket ids are rebound to
 the player key on reconnect, which is what makes refresh-and-rejoin work.
 
+**Waiting tables** — a new lobby does not deal. It holds `seats` (4 slots: a
+human by player key, a CPU, or empty) and sends each member a `table_update`
+shaped for them (their seat, whether they are host, no player keys). The host
+adds/removes CPUs and presses START (`start_game`), which fills empty seats with
+CPUs and builds the `ThirteenGame` in seat order. A joiner takes an empty seat,
+else replaces a CPU; the table is full at 4 humans. If the host leaves, the next
+seated human becomes host.
+
 **Connection identity** (`server/index.js`) — the handshake carries either a
 session JWT or a guest name/tag. `verifyToken` (`server/auth.js`) checks the
 signature locally; failure means guest, not rejection.
@@ -151,16 +159,19 @@ AI move produced another broadcast, and when a human held the opening turn none
 came — the board stayed blank indefinitely. Keep the game parameter.
 
 **Disconnects** — a dropped player keeps their seat for 60 seconds
-(`DISCONNECT_GRACE_MS`). After that a CPU takes over so the match can finish.
+(`DISCONNECT_GRACE_MS`), whether the table is waiting or playing. After that a
+waiting seat empties, and a playing seat goes to a CPU so the match can finish.
 
 ### Socket protocol
 
 Client emits: `create_lobby`, `join_lobby`, `leave_lobby`, `get_public_lobbies`,
-`check_game_status`, `request_move`, `request_rematch`, `send_chat`,
-`ping_check`, `get_stats`.
+`check_game_status`, `add_cpu`, `remove_cpu`, `start_game`, `request_move`,
+`request_rematch`, `send_chat`, `ping_check`, `get_stats`.
 
-Server emits: `lobby_joined`, `game_state_update`, `move_rejected`,
-`public_lobbies_update`, `receive_chat`, `error_message`.
+Server emits: `lobby_joined`, `table_update`, `game_state_update`,
+`move_rejected`, `public_lobbies_update`, `receive_chat`, `error_message`.
+
+Invite links are `/join/{code}`, handled by `src/pages/JoinTable.jsx`.
 
 ## 6. Database
 
