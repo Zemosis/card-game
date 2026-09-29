@@ -85,10 +85,12 @@ describe.skipIf(!TEST_DATABASE_URL)("accounts API (Postgres)", () => {
       expect(gone.body.error).toBe("Account no longer exists");
     });
 
-    it("/stats answers with empty history for a new player", async () => {
+    it("/stats answers with every game filter at zero for a new player", async () => {
       const res = await request(app).get("/api/auth/stats").set(bearer(token));
       expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({ gameTypes: [], placements: [], history: [] });
+      for (const view of ["overall", "thirteen", "muushig"]) {
+        expect(res.body[view]).toMatchObject({ games: 0, placements: [], recent: [] });
+      }
     });
 
     it("PATCH /profile saves editable fields and ignores the rest", async () => {

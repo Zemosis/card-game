@@ -8,6 +8,7 @@
 // live member map, which drops players the moment they quit.
 
 import { pool, withTransaction } from "./db/index.js";
+import { rankSolo } from "./solo.js";
 
 // Rewards by final position (1st..4th). Level-ups come from exp: 100 exp/level.
 const REWARDS = [
@@ -137,6 +138,16 @@ export async function finishSession(rec) {
   const positionBySeat = completed && state ? rankSeats(state) : {};
   const rounds = rec.rounds || [];
 
+  /** How many of each hand type a seat played this match (the profile's hand tally). */
+  function handsFor(seatIndex) {
+    const hands = {};
+    for (const move of state?.moveHistory || []) {
+      if (move.type !== "PLAY" || move.playerIndex !== seatIndex || !move.combination?.type) continue;
+      hands[move.combination.type] = (hands[move.combination.type] || 0) + 1;
+    }
+    return hands;
+  }
+
   /** Per-seat round aggregates, derived from the round summaries. */
   function roundStatsFor(seatIndex) {
     let roundsWon = 0;
@@ -168,6 +179,7 @@ export async function finishSession(rec) {
             cards_left_total: cardsLeftTotal,
             best_round_cards_left: bestRoundCardsLeft,
             eliminated_at_round: eliminatedAtRound,
+            hands: handsFor(seatIndex),
           }
         : null,
     };
@@ -308,4 +320,66 @@ export async function finishSession(rec) {
       `${rounds.length} rounds, ` +
       `${playerRows.filter((r) => r.left_early).length} left early)`,
   );
+}
+
+/**
+ * Records a match played alone against CPUs, from a report already checked by
+ * parseSoloReport. The server places the player itself. Solo matches count for
+ * stats only: no coins, exp or rating. A report already recorded (same player,
+ * same match id) is not recorded again.
+ *
+ * @returns {{ recorded: boolean, place: number }}
+ */
+export async function recordSoloMatch(userId, report) {
+  const place = rankSolo(report.gameType, report.players)[report.me];
+  const me = report.players[report.me];
+
+  return withTransaction(async (client) => {
+    const {
+      rows: [profile],
+    } = await client.query("select username, tag from profiles where id = $1", [userId]);
+    const {
+      rows: [session],
+    } = await client.query(
+      `insert into game_sessions (
+         game_type, status, ended_reason, solo, host_id, host_display_name, name,
+         is_private, lobby_code, max_players, current_player_count, round_count,
+         started_at, finished_at
+       ) values ($1, 'finished', 'completed', true, $2, $3, 'Solo vs CPU', true, $4, $5, 1, $6, $7, $8)
+       on conflict (host_id, lobby_code) where solo do nothing
+       returning id`,
+      [
+        report.gameType,
+        userId,
+        profile ? `${profile.username} #${profile.tag}` : null,
+        report.matchId,
+        report.players.length,
+        report.rounds,
+        report.startedAt,
+        report.finishedAt,
+      ],
+    );
+    if (!session) return { recorded: false, place };
+
+    await client.query(
+      `insert into game_players (
+         session_id, player_key, player_id, seat_index, final_score, final_position,
+         is_winner, joined_at, left_at, rounds_won, stats
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        session.id,
+        userId,
+        userId,
+        report.me,
+        me.score,
+        place,
+        place === 1,
+        report.startedAt,
+        report.finishedAt,
+        report.stats.rounds_won,
+        JSON.stringify(report.stats),
+      ],
+    );
+    return { recorded: true, place };
+  });
 }

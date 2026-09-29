@@ -6,6 +6,9 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { pool, withTransaction } from "./db/index.js";
+import { playerStats } from "./stats.js";
+import { parseSoloReport } from "./solo.js";
+import { recordSoloMatch } from "./persistence.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const TOKEN_TTL = "30d";
@@ -122,43 +125,31 @@ authRouter.get("/me", requireUser, async (req, res) => {
   res.json({ user: req.user, profile });
 });
 
-// Everything the profile page charts, in one round trip. All of it is derived
-// from the match rows by the views in 001_initial.sql.
-const HISTORY_LIMIT = 30;
-
+// Everything the profile's Stats panel shows, per game filter, in one round
+// trip (see stats.js).
 authRouter.get("/stats", requireUser, async (req, res) => {
-  const id = req.user.id;
-  const [stats, streaks, gameTypes, placements, history] = await Promise.all([
-    pool.query("select * from player_stats where player_id = $1", [id]),
-    pool.query("select * from player_streaks where player_id = $1", [id]),
-    pool.query(
-      "select * from player_game_type_stats where player_id = $1 order by game_type",
-      [id],
-    ),
-    pool.query(
-      `select final_position, sum(times)::int as times
-         from player_placement_stats where player_id = $1
-        group by final_position order by final_position`,
-      [id],
-    ),
-    pool.query(
-      `select session_id, game_type, final_position, final_score, is_winner,
-              left_early, rating_after, rating_delta, coins_earned, exp_earned,
-              finished_at, duration_seconds
-         from player_match_history where player_id = $1
-        order by finished_at desc limit $2`,
-      [id, HISTORY_LIMIT],
-    ),
-  ]);
+  res.json(await playerStats(req.user.id));
+});
 
-  res.json({
-    stats: stats.rows[0] || null,
-    streaks: streaks.rows[0] || null,
-    gameTypes: gameTypes.rows,
-    placements: placements.rows,
-    // Oldest first, which is the order a chart reads left to right.
-    history: history.rows.reverse(),
-  });
+// A game played alone against CPUs, reported by the browser when it ends.
+// Stats only: see solo.js. A few reports a minute is plenty for real play.
+const SOLO_REPORTS_PER_MINUTE = 10;
+const soloReports = new Map(); // user id -> recent report times
+
+function tooManySoloReports(userId) {
+  const now = Date.now();
+  const recent = (soloReports.get(userId) || []).filter((t) => now - t < 60_000);
+  recent.push(now);
+  soloReports.set(userId, recent);
+  return recent.length > SOLO_REPORTS_PER_MINUTE;
+}
+
+authRouter.post("/matches", requireUser, async (req, res) => {
+  if (tooManySoloReports(req.user.id)) return res.status(429).json({ error: "Too many match reports, slow down" });
+  const report = parseSoloReport(req.body);
+  if (!report.ok) return res.status(400).json({ error: report.error });
+  const result = await recordSoloMatch(req.user.id, report.value);
+  res.status(result.recorded ? 201 : 200).json(result);
 });
 
 authRouter.patch("/profile", requireUser, async (req, res) => {

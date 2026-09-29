@@ -117,9 +117,18 @@ Browser ──HTTP  /api/auth/*──────────> Node server ─�
                 lobbies, moves, chat
 ```
 
-Account routes: `POST /signup`, `POST /login`, `GET /me`, `PATCH /profile`
-and `GET /stats` (everything the profile page charts, read from the derived
-stat views in one round trip).
+Account routes: `POST /signup`, `POST /login`, `GET /me`, `PATCH /profile`,
+`GET /stats` (everything the profile's Stats panel shows, for each game filter
+— overall, Thirteen, Muushig — in one round trip; see `server/stats.js`) and
+`POST /matches`.
+
+**Solo matches** — games against CPUs run in the browser (Thirteen practice,
+all of Muushig), so the browser reports each finished one to `POST /matches`
+(`src/hooks/useSoloMatchReport.js`). `server/solo.js` checks the report and
+places the player from the final scores itself; the match is saved with
+`game_sessions.solo = true` and counts for stats only — no coins, exp or
+rating. Reports are de-duplicated per player and match id, and limited to a
+few a minute.
 
 The browser never talks to Postgres. Every read and write goes through the
 Node server, so authorization lives in its routes rather than in database

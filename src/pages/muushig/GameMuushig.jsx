@@ -51,6 +51,8 @@ import {
 } from "../../utils/muushig/engine";
 import { aiAction, applyAction } from "../../utils/muushig/ai";
 import { soundManager } from "../../utils/SoundManager";
+import { useSoloMatchReport } from "../../hooks/useSoloMatchReport";
+import { muushigSoloReport } from "../../utils/soloReport";
 
 const ME = 0;
 const AVATAR_COLOR = { 1: "#f4c430", 2: "#5fd4d6", 3: "#e85a7a", 4: "#9bd14f", 5: "#c5a8ff", custom: "#ead8b1" };
@@ -306,6 +308,14 @@ const GameMuushig = () => {
     const timer = setTimeout(() => advance(game, run(game)), delay);
     return () => clearTimeout(timer);
   }, [game, isDealing, flying]);
+
+  // --- A finished match is recorded for your profile's stats ---
+  useSoloMatchReport({
+    prefix: "MU",
+    matchNumber: game.matchNumber,
+    finished: game.phase === PHASES.MATCH_OVER,
+    build: (times) => muushigSoloReport(game, { ...times, me: ME }),
+  });
 
   // --- Your turn: a ping ---
   const myTurn = !isDealing && !flying && ACTION_PHASES.has(game.phase) && game.turn === ME;

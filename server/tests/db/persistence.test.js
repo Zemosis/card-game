@@ -113,6 +113,32 @@ describe.skipIf(!TEST_DATABASE_URL)("match recording (Postgres)", () => {
     expect(history[0].rating_delta).toBe(profiles[bob.id].rating - 1000);
   });
 
+  it("counts each player's hands played by type, for the profile's hand tally", async () => {
+    const id = await session();
+    const play = (playerIndex, type) => ({ type: "PLAY", playerIndex, cards: [], combination: { type } });
+    await m.finishSession({
+      sessionId: id,
+      completed: true,
+      roster: [seat(0), seat(1), seat(2), seat(3)],
+      rounds,
+      state: {
+        ...finalState,
+        moveHistory: [
+          play(0, "SINGLE"),
+          play(1, "PAIR"),
+          { type: "PASS", playerIndex: 2 },
+          play(0, "SINGLE"),
+          play(0, "STRAIGHT"),
+          { type: "ROUND_END", winnerIndex: 0 },
+        ],
+      },
+    });
+    const players = (await m.pool.query("select stats from game_players where session_id = $1 order by seat_index", [id])).rows;
+    expect(players[0].stats.hands).toEqual({ SINGLE: 2, STRAIGHT: 1 });
+    expect(players[1].stats.hands).toEqual({ PAIR: 1 });
+    expect(players[2].stats.hands).toEqual({});
+  });
+
   it("an abandoned match is recorded without positions, rewards or rating changes", async () => {
     const alice = await makeUser(m.pool, "alice@test.dev");
     const id = await session();

@@ -18,6 +18,8 @@ import {
 import DealAnimation from "../../components/thirteen/DealAnimation";
 import RulesModal from "../../components/thirteen/RulesModal";
 import WaitingTable from "../../components/thirteen/WaitingTable";
+import { useSoloMatchReport } from "../../hooks/useSoloMatchReport";
+import { thirteenSoloReport } from "../../utils/soloReport";
 
 import {
   createGameState,
@@ -318,6 +320,16 @@ const GameThirteen = () => {
 
     return () => clearTimeout(timer);
   }, [gameState?.gameState]);
+
+  // --- STATS: a finished practice match is recorded for your profile (online
+  // matches are recorded by the server) ---
+  useSoloMatchReport({
+    prefix: "SOLO",
+    matchNumber: gameState?.matchNumber || 1,
+    finished: gameState?.gameState === GAME_STATES.GAME_OVER,
+    build: (times) => thirteenSoloReport(gameState, times),
+    enabled: isSoloGame,
+  });
 
   // --- ACTIONS ---
   const handlePlay = () => {

@@ -1,7 +1,8 @@
 // PROFILE — edit your identity on the left, read your record on the right.
 //
-// Reached from the Adventurer card's Edit button in any game lobby. Guests
-// get a sign-in prompt instead: they have no saved profile or stats.
+// Reached from your name on the main menu, or the Adventurer card's Edit
+// button in any game lobby. Guests get a sign-in prompt instead: they have no
+// saved profile or stats.
 
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -9,7 +10,9 @@ import { PixelAvatar } from "../components/PixelCard";
 import PixelIcon from "../components/PixelIcon";
 import { Panel, Btn, TopBar } from "../components/PixelUI";
 import { INK, TONES, inputStyle } from "../components/pixelTokens";
-import RatingChart from "../components/profile/RatingChart";
+import PlacementGraph from "../components/profile/PlacementGraph";
+import HandsPlayed from "../components/profile/HandsPlayed";
+import { ordinal } from "../components/profile/ordinal";
 import PlacementBars from "../components/profile/PlacementBars";
 import SettingsModal from "../components/SettingsModal";
 import LoginModal from "../components/auth/LoginModal";
@@ -21,7 +24,6 @@ const ACCENT = "#f4c430";
 const EXP_PER_LEVEL = 100;
 const PRESETS = ["1", "2", "3", "4", "5"];
 const GAME_NAMES = { thirteen: "Thirteen", muushig: "Muushig" };
-const PLACE = ["1st", "2nd", "3rd", "4th"];
 
 const num = (v) => (v == null ? null : Number(v));
 
@@ -189,6 +191,14 @@ function EditProfile() {
 
 // ----------------------------------------------------------- stats side ----
 
+const FILTERS = [
+  ["overall", "Overall"],
+  ["thirteen", "Thirteen"],
+  ["muushig", "Muushig"],
+];
+// Seats at the table, so how many places a match can end in.
+const PLACES = { thirteen: 4, muushig: 5 };
+
 function StatTile({ label, value, note }) {
   return (
     <div className="flex flex-col gap-2 p-3" style={{ backgroundColor: INK, boxShadow: "0 0 0 2px #2a234d" }}>
@@ -199,132 +209,191 @@ function StatTile({ label, value, note }) {
   );
 }
 
-function Section({ title, children }) {
+function Section({ title, right, children }) {
   return (
     <section className="flex flex-col gap-3 min-w-0">
-      <h3 className="font-pixel-display text-[11px] text-parchment">{title}</h3>
+      <div className="flex items-center gap-3">
+        <h3 className="font-pixel-display text-[11px] text-parchment">{title}</h3>
+        {right && <div className="ml-auto">{right}</div>}
+      </div>
       {children}
     </section>
   );
 }
 
-function StatsSheet({ data, onPlay }) {
-  const s = data.stats || {};
-  const games = num(s.games_played) || 0;
-  const streak = num(data.streaks?.current_streak) || 0;
+/** A row of pixel toggle buttons; `label` names the group for screen readers. */
+function Toggle({ label, options, value, onChange }) {
+  return (
+    <div role="group" aria-label={label} className="flex gap-2">
+      {options.map(([id, text]) => {
+        const on = id === value;
+        return (
+          <button
+            key={id}
+            aria-pressed={on}
+            onClick={() => onChange(id)}
+            className="pixel-hbtn font-pixel-display text-[10px] uppercase px-3 py-2 leading-none"
+            style={{ backgroundColor: on ? ACCENT : INK, color: on ? INK : "#ead8b1", boxShadow: "0 0 0 2px #2a234d" }}
+          >
+            {text}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
-  if (!games) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center">
-        <PixelIcon name="cards" size={56} color="#2a234d" />
-        <p className="font-pixel-display text-[13px] text-parchment">No matches yet</p>
-        <p className="font-pixel-body text-[24px] text-bone/80 max-w-md leading-tight">
-          Finish a game while signed in and your rating, placements and match history build up here.
-        </p>
-        <Btn tone={TONES.poison} onClick={onPlay} className="px-5" style={{ height: 48 }}>
-          <PixelIcon name="play" size={14} />
-          Play Thirteen
-        </Btn>
-      </div>
-    );
-  }
+function Facts({ rows }) {
+  return (
+    <dl className="grid font-pixel-body text-[20px]" style={{ gridTemplateColumns: "minmax(0,1fr) auto", rowGap: 6, columnGap: 16 }}>
+      {rows.map(([label, value]) => (
+        <React.Fragment key={label}>
+          <dt className="text-bone">{label}</dt>
+          <dd className="text-parchment text-right tabular-nums">{value}</dd>
+        </React.Fragment>
+      ))}
+    </dl>
+  );
+}
 
-  const winRate = num(s.win_rate);
-  const recent = [...data.history].reverse().slice(0, 8);
+function RecentList({ matches }) {
+  if (!matches.length) return <p className="font-pixel-body text-[20px] text-bone/70 px-3">No matches yet</p>;
+  return (
+    <div className="flex flex-col">
+      {matches.map((m, i) => (
+        <div
+          key={m.id}
+          className="grid items-center gap-3 px-3 font-pixel-body text-[20px]"
+          style={{ gridTemplateColumns: "96px minmax(0,1fr) 80px 80px 70px 110px", minHeight: 44, backgroundColor: i % 2 ? "#181432" : "transparent" }}
+        >
+          <span
+            className="font-pixel-display text-[10px] text-center py-1"
+            style={{ backgroundColor: m.won ? ACCENT : INK, color: m.won ? INK : "#ead8b1", boxShadow: "0 0 0 2px #2a234d" }}
+          >
+            {m.leftEarly ? "Quit" : m.place ? `${ordinal(m.place)} of ${m.of}` : "-"}
+          </span>
+          <span className="text-parchment truncate">{GAME_NAMES[m.game] || m.game}</span>
+          <span className="text-bone/80">{m.solo ? "vs CPU" : "Online"}</span>
+          <span className="text-bone text-right tabular-nums">{m.score ?? "-"} pts</span>
+          <span className="text-bone/80 text-right tabular-nums">{formatDuration(m.seconds)}</span>
+          <span className="text-bone/70 text-right">{new Date(m.finishedAt).toLocaleDateString()}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ThirteenFacts({ extras }) {
+  const played = extras.rounds_played || 0;
+  const won = extras.rounds_won || 0;
+  const caught = played - won;
+  return (
+    <Facts
+      rows={[
+        ["Went out first", won],
+        ["Avg cards left when caught", caught > 0 ? ((extras.cards_left_total || 0) / caught).toFixed(1) : "-"],
+      ]}
+    />
+  );
+}
+
+function MuushigFacts({ extras }) {
+  return (
+    <Facts
+      rows={[
+        ["Piles eaten", extras.eaten || 0],
+        ["Went in / folded", `${extras.gone_in || 0} / ${extras.folded || 0}`],
+        ["Sweeps", extras.sweeps || 0],
+      ]}
+    />
+  );
+}
+
+// Everything shows from the first visit: a player with no matches sees zeros
+// rather than an empty screen. Rating is hidden for now.
+function StatsSheet({ data }) {
+  const [filter, setFilter] = useState("overall");
+  const [recentView, setRecentView] = useState("list");
+  const v = data[filter];
+  const deadPct = v.games ? Math.round((v.deadLast / v.games) * 100) : 0;
+  const streak = v.streak.current;
+  const places = PLACES[filter] || Math.max(4, ...v.placements.map((p) => p.place));
 
   return (
     <div className="flex-1 flex flex-col gap-6 p-4 overflow-y-auto min-h-0">
+      <Toggle label="Game" options={FILTERS} value={filter} onChange={setFilter} />
+
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <StatTile label="Rating" value={s.rating ?? "?"} note={`Best finish ${PLACE[s.best_position - 1] || "-"}`} />
-        <StatTile label="Games" value={games} note={`${num(s.wins)} won, ${num(s.losses)} lost`} />
+        <StatTile label="Games" value={v.games} note={`${v.wins} won, ${v.losses} lost`} />
+        <StatTile label="Wins" value={v.wins} note={`${v.winRate == null ? "-" : `${v.winRate}%`} of games`} />
+        <StatTile label="Losses" value={v.losses} note={`${v.games ? 100 - Math.round((v.wins / v.games) * 100) : 0}% of games`} />
+        <StatTile label="Dead last" value={v.deadLast} note={`${deadPct}% of games`} />
+        <StatTile label="Win rate" value={v.winRate == null ? "-" : `${v.winRate}%`} note={`${v.wins} of ${v.games}`} />
         <StatTile
-          label="Win rate"
-          value={winRate == null ? "-" : `${winRate}%`}
-          note={`Avg place ${s.avg_position == null ? "-" : Number(s.avg_position).toFixed(1)}`}
+          label="Avg finish"
+          value={v.avgFinish == null ? "-" : Number(v.avgFinish).toFixed(1)}
+          note={PLACES[filter] ? `of ${PLACES[filter]} players` : "1st is best"}
         />
         <StatTile
           label="Streak"
-          value={streak === 0 ? "-" : `${Math.abs(streak)} ${streak > 0 ? "W" : "L"}`}
-          note={`Longest win run ${num(data.streaks?.longest_win_streak) || 0}`}
+          value={streak === 0 ? "-" : `${Math.abs(streak)}${streak > 0 ? "W" : "L"}`}
+          note={`Best win run ${v.streak.bestWin}`}
         />
+        <StatTile label="Rounds won" value={v.rounds.won} note={`of ${v.rounds.played} played`} />
       </div>
-
-      <Section title={`Rating, last ${data.history.length} matches`}>
-        <RatingChart history={data.history} />
-        <p className="font-pixel-body text-[18px] text-bone/70">Filled squares are wins.</p>
-      </Section>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Section title="Finishing places">
-          <PlacementBars placements={data.placements} />
+          <PlacementBars placements={v.placements} places={places} />
         </Section>
-
-        <Section title="Record">
-          <dl
-            className="grid font-pixel-body text-[20px]"
-            style={{ gridTemplateColumns: "minmax(0,1fr) auto", rowGap: 6, columnGap: 16 }}
-          >
-            {data.gameTypes.map((g) => (
-              <React.Fragment key={g.game_type}>
-                <dt className="text-bone">{GAME_NAMES[g.game_type] || g.game_type}</dt>
-                <dd className="text-parchment text-right tabular-nums">
-                  {num(g.wins)}/{num(g.games_played)} won
-                </dd>
-              </React.Fragment>
-            ))}
-            <dt className="text-bone">Rounds won</dt>
-            <dd className="text-parchment text-right tabular-nums">
-              {num(s.rounds_won)} of {num(s.rounds_played)}
-            </dd>
-            <dt className="text-bone">Best score</dt>
-            <dd className="text-parchment text-right tabular-nums">{s.best_score ?? "-"}</dd>
-            <dt className="text-bone">Left early</dt>
-            <dd className="text-parchment text-right tabular-nums">{num(s.abandons)}</dd>
-            <dt className="text-bone">Time played</dt>
-            <dd className="text-parchment text-right tabular-nums">{formatDuration(s.total_seconds_played)}</dd>
-          </dl>
+        <Section title="Time">
+          <Facts
+            rows={[
+              ["Time played", formatDuration(v.time.totalSeconds)],
+              ["Avg match", v.time.avgSeconds == null ? "-" : formatDuration(v.time.avgSeconds)],
+              ["Last played", v.time.lastPlayedAt ? new Date(v.time.lastPlayedAt).toLocaleDateString() : "-"],
+            ]}
+          />
         </Section>
       </div>
 
-      <Section title="Recent matches">
-        <div className="flex flex-col">
-          {recent.map((m, i) => (
-            <div
-              key={m.session_id}
-              className="grid items-center gap-3 px-3 font-pixel-body text-[20px]"
-              style={{
-                gridTemplateColumns: "56px minmax(0,1fr) 90px 90px 110px",
-                minHeight: 44,
-                backgroundColor: i % 2 ? "#181432" : "transparent",
-              }}
-            >
-              <span
-                className="font-pixel-display text-[10px] text-center py-1"
-                style={{
-                  backgroundColor: m.is_winner ? ACCENT : INK,
-                  color: m.is_winner ? INK : "#ead8b1",
-                  boxShadow: "0 0 0 2px #2a234d",
-                }}
-              >
-                {m.left_early ? "Quit" : PLACE[m.final_position - 1] || "-"}
-              </span>
-              <span className="text-parchment truncate">{GAME_NAMES[m.game_type] || m.game_type}</span>
-              <span className="text-bone text-right tabular-nums">{m.final_score ?? "-"} pts</span>
-              <span className="text-right tabular-nums" style={{ color: m.rating_delta > 0 ? "#9bd14f" : m.rating_delta < 0 ? "#e85a7a" : "#c8b890" }}>
-                {m.rating_delta > 0 ? "+" : ""}
-                {m.rating_delta ?? 0}
-              </span>
-              <span className="text-bone/70 text-right">{new Date(m.finished_at).toLocaleDateString()}</span>
-            </div>
-          ))}
+      {filter === "thirteen" && (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Section title="Thirteen">
+            <ThirteenFacts extras={v.extras || {}} />
+          </Section>
+          <Section title="Hands played">
+            <HandsPlayed hands={v.hands || {}} />
+          </Section>
         </div>
+      )}
+      {filter === "muushig" && (
+        <Section title="Muushig">
+          <MuushigFacts extras={v.extras || {}} />
+        </Section>
+      )}
+
+      <Section
+        title="Recent matches"
+        right={
+          <Toggle
+            label="Recent matches view"
+            options={[
+              ["list", "List"],
+              ["graph", "Graph"],
+            ]}
+            value={recentView}
+            onChange={setRecentView}
+          />
+        }
+      >
+        {recentView === "graph" ? <PlacementGraph matches={v.recent} /> : <RecentList matches={v.recent} />}
       </Section>
     </div>
   );
 }
 
 function StatsPanel() {
-  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
@@ -343,7 +412,7 @@ function StatsPanel() {
       ) : !data ? (
         <p className="p-6 font-pixel-body text-[22px] text-bone">Loading your stats...</p>
       ) : (
-        <StatsSheet data={data} onPlay={() => navigate("/lobby-13")} />
+        <StatsSheet data={data} />
       )}
     </Panel>
   );
