@@ -1,7 +1,7 @@
 // Muushig AI: legal at every level, and the choices that define each level.
 
 import { describe, it, expect } from "vitest";
-import { PHASES, START_SCORE, collectTrick, createMatch, makeCard, startNextRound } from "../../src/utils/muushig/engine.js";
+import { PHASES, START_SCORE, collectTrick, createMatch, makeCard, maxDrawDepth, startNextRound } from "../../src/utils/muushig/engine.js";
 import { aiAction, applyAction } from "../../src/utils/muushig/ai.js";
 import { seededRandom } from "../helpers/cards.js";
 
@@ -17,7 +17,7 @@ function playMatch(level, seed) {
   for (let steps = 0; steps < 20000 && s.phase !== PHASES.MATCH_OVER; steps++) {
     if (s.phase === PHASES.TRICK_END) s = collectTrick(s);
     else if (s.phase === PHASES.ROUND_END) s = startNextRound(s, rng);
-    else s = applyAction(s, aiAction(s, rng));
+    else s = applyAction(s, aiAction(s, rng), rng);
   }
   return s;
 }
@@ -59,6 +59,20 @@ describe.each(["EASY", "MEDIUM", "HARD"])("%s", (level) => {
       expect(s.phase).toBe(PHASES.MATCH_OVER);
       expect(s.players[s.matchWinner].score).toBeLessThanOrEqual(0);
     }
+  });
+
+  it("draws for the deal at a depth the pile allows", () => {
+    const s = createMatch({ players: players(level), rng: seededRandom(5) });
+    const depths = new Set();
+    for (let seed = 0; seed < 30; seed++) {
+      const a = aiAction(s, seededRandom(seed));
+      expect(a.type).toBe("drawForDeal");
+      expect(a.seat).toBe(s.turn);
+      expect(a.depth).toBeGreaterThanOrEqual(1);
+      expect(a.depth).toBeLessThanOrEqual(maxDrawDepth(s));
+      depths.add(a.depth);
+    }
+    expect(depths.size).toBeGreaterThan(3);
   });
 
   it("takes the trump card for its weakest card", () => {

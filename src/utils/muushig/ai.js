@@ -23,9 +23,11 @@ import {
   cardPower,
   collectTrick,
   decide,
+  drawForDeal,
   ledSuit,
   makeCard,
   maxDiscard,
+  maxDrawDepth,
   penaltyFor,
   playCard,
   swap,
@@ -188,6 +190,9 @@ export function aiAction(state, rng = Math.random) {
   const seat = state.turn;
   const level = state.players[seat]?.level || "MEDIUM";
   switch (state.phase) {
+    case PHASES.DRAW:
+      // No card is better than another sight unseen: any depth will do.
+      return { type: "drawForDeal", seat, depth: 1 + Math.floor(rng() * maxDrawDepth(state)) };
     case PHASES.DECIDE:
       return { type: "decide", seat, play: wantsToPlay(state, seat, level, rng) };
     case PHASES.SWAP:
@@ -202,8 +207,10 @@ export function aiAction(state, rng = Math.random) {
 }
 
 /** Runs an action (from the AI or the player) through the engine. */
-export function applyAction(state, action) {
+export function applyAction(state, action, rng) {
   switch (action.type) {
+    case "drawForDeal":
+      return drawForDeal(state, action.seat, action.depth, rng);
     case "decide":
       return decide(state, action.seat, action.play);
     case "swap":

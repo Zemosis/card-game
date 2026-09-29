@@ -10,9 +10,11 @@ import {
   createDeck,
   createMatch,
   decide,
+  drawForDeal,
   foldBlock,
   makeCard,
   maxDiscard,
+  maxDrawDepth,
   penaltyFor,
   playCard,
   rematch,
@@ -29,7 +31,22 @@ const cs = (ids) => (ids.trim() ? ids.trim().split(/\s+/).map(c) : []);
 const idsOf = (list) => list.map((x) => x.id);
 
 const PLAYERS = ["You", "Sarnai", "Batu", "Glitch", "Temur"].map((name, i) => ({ name, type: i ? "AI" : "HUMAN", level: "MEDIUM" }));
-const newMatch = (seed = 1) => createMatch({ players: PLAYERS, rng: seededRandom(seed) });
+/** Runs the draw for the deal, everyone taking the top card. */
+function drawAll(s, rng) {
+  while (s.phase === PHASES.DRAW) s = drawForDeal(s, s.turn, 1, rng);
+  return s;
+}
+const newMatch = (seed = 1) => {
+  const rng = seededRandom(seed);
+  return drawAll(createMatch({ players: PLAYERS, rng }), rng);
+};
+/** A match waiting on its draw, with the pile stacked top first. */
+function drawState(pile, seed = 1) {
+  const s = createMatch({ players: PLAYERS, rng: seededRandom(seed) });
+  return { ...s, dealDeck: cs(pile) };
+}
+/** Seats clockwise from `seat`. */
+const around = (seat) => [0, 1, 2, 3, 4].map((i) => (seat + i) % 5);
 
 /** A PLAY-phase state: hands per seat (null = folded), the trick so far, whose turn. */
 function playState({ hands, trump = "♦", trick = [], turn, dealer = 4, trickNumber = 1, eaten = [0, 0, 0, 0, 0], scores }) {
@@ -85,9 +102,90 @@ describe("deck and deal", () => {
 
   it("picks the first dealer by the highest drawn card", () => {
     const s = newMatch(7);
-    const draw = s.events.find((e) => e.type === "firstDealer");
-    const top = Math.max(...draw.draws.map((d) => d.card.rankValue));
-    expect(draw.draws[s.dealer].card.rankValue).toBe(top);
+    const first = s.events.find((e) => e.type === "firstDealer");
+    const last = s.dealDraws.filter((d) => d.pass === s.drawPass);
+    const top = Math.max(...last.map((d) => d.card.rankValue));
+    expect(first.seat).toBe(s.dealer);
+    expect(first.card.rankValue).toBe(top);
+  });
+});
+
+describe("draw for the deal", () => {
+  it("opens the match: a full shuffled pile, no dealer, no hands yet", () => {
+    const s = createMatch({ players: PLAYERS, rng: seededRandom(2) });
+    expect(s.phase).toBe(PHASES.DRAW);
+    expect(s.roundNumber).toBe(0);
+    expect(s.dealer).toBe(null);
+    expect(s.dealDeck).toHaveLength(32);
+    expect(s.players.every((p) => p.hand.length === 0)).toBe(true);
+    expect(s.events).toEqual([{ type: "drawStart", seat: s.turn }]);
+  });
+
+  it("the first player to draw is random", () => {
+    const starters = new Set(Array.from({ length: 40 }, (_, i) => createMatch({ players: PLAYERS, rng: seededRandom(i) }).turn));
+    expect(starters).toEqual(new Set([0, 1, 2, 3, 4]));
+  });
+
+  it("takes the N-th card from the top; the cards above it stay", () => {
+    let s = drawState("7♠ 8♠ 9♠ 10♠ J♠ Q♠ K♠");
+    const seat = s.turn;
+    s = drawForDeal(s, seat, 3);
+    expect(idsOf(s.dealDeck)).toEqual(["7♠", "8♠", "10♠", "J♠", "Q♠", "K♠"]);
+    expect(s.dealDraws).toEqual([{ seat, card: c("9♠"), depth: 3, pass: 1 }]);
+    expect(s.events.at(-1)).toEqual({ type: "dealDraw", seat, card: c("9♠"), depth: 3 });
+    expect(s.turn).toBe((seat + 1) % 5);
+  });
+
+  it("draws go clockwise, and the highest card deals", () => {
+    let s = drawState("7♠ 8♠ A♣ 9♠ 10♠ J♠ Q♠");
+    const order = around(s.turn);
+    for (const seat of order) {
+      expect(s.turn).toBe(seat);
+      s = drawForDeal(s, seat, 1);
+    }
+    expect(s.dealer).toBe(order[2]);
+    expect(s.phase).toBe(PHASES.DECIDE);
+    expect(s.roundNumber).toBe(1);
+    expect(s.players.every((p) => p.hand.length === 5)).toBe(true);
+    expect(s.events.find((e) => e.type === "firstDealer")).toEqual({ type: "firstDealer", seat: order[2], card: c("A♣") });
+  });
+
+  it("depth runs from 1 to 10, and never past the pile", () => {
+    const s = drawState("7♠ 8♠ 9♠ 10♠ J♠ Q♠ K♠ A♠ 7♥ 8♥ 9♥ 10♥");
+    expect(maxDrawDepth(s)).toBe(10);
+    for (const bad of [0, 11, 2.5, "3"]) expect(() => drawForDeal(s, s.turn, bad)).toThrow(/between 1 and 10/);
+    expect(maxDrawDepth({ ...s, dealDeck: cs("7♠ 8♠ 9♠") })).toBe(3);
+    expect(() => drawForDeal(s, (s.turn + 1) % 5, 1)).toThrow(/Not your turn/);
+  });
+
+  it("tied players draw again, in the same order; the others wait", () => {
+    let s = drawState("K♠ 7♠ K♥ 8♠ 9♠ 7♥ Q♦ J♦");
+    const order = around(s.turn);
+    for (const seat of order) s = drawForDeal(s, seat, 1);
+    expect(s.phase).toBe(PHASES.DRAW);
+    expect(s.events.at(-1)).toEqual({ type: "drawTie", seats: [order[0], order[2]] });
+    expect(s.turn).toBe(order[0]);
+    expect(() => drawForDeal(s, order[1], 1)).toThrow(/Not your turn/);
+    s = drawForDeal(s, order[0], 1); // 7♥
+    expect(s.turn).toBe(order[2]);
+    s = drawForDeal(s, order[2], 1); // Q♦
+    expect(s.dealer).toBe(order[2]);
+    expect(s.dealDraws.filter((d) => d.pass === 2)).toHaveLength(2);
+  });
+
+  it("a tie with too few cards left to draw again is settled at random", () => {
+    let s = drawState("K♠ K♥ 7♠ 8♠ 9♠ 7♥");
+    const order = around(s.turn);
+    for (const seat of order) s = drawForDeal(s, seat, 1);
+    expect(s.phase).toBe(PHASES.DECIDE);
+    expect([order[0], order[1]]).toContain(s.dealer);
+  });
+
+  it("a rematch opens with a new draw", () => {
+    const s = { ...newMatch(), phase: PHASES.MATCH_OVER };
+    const again = rematch(s, seededRandom(4));
+    expect(again.phase).toBe(PHASES.DRAW);
+    expect(again.dealDeck).toHaveLength(32);
   });
 });
 
@@ -384,7 +482,8 @@ describe("a whole match", () => {
     const rng = seededRandom(11);
     let s = createMatch({ players: PLAYERS, rng });
     for (let steps = 0; steps < 5000 && s.phase !== PHASES.MATCH_OVER; steps++) {
-      if (s.phase === PHASES.DECIDE) s = decide(s, s.turn, s.turn === 0 || !canFold(s, s.turn));
+      if (s.phase === PHASES.DRAW) s = drawForDeal(s, s.turn, 1 + Math.floor(rng() * maxDrawDepth(s)), rng);
+      else if (s.phase === PHASES.DECIDE) s = decide(s, s.turn, s.turn === 0 || !canFold(s, s.turn));
       else if (s.phase === PHASES.SWAP) s = swap(s, s.turn, []);
       else if (s.phase === PHASES.TRUMP) s = takeTrump(s, s.turn, s.players[s.turn].hand[0].id);
       else if (s.phase === PHASES.PLAY) s = playCard(s, s.turn, allowedPlays(s, s.turn)[0].id);

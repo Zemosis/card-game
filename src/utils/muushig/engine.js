@@ -4,6 +4,10 @@
 // changed), and throws on a move the rules don't allow. Nothing here touches
 // React, timers or sockets, so the same file can run on the server later.
 //
+// A match opens with the draw for the deal:
+//   DRAW       from a pile in the middle, each player (a random one first,
+//              then clockwise) takes the N-th card from the top; the highest
+//              card deals the first round. Tied players draw again.
 // A round moves through these phases:
 //   DECIDE     each player, left of the dealer first, goes in or folds
 //   SWAP       each playing player discards and draws (dealer last)
@@ -14,7 +18,7 @@
 //   MATCH_OVER someone reached 0; `matchWinner` is set
 //
 // Seats are 0–4 and clockwise is seat + 1. Randomness comes in through an
-// `rng` argument (default Math.random) so tests can make it predictable.
+// `rng` argument (default secureRandom) so tests can make it predictable.
 
 export const RANKS = ["7", "8", "9", "10", "J", "Q", "K", "A"];
 export const SUITS = ["♠", "♥", "♦", "♣"];
@@ -25,8 +29,10 @@ export const START_SCORE = 15;
 export const ZERO_PILES_PENALTY = 5;
 export const MIN_PLAYING = 2;
 export const MAX_FOLDS_IN_A_ROW = 2; // the next round after this many folds, you must go in
+export const MAX_DRAW_DEPTH = 10; // the deepest card you may draw for the deal
 
 export const PHASES = {
+  DRAW: "DRAW",
   DECIDE: "DECIDE",
   SWAP: "SWAP",
   TRUMP: "TRUMP",
@@ -46,7 +52,14 @@ export function createDeck() {
   return SUITS.flatMap((suit) => RANKS.map((rank) => makeCard(rank, suit)));
 }
 
-export function shuffle(cards, rng = Math.random) {
+/** A number in [0, 1) from the platform's cryptographic generator. */
+export function secureRandom() {
+  const crypto = globalThis.crypto;
+  if (!crypto?.getRandomValues) return Math.random();
+  return crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
+}
+
+export function shuffle(cards, rng = secureRandom) {
   const out = [...cards];
   for (let i = out.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -80,20 +93,15 @@ function nextPlaying(state, seat) {
 
 /**
  * players: [{ name, type: "HUMAN" | "AI", level?: "EASY"|"MEDIUM"|"HARD" }] ×5.
- * The first dealer is whoever draws the highest card (ties at random).
+ * The match opens with the draw for the deal (see drawForDeal).
  */
-export function createMatch({ players, rng = Math.random, matchNumber = 1, startScore = START_SCORE }) {
+export function createMatch({ players, rng = secureRandom, matchNumber = 1, startScore = START_SCORE }) {
   if (players.length !== PLAYER_COUNT) throw new Error(`Muushig needs ${PLAYER_COUNT} players`);
-
-  const draw = shuffle(createDeck(), rng).slice(0, PLAYER_COUNT);
-  const top = Math.max(...draw.map((c) => c.rankValue));
-  const tied = draw.map((c, seat) => (c.rankValue === top ? seat : -1)).filter((s) => s >= 0);
-  const dealer = tied[Math.floor(rng() * tied.length)];
-
-  const state = {
+  const starter = Math.floor(rng() * PLAYER_COUNT);
+  return {
     matchNumber,
     roundNumber: 0,
-    dealer,
+    dealer: null,
     players: players.map((p, seat) => ({
       id: seat,
       name: p.name,
@@ -107,10 +115,66 @@ export function createMatch({ players, rng = Math.random, matchNumber = 1, start
       discarded: [],
       foldStreak: 0, // rounds folded in a row; carries from round to round
     })),
-    events: [{ type: "firstDealer", seat: dealer, draws: draw.map((card, seat) => ({ seat, card })) }],
+    dealDeck: shuffle(createDeck(), rng), // the pile drawn from for the deal, top first
+    dealDraws: [], // { seat, card, depth, pass }; pass 2+ settles a tie
+    drawPass: 1,
+    drawers: Array.from({ length: PLAYER_COUNT }, (_, i) => (starter + i) % PLAYER_COUNT), // still to draw this pass, in order
+    trumpCard: null,
+    trumpSuit: null,
+    trumpTakenBy: null,
+    drawPile: [],
+    deadPile: [],
+    played: [],
+    trick: [],
+    trickNumber: 0,
+    trickWinner: null,
+    lastTrick: null,
+    roundResults: null,
+    phase: PHASES.DRAW,
+    turn: starter,
+    events: [{ type: "drawStart", seat: starter }],
     matchWinner: null,
   };
-  return dealRound(state, dealer, rng);
+}
+
+// ---- DRAW ------------------------------------------------------------------
+
+export const maxDrawDepth = (state) => Math.min(MAX_DRAW_DEPTH, state.dealDeck.length);
+
+/**
+ * `seat` takes the depth-th card from the top of the pile; the cards above it
+ * stay. Once everyone this pass has drawn, the highest card deals; tied
+ * players draw again, in the same order (at random if the pile can't cover
+ * them).
+ */
+export function drawForDeal(prev, seat, depth, rng = secureRandom) {
+  expect(prev, PHASES.DRAW, seat);
+  const max = maxDrawDepth(prev);
+  if (!Number.isInteger(depth) || depth < 1 || depth > max) throw new Error(`Draw a card between 1 and ${max} deep`);
+  const state = { ...prev, dealDeck: [...prev.dealDeck], dealDraws: [...prev.dealDraws], events: [...prev.events] };
+  const [card] = state.dealDeck.splice(depth - 1, 1);
+  state.dealDraws.push({ seat, card, depth, pass: state.drawPass });
+  state.events.push({ type: "dealDraw", seat, card, depth });
+
+  state.drawers = prev.drawers.slice(1);
+  if (state.drawers.length) {
+    state.turn = state.drawers[0];
+    return state;
+  }
+
+  const draws = state.dealDraws.filter((d) => d.pass === state.drawPass);
+  const top = Math.max(...draws.map((d) => d.card.rankValue));
+  const best = draws.filter((d) => d.card.rankValue === top);
+  if (best.length > 1 && state.dealDeck.length >= best.length) {
+    state.drawPass += 1;
+    state.drawers = best.map((d) => d.seat);
+    state.turn = state.drawers[0];
+    state.events.push({ type: "drawTie", seats: state.drawers });
+    return state;
+  }
+  const win = best[Math.floor(rng() * best.length)];
+  state.events.push({ type: "firstDealer", seat: win.seat, card: win.card });
+  return dealRound(state, win.seat, rng);
 }
 
 function dealRound(prev, dealer, rng) {
@@ -145,13 +209,13 @@ function dealRound(prev, dealer, rng) {
 }
 
 /** Deal the next round; the deal passes clockwise. */
-export function startNextRound(prev, rng = Math.random) {
+export function startNextRound(prev, rng = secureRandom) {
   if (prev.phase !== PHASES.ROUND_END) throw new Error("The round isn't over");
   return dealRound(prev, leftOf(prev.dealer), rng);
 }
 
 /** A fresh match with the same players. */
-export function rematch(prev, rng = Math.random) {
+export function rematch(prev, rng = secureRandom) {
   return createMatch({
     players: prev.players.map(({ name, type, level, avatar }) => ({ name, type, level, avatar })),
     rng,

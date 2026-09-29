@@ -7,7 +7,7 @@
 import React from "react";
 import { PixelCard } from "../PixelCard";
 import Rulebook, { Callout, CardRow, Cards, Hi, Kbd, Key, Section, Steps, Versus } from "../Rulebook";
-import { MAX_FOLDS_IN_A_ROW, MIN_PLAYING, START_SCORE, TRICKS_PER_ROUND, ZERO_PILES_PENALTY } from "../../utils/muushig/engine";
+import { MAX_DRAW_DEPTH, MAX_FOLDS_IN_A_ROW, MIN_PLAYING, START_SCORE, TRICKS_PER_ROUND, ZERO_PILES_PENALTY } from "../../utils/muushig/engine";
 
 const SECTIONS = [
   ["goal", "The goal"],
@@ -82,8 +82,8 @@ export default function MuushigRules({ onClose }) {
         <Steps
           items={[
             <>
-              First round: everyone draws a card and the <Key>highest rank deals</Key> (ties at random). After that the deal
-              passes <Key>clockwise</Key>.
+              First round: everyone draws for the deal and the <Key>highest rank deals</Key>. After that the deal passes{" "}
+              <Key>clockwise</Key>.
             </>,
             <>
               The dealer gives everyone <Key>5 cards</Key>.
@@ -97,6 +97,12 @@ export default function MuushigRules({ onClose }) {
             </>,
           ]}
         />
+        <Callout tone="rule" title="DRAWING FOR THE DEAL">
+          A shuffled pile sits in the middle. A <Key>random player</Key> draws first, then clockwise: pick how deep to go,
+          from 1 to {MAX_DRAW_DEPTH} cards down, and take <Key>only that card</Key>; the cards above it stay on the pile.
+          Every card is turned face up. The <Key>highest rank deals</Key>; tied players draw again. Every match starts with
+          a new draw.
+        </Callout>
         <p>
           The table also has a <Key>dead pile</Key>: every discarded card and every folded hand goes there face down, and
           never comes back this round.
@@ -244,10 +250,11 @@ export default function MuushigRules({ onClose }) {
       <Section id="controls" n={9} title="Controls">
         <div className="grid gap-2" style={{ gridTemplateColumns: "minmax(140px,auto) 1fr" }}>
           {[
+            [<>DEPTH − / +</>, "Drawing for the deal: how deep into the pile to take your card (or ← →)"],
             [<>GO IN / FOLD</>, "Join the round or sit it out"],
             [<>Click cards</>, "Swapping: pick the cards to discard. Dealer: pick the card to give up for the trump"],
             [<>Click a card</>, "Tricks: pick the card to throw (dimmed cards aren't allowed right now)"],
-            [<Kbd>SPACE</Kbd>, "The highlighted button: GO IN, SWAP, TAKE TRUMP or THROW"],
+            [<Kbd>SPACE</Kbd>, "The highlighted button: TAKE, GO IN, SWAP, TAKE TRUMP or THROW"],
             [<>SORT</>, "Arrange your hand by rank or by suit"],
           ].map(([k, v], i) => (
             <React.Fragment key={i}>

@@ -39,8 +39,15 @@ A round goes: **deal → go in or fold → swap cards → dealer takes the trump
 
 ## 2. The dealer
 
-- **First round:** every player draws one card. The **highest rank deals**
-  (ties are broken at random).
+- **First round: draw for the deal.** A shuffled deck is set face down in the
+  middle. A **random player** draws first, then play goes clockwise. On your
+  draw you choose how deep to go, **1 to 10 cards down** (never deeper than the
+  pile), and take **only that card**; the cards above it stay on the pile.
+  Every drawn card is turned face up.
+- The **highest rank deals**. Suits have no order, so **tied players draw
+  again** from what's left, in the same order, until one is highest. (If the
+  pile can't cover another draw, the tie is settled at random.)
+- Every match, rematches included, starts with a new draw.
 - **Later rounds:** the deal passes **clockwise** to the next player.
 
 "Left of the dealer" means the next player clockwise.

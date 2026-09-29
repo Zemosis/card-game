@@ -254,7 +254,7 @@ function Felt({ D, stack, trump, trumpTakenBy, trickNumber, tricksPerRound, phas
 
       {dealerSeat && <DealerMarker seat={dealerSeat} D={D} />}
 
-      {overlay?.(cw)}
+      {overlay?.(cw, D)}
 
       {phaseLabel !== false && (
         <div style={at(0.3)}>
@@ -281,7 +281,8 @@ function Felt({ D, stack, trump, trumpTakenBy, trickNumber, tricksPerRound, phas
  * phaseLabel: shown instead of the trick counter before tricks start;
  *   false hides the counter.
  * dealing: hides the trump and the trick while the deal animation runs.
- * overlay: (cardWidth) => node drawn on the felt (the deal animation).
+ * overlay: (cardWidth, diameter) => node drawn on the felt (the draw for
+ *   the deal, the dealer banner, the deal animation).
  * centerRef: ref to the felt, where dealt cards fly from.
  * dealerSeat: seat name (bottom, bottomLeft, …) the DEALER marker faces.
  * trumpRef: ref to the face-up trump card while it lies on the felt.

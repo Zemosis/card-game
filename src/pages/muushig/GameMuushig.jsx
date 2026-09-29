@@ -19,6 +19,7 @@ import SidePiles from "../../components/muushig/SidePiles";
 import RoundResults from "../../components/muushig/RoundResults";
 import DealAnimation from "../../components/thirteen/DealAnimation";
 import DealerIntro from "../../components/muushig/DealerIntro";
+import DealDraw from "../../components/muushig/DealDraw";
 import CardFlight from "../../components/muushig/CardFlight";
 import { STAGGER, legTime } from "../../components/muushig/flightTiming";
 import Callout from "../../components/Callout";
@@ -37,8 +38,10 @@ import {
   collectTrick,
   createMatch,
   decide,
+  drawForDeal,
   foldBlock,
   maxDiscard,
+  maxDrawDepth,
   playCard,
   rematch,
   stackOrder,
@@ -66,13 +69,17 @@ const ALL_SEATS_IN = [true, true, true, true, true];
 const NO_CARDS = [0, 0, 0, 0, 0];
 // How long a CPU "thinks" in each phase, and how long a full trick stays up.
 // DECIDE is slower so each seat's IN/FOLD callout plays out on its own; SWAP
-// is quicker since its cards' flight (see CardFlight) plays before it.
-const AI_DELAY = { DECIDE: 1100, SWAP: 600, TRUMP: 900, PLAY: 950 };
+// is quicker since its cards' flight (see CardFlight) plays before it. DRAW
+// leaves time for the last drawn card to land and turn (see DealDraw), and a
+// tie holds a little longer so everyone sees who draws again.
+const AI_DELAY = { DRAW: 1300, DECIDE: 1100, SWAP: 600, TRUMP: 900, PLAY: 950 };
+const TIE_PAUSE = 2000;
 const TRICK_PAUSE = 1500;
 const ACTION_PHASES = new Set([PHASES.DECIDE, PHASES.SWAP, PHASES.TRUMP, PHASES.PLAY]);
 
 const now = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 const cardText = (c) => `${c.rank}${c.suit}`;
+const nth = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"}`;
 
 /** A stable shuffle of hand positions, so dealt cards arrive in a random order. */
 function dealOrder(hand, salt) {
@@ -90,8 +97,14 @@ function logEntry(e, game) {
   const name = (seat) => baseName(game.players[seat]?.name);
   const at = (fields) => ({ playerIndex: e.seat, name: name(e.seat), ...fields });
   switch (e.type) {
+    case "drawStart":
+      return { text: `${name(e.seat)} draws first for the deal.` };
+    case "dealDraw":
+      return at({ kind: "pass", verb: `drew the ${nth(e.depth)} card: ${cardText(e.card)}` });
+    case "drawTie":
+      return { text: `Tie! ${e.seats.map(name).join(" and ")} draw again.` };
     case "firstDealer":
-      return { text: `${name(e.seat)} drew the highest card.` };
+      return { text: `${name(e.seat)} drew the highest card: ${cardText(e.card)}.` };
     case "round":
       return [{ kind: "round", round: e.round }, { text: `${name(e.seat)} deals.` }];
     case "playIn":
@@ -243,11 +256,15 @@ const GameMuushig = () => {
   // Your IN!/FOLD callout that has already played (by id).
   const [myCalloutDone, setMyCalloutDone] = useState(null);
 
-  // --- Every new round opens with the dealer banner, then the shuffle and deal ---
+  // --- A match opens with the draw for the deal. Every round opens with the
+  // dealer banner, then the shuffle and deal ---
   const roundKey = `${game.matchNumber}-${game.roundNumber}`;
+  const [drawnKey, setDrawnKey] = useState(null);
   const [introKey, setIntroKey] = useState(null);
   const [dealtKey, setDealtKey] = useState(null);
-  const stage = introKey !== roundKey ? "intro" : dealtKey !== roundKey ? "deal" : "play";
+  const stage = drawnKey !== game.matchNumber ? "draw" : introKey !== roundKey ? "intro" : dealtKey !== roundKey ? "deal" : "play";
+  const drawing = stage === "draw";
+  const handleDrawDone = useCallback(() => setDrawnKey(game.matchNumber), [game.matchNumber]);
   const isDealing = stage !== "play";
   const handleIntroDone = useCallback(() => setIntroKey(roundKey), [roundKey]);
   const [dealProgress, setDealProgress] = useState({ key: null, counts: NO_CARDS });
@@ -270,10 +287,15 @@ const GameMuushig = () => {
 
   // --- CPU turns, and the pause after a full trick (both wait for the deal) ---
   useEffect(() => {
-    if (isDealing || flying) return;
+    if (flying || (isDealing && game.phase !== PHASES.DRAW)) return;
     let run = null;
     let delay = 0;
-    if (game.phase === PHASES.TRICK_END) {
+    if (game.phase === PHASES.DRAW) {
+      if (game.players[game.turn].type === "AI") {
+        run = (s) => applyAction(s, aiAction(s));
+        delay = game.events.at(-1).type === "drawTie" ? TIE_PAUSE : AI_DELAY.DRAW;
+      }
+    } else if (game.phase === PHASES.TRICK_END) {
       run = collectTrick;
       delay = TRICK_PAUSE;
     } else if (ACTION_PHASES.has(game.phase) && game.players[game.turn]?.type === "AI") {
@@ -287,9 +309,27 @@ const GameMuushig = () => {
 
   // --- Your turn: a ping ---
   const myTurn = !isDealing && !flying && ACTION_PHASES.has(game.phase) && game.turn === ME;
+  const myDraw = game.phase === PHASES.DRAW && game.turn === ME;
   useEffect(() => {
-    if (myTurn) safePlay("playTurnAlert");
-  }, [turnKey, myTurn]);
+    if (myTurn || myDraw) safePlay("playTurnAlert");
+  }, [turnKey, myTurn, myDraw]);
+
+  // --- Your draw for the deal: how deep into the pile (arrow keys work too) ---
+  const [depth, setDepth] = useState(1);
+  const drawMax = game.phase === PHASES.DRAW ? maxDrawDepth(game) : 1;
+  const pickDepth = Math.min(depth, drawMax);
+  useEffect(() => {
+    if (!myDraw) return;
+    const onKey = (e) => {
+      if (e.target.closest?.("input, textarea")) return;
+      const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[e.code];
+      if (!step) return;
+      e.preventDefault();
+      setDepth((d) => Math.max(1, Math.min(drawMax, d + step)));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [myDraw, drawMax]);
 
   // --- Engine events → the move log, plus sounds ---
   useEffect(() => {
@@ -333,6 +373,7 @@ const GameMuushig = () => {
       safePlay("playError");
     }
   };
+  const onDraw = () => act((s) => drawForDeal(s, ME, pickDepth));
   const onDecide = (play) => act((s) => decide(s, ME, play), play ? null : handRects(game.players[ME].hand));
   const onSwap = () => act((s) => swap(s, ME, selected.map((c) => c.id)), handRects(selected));
   const onTakeTrump = (cardId) => act((s) => takeTrump(s, ME, cardId), cardId ? handRects(me.hand.filter((c) => c.id === cardId)) : null);
@@ -425,7 +466,20 @@ const GameMuushig = () => {
   let message;
   let warning = null;
   let buttons = [];
-  if (isDealing) {
+  if (drawing) {
+    const tie = game.phase === PHASES.DRAW && game.drawPass > 1;
+    message =
+      game.phase !== PHASES.DRAW
+        ? game.dealer === ME
+          ? "You drew the highest card: you deal first."
+          : `${nameOf(game.dealer)} drew the highest card and deals first.`
+        : myDraw
+          ? tie
+            ? "Tie! Draw again: how deep this time?"
+            : `Your draw: how deep into the pile? Take any card from 1 to ${drawMax} down.`
+          : `${tie ? "Tie! " : ""}${nameOf(game.turn)} is drawing...`;
+    if (myDraw) buttons = [{ label: "TAKE", tone: "gold", primary: true, onClick: onDraw }];
+  } else if (isDealing) {
     message = game.dealer === ME ? "You're the dealer this round. Dealing..." : `${nameOf(game.dealer)} is the dealer this round. Dealing...`;
   } else if (!myTurn) {
     const who = nameOf(game.turn);
@@ -524,7 +578,9 @@ const GameMuushig = () => {
     const folded = p.status === "fold";
     // During the round's opening banner the dealer's seat lights up instead.
     const introducing = stage === "intro" && index === game.dealer;
-    const active = introducing || (!isDealing && index === game.turn && ACTION_PHASES.has(phase));
+    const active = drawing
+      ? phase === PHASES.DRAW && index === game.turn
+      : introducing || (!isDealing && index === game.turn && ACTION_PHASES.has(phase));
     return (
       <OpponentSection
         player={{ ...p, isEliminated: folded }}
@@ -533,7 +589,9 @@ const GameMuushig = () => {
         face={faceFor(index)}
         dealSeat={SEAT_POSITIONS[index]}
         chip={
-          introducing
+          drawing
+            ? active && { label: "DRAW", bg: "#f4c430", blink: true }
+            : introducing
             ? { label: "DEALER", bg: "#5fd4d6", fg: "#0a3a3a", blink: true }
             : folded
             ? { label: "FOLD", bg: "#463a78", fg: "#ead8b1" }
@@ -543,7 +601,7 @@ const GameMuushig = () => {
                 ? { label: "IN", bg: "#9bd14f", fg: "#1a3a0e" }
                 : null
         }
-        tag={index === game.dealer && !introducing ? { label: "DEAL", bg: "#5fd4d6", fg: "#0a3a3a" } : null}
+        tag={index === game.dealer && !introducing && !drawing ? { label: "DEAL", bg: "#5fd4d6", fg: "#0a3a3a" } : null}
         detail={<SeatDetail eaten={p.eaten} folded={folded} />}
         callout={
           debuffs[index]
@@ -552,6 +610,22 @@ const GameMuushig = () => {
         }
       />
     );
+  };
+
+  // The draw for the deal: each seat's latest card, and who's still in it.
+  const draws = game.dealDraws ?? [];
+  const latestBySeat = new Map();
+  draws.forEach((d, i) =>
+    latestBySeat.set(d.seat, { key: `${game.matchNumber}-${i}`, seat: SEAT_POSITIONS[d.seat], card: d.card, depth: d.depth }),
+  );
+  const tieSeats = phase === PHASES.DRAW && game.drawPass > 1 ? game.events.findLast((e) => e.type === "drawTie")?.seats : null;
+  const dealDraw = {
+    count: game.dealDeck?.length ?? 0,
+    draws: [...latestBySeat.values()],
+    latest: draws.length ? `${game.matchNumber}-${draws.length - 1}` : null,
+    label: phase !== PHASES.DRAW ? "HIGHEST CARD DEALS" : tieSeats ? "TIE · DRAW AGAIN" : "DRAW FOR THE DEAL",
+    contenders: tieSeats ? tieSeats.map((s) => SEAT_POSITIONS[s]) : null,
+    winner: phase !== PHASES.DRAW ? SEAT_POSITIONS[game.dealer] : null,
   };
 
   // Your own decision is announced above your hand.
@@ -609,7 +683,7 @@ const GameMuushig = () => {
           </div>
           <div className="flex flex-col items-center px-3 py-1" style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}>
             <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">ROUND</div>
-            <div className="font-pixel-display text-sm text-glow-gold">{game.roundNumber}</div>
+            <div className="font-pixel-display text-sm text-glow-gold">{game.roundNumber || "–"}</div>
           </div>
         </div>
 
@@ -702,20 +776,29 @@ const GameMuushig = () => {
             trumpRef={trumpRef}
             trickNumber={Math.max(1, game.trickNumber)}
             tricksPerRound={TRICKS_PER_ROUND}
-            phaseLabel={stage === "intro" ? false : isDealing ? `ROUND ${game.roundNumber}` : phaseLabel}
+            phaseLabel={drawing || stage === "intro" ? false : isDealing ? `ROUND ${game.roundNumber}` : phaseLabel}
             maxCardWidth={deckW}
             dealing={isDealing}
             centerRef={feltRef}
-            dealerSeat={stage === "intro" ? null : SEAT_POSITIONS[game.dealer]}
-            overlay={(cardWidth) =>
-              stage === "intro" ? (
+            dealerSeat={drawing || stage === "intro" ? null : SEAT_POSITIONS[game.dealer]}
+            overlay={(cardWidth, diameter) =>
+              drawing ? (
+                <DealDraw
+                  key={game.matchNumber}
+                  D={diameter}
+                  cw={cardWidth}
+                  {...dealDraw}
+                  preview={myDraw ? pickDepth : 0}
+                  onDone={handleDrawDone}
+                />
+              ) : stage === "intro" ? (
                 <DealerIntro
                   key={roundKey}
                   round={game.roundNumber}
                   dealerName={nameOf(game.dealer)}
                   face={faceFor(game.dealer)}
                   isMe={game.dealer === ME}
-                  drawnCard={game.roundNumber === 1 ? game.events.find((e) => e.type === "firstDealer")?.draws[game.dealer].card : null}
+                  drawnCard={game.roundNumber === 1 ? game.events.find((e) => e.type === "firstDealer")?.card : null}
                   onDone={handleIntroDone}
                 />
               ) : (
@@ -779,15 +862,17 @@ const GameMuushig = () => {
               }
             />
           </div>
-          <MuushigControls message={message} warning={warning} buttons={buttons} sortMode={sortMode} onSortModeChange={changeSortMode} />
+          <MuushigControls message={message} warning={warning} buttons={buttons} sortMode={sortMode} onSortModeChange={changeSortMode}>
+            {myDraw && <DepthPicker depth={pickDepth} max={drawMax} onChange={setDepth} />}
+          </MuushigControls>
         </div>
 
         {/* SIDEBAR */}
         <div className="flex flex-col min-h-0 border-l-4" style={{ borderColor: "#0a0712", background: "#0e0a1f" }}>
           <MuushigScoreBoard
             players={players.map((p) => ({ ...p, folded: p.status === "fold" }))}
-            currentPlayerIndex={!isDealing && ACTION_PHASES.has(phase) ? game.turn : -1}
-            dealerIndex={game.dealer}
+            currentPlayerIndex={phase === PHASES.DRAW || (!isDealing && ACTION_PHASES.has(phase)) ? game.turn : -1}
+            dealerIndex={drawing ? -1 : game.dealer}
             startScore={START_SCORE}
             myIndex={ME}
             faceFor={faceFor}
@@ -829,6 +914,37 @@ const GameMuushig = () => {
     </div>
   );
 };
+
+// How deep into the pile you draw for the deal.
+function DepthPicker({ depth, max, onChange }) {
+  const step = { backgroundColor: "#463a78", borderColor: "#2a234d", color: "#ead8b1" };
+  return (
+    <div className="flex items-stretch gap-1 p-1" role="group" aria-label="How deep to draw" style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}>
+      <span className="font-pixel-display text-[10px] text-bone/60 self-center px-2">DEPTH</span>
+      <button
+        onClick={() => onChange(Math.max(1, depth - 1))}
+        disabled={depth <= 1}
+        className="pixel-btn font-pixel-display text-[12px] px-3 py-2"
+        style={step}
+        aria-label="Shallower"
+      >
+        −
+      </button>
+      <span className="font-pixel-display text-sm text-glow-gold self-center text-center" style={{ minWidth: 36 }} aria-live="polite">
+        {depth}
+      </span>
+      <button
+        onClick={() => onChange(Math.min(max, depth + 1))}
+        disabled={depth >= max}
+        className="pixel-btn font-pixel-display text-[12px] px-3 py-2"
+        style={step}
+        aria-label="Deeper"
+      >
+        +
+      </button>
+    </div>
+  );
+}
 
 // Piles eaten this round: one box per trick (5 a round); all 5 wins the
 // round. Scores live on the scoreboard.

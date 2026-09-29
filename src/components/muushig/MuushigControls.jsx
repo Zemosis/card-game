@@ -15,8 +15,9 @@ const TONES = {
 /**
  * buttons: [{ label, onClick, disabled, tone, primary }]
  * warning: shown in rose instead of the message (e.g. "this debuffs your K♦")
+ * children: extra controls shown before the buttons (the draw's depth picker)
  */
-const MuushigControls = ({ message = "", warning = null, buttons = [], sortMode = "rank", onSortModeChange }) => {
+const MuushigControls = ({ message = "", warning = null, buttons = [], sortMode = "rank", onSortModeChange, children }) => {
   const primary = buttons.find((b) => b.primary && !b.disabled);
 
   useEffect(() => {
@@ -68,6 +69,8 @@ const MuushigControls = ({ message = "", warning = null, buttons = [], sortMode 
           );
         })}
       </div>
+
+      {children}
 
       {buttons.map((b) => (
         <button
