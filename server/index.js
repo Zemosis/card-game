@@ -561,6 +561,30 @@ io.on("connection", (socket) => {
     if (lobby) startGame(lobby);
   });
 
+  const isSeat = (seat) => Number.isInteger(seat) && seat >= 0 && seat < SEATS;
+
+  socket.on("add_cpu", ({ lobbyId, seat } = {}) => {
+    const lobby = hostCommand(lobbyId);
+    if (!lobby) return;
+    if (!isSeat(seat) || lobby.seats[seat] !== null) {
+      socket.emit("move_rejected", { reason: "That seat isn't empty" });
+      return;
+    }
+    lobby.seats[seat] = { kind: "cpu", name: nextCpuName(lobby.seats) };
+    broadcastTable(lobby);
+  });
+
+  socket.on("remove_cpu", ({ lobbyId, seat } = {}) => {
+    const lobby = hostCommand(lobbyId);
+    if (!lobby) return;
+    if (!isSeat(seat) || lobby.seats[seat]?.kind !== "cpu") {
+      socket.emit("move_rejected", { reason: "There's no CPU in that seat" });
+      return;
+    }
+    lobby.seats[seat] = null;
+    broadcastTable(lobby);
+  });
+
   socket.on("request_move", ({ lobbyId, action, data } = {}) => {
     const lobby = lobbies.get(lobbyId);
     const member = lobby?.members.get(socket.data.playerKey);

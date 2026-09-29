@@ -270,6 +270,85 @@ describe("the waiting table", () => {
     host.emit("check_game_status", { lobbyId });
     expect((await again).gameState).toBeDefined();
   });
+
+  it("the host adds and removes CPUs; everyone sees it", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    const b = await guest();
+    await joinLobby(b, lobbyId);
+
+    // Waits that follow an action use next(), never tableWhere(): an older
+    // recorded update could already satisfy the predicate.
+    const bothAdded = next(b, "table_update", (t) => t.seats[2] && t.seats[3]);
+    host.emit("add_cpu", { lobbyId, seat: 2 });
+    host.emit("add_cpu", { lobbyId, seat: 3 });
+    const both = await bothAdded;
+    expect(both.seats[2]).toEqual({ kind: "cpu", name: "CPU 1" });
+    expect(both.seats[3]).toEqual({ kind: "cpu", name: "CPU 2" });
+
+    const removedP = next(b, "table_update", (t) => t.seats[2] === null);
+    host.emit("remove_cpu", { lobbyId, seat: 2 });
+    expect((await removedP).seats[3].name).toBe("CPU 2");
+
+    // The freed name is reused.
+    const readded = next(b, "table_update", (t) => t.seats[2] !== null);
+    host.emit("add_cpu", { lobbyId, seat: 2 });
+    expect((await readded).seats[2].name).toBe("CPU 1");
+  });
+
+  it("rejects CPU commands from non-hosts and for bad seats", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    const b = await guest();
+    await joinLobby(b, lobbyId);
+
+    let r = next(b, "move_rejected");
+    b.emit("add_cpu", { lobbyId, seat: 2 });
+    expect((await r).reason).toBe("Only the host can do that");
+
+    for (const seat of [0, 1, -1, 4, "2", null]) {
+      r = next(host, "move_rejected");
+      host.emit("add_cpu", { lobbyId, seat });
+      expect((await r).reason).toBe("That seat isn't empty");
+    }
+    for (const seat of [0, 2, 9]) {
+      r = next(host, "move_rejected");
+      host.emit("remove_cpu", { lobbyId, seat });
+      expect((await r).reason).toBe("There's no CPU in that seat");
+    }
+    const now = next(host, "table_update");
+    host.emit("check_game_status", { lobbyId });
+    expect((await now).seats.slice(2)).toEqual([null, null]);
+  });
+
+  it("CPU commands are rejected once the game has started", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    await startMatch(host, lobbyId);
+    const r = next(host, "move_rejected");
+    host.emit("add_cpu", { lobbyId, seat: 1 });
+    expect((await r).reason).toBe("The game has already started");
+  });
+
+  it("a joiner bumps a CPU when no seat is empty; a fifth human is turned away", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    const allCpus = next(host, "table_update", (t) => t.seats.every(Boolean));
+    for (const seat of [1, 2, 3]) host.emit("add_cpu", { lobbyId, seat });
+    await allCpus;
+
+    const b = await guest("BUMP", "0303");
+    await joinLobby(b, lobbyId);
+    const t = await tableWhere(b, (x) => x.mySeat != null);
+    expect(t.mySeat).toBe(1);
+    expect(t.seats.map((s) => s.kind)).toEqual(["human", "human", "cpu", "cpu"]);
+
+    for (let i = 0; i < 2; i++) await joinLobby(await guest(), lobbyId);
+    const late = await guest();
+    const full = next(late, "error_message");
+    late.emit("join_lobby", { lobbyId });
+    expect(await full).toBe("Lobby is full");
+  });
 });
 
 describe("a running match", () => {
