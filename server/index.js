@@ -351,9 +351,12 @@ io.on("connection", (socket) => {
 
   socket.on("get_stats", (ack) => {
     if (typeof ack !== "function") return;
+    const tables = [...lobbies.values()].filter((l) => !l.isPrivate).length;
     ack({
       online: io.engine.clientsCount,
-      tables: [...lobbies.values()].filter((l) => !l.isPrivate).length,
+      tables,
+      // Open public lobbies per game. Only Thirteen is served here so far.
+      lobbies: { thirteen: tables, muushig: 0 },
     });
   });
 

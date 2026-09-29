@@ -1,4 +1,4 @@
-// Live server stats (online count, open tables, ping) polled over the socket.
+// Live server stats (online count, open tables, lobbies per game, ping) polled over the socket.
 
 import { useState, useEffect } from "react";
 import { socket } from "../utils/socket";
@@ -10,6 +10,7 @@ export function useServerStats({ enabled = true } = {}) {
     connected: socket.connected,
     online: null,
     tables: null,
+    lobbies: null,
     ping: null,
   });
 
@@ -36,6 +37,7 @@ export function useServerStats({ enabled = true } = {}) {
           connected: true,
           online: data.online,
           tables: data.tables,
+          lobbies: data.lobbies ?? null,
         }));
       });
     };
@@ -44,7 +46,7 @@ export function useServerStats({ enabled = true } = {}) {
     const interval = setInterval(poll, POLL_INTERVAL);
     const onConnect = () => poll();
     const onDisconnect = () =>
-      setStats({ connected: false, online: null, tables: null, ping: null });
+      setStats({ connected: false, online: null, tables: null, lobbies: null, ping: null });
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
 

@@ -13,6 +13,7 @@ import LoginModal from "../components/auth/LoginModal";
 import AvatarPickerDropdown from "../components/auth/AvatarPickerDropdown";
 import SettingsModal from "../components/SettingsModal";
 import PixelIcon from "../components/PixelIcon";
+import RulebookPicker from "../components/RulebookPicker";
 
 const MainMenu = () => {
   const navigate = useNavigate();
@@ -65,7 +66,7 @@ const MainMenu = () => {
             ♠
           </div>
           <div className="font-pixel-display text-[14px] tracking-wider text-glow-gold">
-            CARD-LORE
+            KHUZUR
           </div>
         </div>
 
@@ -104,6 +105,7 @@ const MainMenu = () => {
               <span>Sign Out</span>
             </PixelButton>
           )}
+          <RulebookPicker />
           <button
             className="pixel-btn font-pixel-display text-xs px-4 py-2.5 uppercase relative"
             style={{
@@ -153,7 +155,7 @@ const MainMenu = () => {
       {/* HERO */}
       <div className="relative flex flex-col items-center pt-4 pb-2">
         <div className="font-pixel-body text-bone text-sm tracking-[0.4em] uppercase mb-1">
-          Khuzur Card Hall
+          Card Hall
         </div>
         <h1
           className="font-pixel-display text-[36px] leading-tight mb-1"
@@ -175,9 +177,8 @@ const MainMenu = () => {
         <GameTile
           id="13"
           title="THIRTEEN"
-          subtitle={'"13" — Tien Len'}
           tag="4 PLAYERS"
-          desc="Climb to victory by playing combinations. Eliminate opponents and rule the table."
+          desc="Be the first to empty your hand. Beat the last play with a higher single, pair, triple or 5-card hand."
           accent="gold"
           cards={[
             { rank: "A", suit: "♠" },
@@ -187,7 +188,7 @@ const MainMenu = () => {
             { rank: "10", suit: "♠" },
           ]}
           difficulty={2}
-          plays={1247}
+          lobbies={stats.lobbies?.thirteen}
           hovered={hovered === "13"}
           onMouseEnter={() => setHovered("13")}
           onMouseLeave={() => setHovered(null)}
@@ -196,9 +197,8 @@ const MainMenu = () => {
         <GameTile
           id="muushig"
           title="MUUSHIG"
-          subtitle="Mongolian Trickster"
           tag="5 PLAYERS"
-          desc="Traditional Mongolian trick-taking. Avoid the cat — pass the burden — bleed the deck dry."
+          desc="Trick-taking with trumps. Start at 15 points, each trick you win takes one off, and the first to reach 0 wins."
           accent="rose"
           cards={[
             { rank: "2", suit: "♣" },
@@ -208,7 +208,7 @@ const MainMenu = () => {
             { rank: "6", suit: "♣" },
           ]}
           difficulty={3}
-          plays={418}
+          lobbies={stats.lobbies?.muushig}
           hovered={hovered === "muushig"}
           onMouseEnter={() => setHovered("muushig")}
           onMouseLeave={() => setHovered(null)}
@@ -217,7 +217,6 @@ const MainMenu = () => {
         <GameTile
           id="locked"
           title="???"
-          subtitle="??? — Locked"
           tag="COMING"
           desc="A new game stirs in the deck. Reach Rank V to unlock the third table of cards."
           accent="dusk"
@@ -268,13 +267,12 @@ const MainMenu = () => {
 
 function GameTile({
   title,
-  subtitle,
   tag,
   desc,
   accent,
   cards = [],
   difficulty = 1,
-  plays = 0,
+  lobbies,
   locked,
   hovered,
   onMouseEnter,
@@ -412,9 +410,6 @@ function GameTile({
           className="px-5 py-2"
           style={{ borderTop: "3px solid #0a0712", backgroundColor: "#0a0712" }}
         >
-          <div className="font-pixel-body text-bone text-xs uppercase tracking-widest">
-            {subtitle}
-          </div>
           <div
             className="font-pixel-display text-2xl text-shadow-hard mb-2"
             style={{ color: accentMap.text }}
@@ -430,7 +425,9 @@ function GameTile({
           <div className="flex items-center justify-between">
             <div className="font-pixel-body text-bone/70 text-sm">
               <span>
-                {locked ? "—" : plays.toLocaleString()} plays
+                {locked || lobbies == null
+                  ? "—"
+                  : `${lobbies} ${lobbies === 1 ? "lobby" : "lobbies"} open`}
               </span>
             </div>
             {locked ? (

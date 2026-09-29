@@ -130,6 +130,19 @@ describe("connection", () => {
     expect(stats.online).toBeGreaterThanOrEqual(1);
     expect(typeof stats.tables).toBe("number");
   });
+
+  it("get_stats counts open public lobbies per game", async () => {
+    const a = await guest();
+    const before = await ack(a, "get_stats");
+    expect(before.lobbies).toEqual({ thirteen: before.tables, muushig: 0 });
+
+    const host = await guest("HOST");
+    await createLobby(host, { lobbyName: "Counted" });
+    await createLobby(await guest(), { lobbyName: "Hidden", isPrivate: true });
+    const after = await ack(a, "get_stats");
+    expect(after.lobbies.thirteen).toBe(before.lobbies.thirteen + 1);
+    expect(after.lobbies.muushig).toBe(0);
+  });
 });
 
 describe("lobbies", () => {

@@ -1,4 +1,4 @@
-# UI/UX Style Guide — Card-Lore / Khuzur Card Hall
+# UI/UX Style Guide — Khuzur
 
 Reference this document when building any new UI components, pages, modals, or popups. Every element must feel like it belongs in a pixel-art dungeon card hall.
 
