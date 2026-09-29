@@ -68,6 +68,9 @@ each player says whether they **go in** this round or **fold**.
   Their **score doesn't change**.
 - **At least 2 players must go in.** When the players still to decide are needed
   to reach 2, they can't fold.
+- **No 3 folds in a row.** After folding 2 rounds in a row, you **must go in**
+  on the next round, whatever your hand. Going in starts the count over; a new
+  match starts everyone at 0.
 
 ---
 

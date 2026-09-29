@@ -10,6 +10,7 @@ import {
   createDeck,
   createMatch,
   decide,
+  foldBlock,
   makeCard,
   maxDiscard,
   penaltyFor,
@@ -112,6 +113,38 @@ describe("play or fold", () => {
     expect(canFold(s, s.turn)).toBe(false);
     s = decide(s, s.turn, true);
     expect(s.phase).toBe(PHASES.SWAP);
+  });
+
+  it("counts folds in a row: folding adds one, going in resets it", () => {
+    let s = newMatch();
+    expect(s.players.every((p) => p.foldStreak === 0)).toBe(true);
+    const [a, b] = [s.turn, (s.turn + 1) % 5];
+    s.players[b].foldStreak = 1;
+    s = decide(s, a, false);
+    s = decide(s, b, true);
+    expect(s.players[a].foldStreak).toBe(1);
+    expect(s.players[b].foldStreak).toBe(0);
+  });
+
+  it("after folding 2 rounds in a row, you must go in", () => {
+    let s = newMatch();
+    const seat = s.turn;
+    s.players[seat].foldStreak = 2;
+    expect(canFold(s, seat)).toBe(false);
+    expect(foldBlock(s, seat)).toBe("streak");
+    expect(() => decide(s, seat, false)).toThrow(/2 rounds in a row/);
+    s = decide(s, seat, true);
+    expect(s.players[seat].foldStreak).toBe(0);
+  });
+
+  it("the fold streak carries into the next round, and a rematch clears it", () => {
+    let s = newMatch();
+    s.players[0].foldStreak = 2;
+    s.phase = PHASES.ROUND_END;
+    s = startNextRound(s, seededRandom(3));
+    expect(s.players[0].foldStreak).toBe(2);
+    s.phase = PHASES.MATCH_OVER;
+    expect(rematch(s, seededRandom(3)).players[0].foldStreak).toBe(0);
   });
 
   it("rejects a move out of turn", () => {

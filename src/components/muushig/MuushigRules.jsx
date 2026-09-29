@@ -7,7 +7,7 @@
 import React from "react";
 import { PixelCard } from "../PixelCard";
 import Rulebook, { Callout, CardRow, Cards, Hi, Kbd, Key, Section, Steps, Versus } from "../Rulebook";
-import { MIN_PLAYING, START_SCORE, TRICKS_PER_ROUND, ZERO_PILES_PENALTY } from "../../utils/muushig/engine";
+import { MAX_FOLDS_IN_A_ROW, MIN_PLAYING, START_SCORE, TRICKS_PER_ROUND, ZERO_PILES_PENALTY } from "../../utils/muushig/engine";
 
 const SECTIONS = [
   ["goal", "The goal"],
@@ -114,6 +114,10 @@ export default function MuushigRules({ onClose }) {
         </p>
         <Callout tone="rule" title={`AT LEAST ${MIN_PLAYING} MUST GO IN`}>
           When the players still to decide are needed to make {MIN_PLAYING}, they can't fold.
+        </Callout>
+        <Callout tone="rule" title={`NO ${MAX_FOLDS_IN_A_ROW + 1} FOLDS IN A ROW`}>
+          Fold {MAX_FOLDS_IN_A_ROW} rounds in a row and you <Key>must go in</Key> on the next one, whatever your hand.
+          Going in starts the count over.
         </Callout>
       </Section>
 

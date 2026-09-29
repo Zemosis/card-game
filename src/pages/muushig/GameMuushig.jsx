@@ -29,14 +29,15 @@ import MuushigRules from "../../components/muushig/MuushigRules";
 import PixelIcon from "../../components/PixelIcon";
 import { SignalBars } from "../../components/PixelUI";
 import {
+  MAX_FOLDS_IN_A_ROW,
   PHASES,
   START_SCORE,
   TRICKS_PER_ROUND,
   allowedPlays,
-  canFold,
   collectTrick,
   createMatch,
   decide,
+  foldBlock,
   maxDiscard,
   playCard,
   rematch,
@@ -442,8 +443,14 @@ const GameMuushig = () => {
                 : "Round over.";
     if (me.status === "fold" && phase !== PHASES.DECIDE) message = `You folded. ${message}`;
   } else if (phase === PHASES.DECIDE) {
-    const foldable = canFold(game, ME);
-    message = foldable ? "Go in this round, or fold and sit it out?" : "You must go in: at least 2 players are needed.";
+    const block = foldBlock(game, ME);
+    const foldable = block === null;
+    message =
+      block === "streak"
+        ? `You folded the last ${MAX_FOLDS_IN_A_ROW} rounds: this time you must go in.`
+        : block === "short"
+          ? "You must go in: at least 2 players are needed."
+          : "Go in this round, or fold and sit it out?";
     buttons = [
       { label: "FOLD", tone: "rose", onClick: () => onDecide(false), disabled: !foldable },
       { label: "GO IN", tone: "green", primary: true, onClick: () => onDecide(true) },

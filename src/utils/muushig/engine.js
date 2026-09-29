@@ -5,7 +5,7 @@
 // React, timers or sockets, so the same file can run on the server later.
 //
 // A round moves through these phases:
-//   DECIDE     each player, left of the dealer first, plays or folds
+//   DECIDE     each player, left of the dealer first, goes in or folds
 //   SWAP       each playing player discards and draws (dealer last)
 //   TRUMP      a playing dealer may swap a card for the face-up trump
 //   PLAY       tricks; `turn` is whoever must play next
@@ -24,6 +24,7 @@ export const TRICKS_PER_ROUND = 5;
 export const START_SCORE = 15;
 export const ZERO_PILES_PENALTY = 5;
 export const MIN_PLAYING = 2;
+export const MAX_FOLDS_IN_A_ROW = 2; // the next round after this many folds, you must go in
 
 export const PHASES = {
   DECIDE: "DECIDE",
@@ -104,6 +105,7 @@ export function createMatch({ players, rng = Math.random, matchNumber = 1, start
       status: null,
       eaten: 0,
       discarded: [],
+      foldStreak: 0, // rounds folded in a row; carries from round to round
     })),
     events: [{ type: "firstDealer", seat: dealer, draws: draw.map((card, seat) => ({ seat, card })) }],
     matchWinner: null,
@@ -186,18 +188,28 @@ function takeFromHand(player, cardId) {
 
 // ---- DECIDE ----------------------------------------------------------------
 
-/** Folding is allowed while enough undecided players remain to reach 2. */
-export function canFold(state, seat) {
+/**
+ * Why a player can't fold right now, or null if they can:
+ *   "streak"  they folded the last MAX_FOLDS_IN_A_ROW rounds
+ *   "short"   they're needed to make MIN_PLAYING players
+ */
+export function foldBlock(state, seat) {
+  if ((state.players[seat].foldStreak ?? 0) >= MAX_FOLDS_IN_A_ROW) return "streak";
   const undecidedOthers = state.players.filter((p, s) => s !== seat && p.status === null).length;
-  return playingCount(state) + undecidedOthers >= MIN_PLAYING;
+  return playingCount(state) + undecidedOthers >= MIN_PLAYING ? null : "short";
 }
+
+export const canFold = (state, seat) => foldBlock(state, seat) === null;
 
 export function decide(prev, seat, play) {
   expect(prev, PHASES.DECIDE, seat);
-  if (!play && !canFold(prev, seat)) throw new Error("At least 2 players must play");
+  const block = play ? null : foldBlock(prev, seat);
+  if (block === "streak") throw new Error(`You folded ${MAX_FOLDS_IN_A_ROW} rounds in a row: you must go in`);
+  if (block === "short") throw new Error(`At least ${MIN_PLAYING} players must go in`);
   const state = clone(prev);
   const player = state.players[seat];
   player.status = play ? "play" : "fold";
+  player.foldStreak = play ? 0 : (player.foldStreak ?? 0) + 1;
   if (!play) {
     state.deadPile.push(...player.hand);
     player.hand = [];
