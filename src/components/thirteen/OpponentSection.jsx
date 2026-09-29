@@ -22,10 +22,10 @@ const FAN_H = CARD_H + 14;
 // built like your own hand (opening upward), then rotated.
 const TURN = { top: 180, left: 90, right: 270 };
 
-function StatusChip({ label, bg, fg = "#1a1024", blink }) {
+function StatusChip({ label, bg, fg = "#1a1024", blink, side = "right" }) {
   return (
     <span
-      className={`absolute -top-3 right-2 font-pixel-display text-[10px] leading-none px-1.5 py-1 ${blink ? "blink" : ""}`}
+      className={`absolute -top-3 ${side === "left" ? "left-2" : "right-2"} font-pixel-display text-[10px] leading-none px-1.5 py-1 ${blink ? "blink" : ""}`}
       style={{ backgroundColor: bg, color: fg, boxShadow: "0 0 0 2px #0a0712" }}
     >
       {label}
@@ -98,7 +98,9 @@ function HandPreview({ count, position }) {
 const TOP_PLATE_W = 184;
 const SIDE_PLATE_W = 124;
 
-const OpponentSection = ({ player, isActive = false, hasPassed = false, position = "top", face }) => {
+// Games can override the plate's status chip (`chip`, null for none), add a
+// second chip on the left (`tag`), and replace the card count line (`detail`).
+const OpponentSection = ({ player, isActive = false, hasPassed = false, position = "top", face, chip, tag, detail }) => {
   const { name, hand, isEliminated } = player;
   const count = hand.length;
   const vertical = position !== "top";
@@ -123,19 +125,24 @@ const OpponentSection = ({ player, isActive = false, hasPassed = false, position
           opacity: isEliminated ? 0.55 : 1,
         }}
       >
-        {isEliminated ? (
+        {chip !== undefined ? (
+          chip && <StatusChip {...chip} />
+        ) : isEliminated ? (
           <StatusChip label="OUT" bg="#7a1530" fg="#ead8b1" />
         ) : isActive ? (
           <StatusChip label="TURN" bg="#f4c430" blink />
         ) : hasPassed ? (
           <StatusChip label="PASS" bg="#463a78" fg="#ead8b1" />
         ) : null}
+        {tag && <StatusChip {...tag} side="left" />}
         <PixelAvatar variant={face?.variant ?? ((player.id || 0) % 5) + 1} customAvatarData={face?.customAvatarData} size={vertical ? 56 : 44} active={isActive} eliminated={isEliminated} />
         <div className="min-w-0 max-w-full">
           <div className="font-pixel-display text-[11px] text-parchment truncate">{name.split(" #")[0]}</div>
-          <div className="font-pixel-body text-[18px] leading-none mt-1.5 text-bone/70 whitespace-nowrap">
-            <span className="text-glow-cyan">{count}</span> {count === 1 ? "card" : "cards"}
-          </div>
+          {detail ?? (
+            <div className="font-pixel-body text-[18px] leading-none mt-1.5 text-bone/70 whitespace-nowrap">
+              <span className="text-glow-cyan">{count}</span> {count === 1 ? "card" : "cards"}
+            </div>
+          )}
         </div>
       </div>
 

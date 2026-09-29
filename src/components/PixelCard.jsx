@@ -19,6 +19,7 @@ export function PixelCard({
   faceDown = false,
   selected = false,
   dim = false,
+  debuffed = false,
   selectable = false,
   onClick,
   style,
@@ -61,7 +62,7 @@ export function PixelCard({
 
   return (
     <div
-      className={`pixel-card ${sizeClass} ${selected ? "selected" : ""} ${dim ? "dim" : ""} ${selectable ? "selectable" : ""} ${className}`}
+      className={`pixel-card ${sizeClass} ${selected ? "selected" : ""} ${dim ? "dim" : ""} ${debuffed ? "debuffed" : ""} ${selectable ? "selectable" : ""} ${className}`}
       onClick={selectable ? onClick : undefined}
       style={{
         ...sized,
@@ -79,6 +80,7 @@ export function PixelCard({
         {rank}
         <span className="suit">{suit}</span>
       </span>
+      {debuffed && <span className="debuff-tag">DEBUFFED</span>}
     </div>
   );
 }

@@ -1,88 +1,167 @@
-# Muushig - Rulebook
+# Muushig — Rulebook
 
-## Overview
+Muushig is a Mongolian trick-taking card game for **5 players**. Everyone starts
+on **15 points**. Winning tricks takes points off your score; the **first player
+to reach 0 wins the match**.
 
-Muushig is a Mongolian trick-taking card game for 5 players. Each player starts with 15 points and the goal is to reach 0 points first. The game is played across multiple rounds until someone wins.
+In Muushig, winning a trick is called **eating** it (you eat the pile).
 
-## The Deck
+The engine in `src/utils/muushig/` implements exactly these rules. If a rule
+changes here, change it there and in the in-game rulebook
+(`src/components/muushig/MuushigRules.jsx`).
 
-- A 32-card deck is used: ranks 7, 8, 9, 10, J, Q, K, A in all 4 suits.
-- No jokers. Cards 2–5 are removed.
+---
 
-### Card Ranking (lowest to highest)
+## At a glance
 
-7, 8, 9, 10, J, Q, K, A
+| | |
+|---|---|
+| Players | 5 |
+| Deck | 32 cards: 7, 8, 9, 10, J, Q, K, A in all four suits |
+| Hand | 5 cards |
+| Starting score | 15 |
+| Tricks per round | 5 |
+| Goal | Be the first to reach 0 points |
 
-### Suit Ranking
+A round goes: **deal → play or fold → swap cards → dealer takes the trump →
+5 tricks → scoring**.
 
-There are no suit rankings in Muushig.
-Person who played the highest card in a trick wins the trick, unless other person played a trump suit card.
-For example, if player A plays a 7 of clubs and player B plays a 7 of spades, player A wins the trick because they played the card first, unless the following players play either a trump suit card or a higher card.
+---
 
-## Determining the Dealer
+## 1. Cards
 
-Before the first round, players determine the dealer by each drawing one card from the shuffled deck. The player with the highest card becomes the first dealer. In subsequent rounds, the dealer role passes to the next player clockwise.
+- Ranks, low to high: **7, 8, 9, 10, J, Q, K, A**.
+- Suits have **no order**. A card only beats another card of the **same suit**,
+  unless it is a **trump**.
+- Any **trump** beats any non-trump card. Between trumps, the higher rank wins.
 
-## Dealing
+---
 
-1. The dealer deals **5 cards** to each player (25 cards total).
-2. After dealing, the dealer flips the **top card of the remaining pool** face-up. This card's suit becomes the **trump suit** for the round.
+## 2. The dealer
 
-## Participation
+- **First round:** every player draws one card. The **highest rank deals**
+  (ties are broken at random).
+- **Later rounds:** the deal passes **clockwise** to the next player.
 
-Starting from the player to the **left of the dealer** and going clockwise, each player must declare whether they **participate** or **fold** for the round. A folded player sits out.
+"Left of the dealer" means the next player clockwise.
 
-## Discarding and Drawing
+---
 
-After participation is declared, players who are participating may improve their hand:
+## 3. Dealing and trump
 
-- Starting from the player to the **left of the dealer** (skipping any folded players), each player may **discard any number of cards** (0 up to all 5) from their hand and draw the same number of replacement cards from the remaining deck pool.
-- This continues clockwise. The dealer goes last if there is card remainging in deck pool.
-- If the pool runs out of cards, remaining players cannot draw.
-- After all players have drawn, the dealer has a special option: they may **discard one card** from their hand and take the **face-up trump card** into their hand.
+1. The dealer deals **5 cards** to each player (25 cards).
+2. The dealer turns the next card **face up** and sets it beside the pile. Its
+   suit is **trump** for the whole round.
+3. The remaining **6 cards** are the **draw pile**.
 
-## Playing the Round
+The table also has a **dead pile**: every discarded card and every folded hand
+goes there face down. Cards in the dead pile never come back this round.
 
-The player to the **left of the dealer** (or the next non-folded player) leads the first trick. Play proceeds clockwise.
+---
 
-### Trick Rules
+## 4. Play or fold
 
-1. **Leading with trump:** If the leading card is a trump suit card, all other players **must** play a higher trump suit card if they have one,
-   but if they don't have higher trump suit card they may give play any trump suit card. If a player has no trump suit cards, they may play any card.
-   But if a player had opportunity to play trump suit card and did not use it by playing lower ranking trump suit card or not even playing trump suit
-   card even though they had higher ranking trump suit card or trump suit card. That card will be later considered debuffed(not scoring, aka weakest),
-   and will be eaten in the next trick.
+Starting **left of the dealer** and going clockwise (the dealer decides last),
+each player says whether they **play** this round or **fold**.
 
-2. **Leading with a non-trump suit:** Players must follow the led suit with a **higher-ranking card of the same suit** if they have one, but they can
-   play other suits if they don't have that suit or trump card to try to eat that card.
-   If they cannot follow suit (or cannot play higher), they may play any card.
+- A folded player puts their hand on the dead pile and sits the round out.
+  Their **score doesn't change**.
+- **At least 2 players must play.** When the players still to decide are needed
+  to reach 2, they can't fold.
 
-3. **Winning a trick:** The highest card in the round wins (whether its trump suit or non trump suit on top). A player is considered survived/win a
-   trick if they have at least ate one card pile. Players decrement amount of tricks they have won (cards they have eaten) from their current score after round ends, and player without tricks won (no eaten pile) will be given +5 points.
+---
 
-### The Ace Rule
+## 5. Swapping cards
 
-If a player holds the **Ace of the trump suit** and does not play it on the **first trick** they could have won (i.e., they hold it back when an opponent leads trump), the Ace **loses its power** — it becomes the weakest card for the rest of the round.
+Starting **left of the dealer** and going clockwise (skipping folded players,
+dealer last), each player may:
 
-> Example: The first player leads the King of trumps. A player holding the Ace of trumps plays a 10 of trumps instead. From that point on, their trump Ace is powerless. Or first player doesn't play Ace of trumps and plays different card on the first trick, then that Ace trump will be debuffed.
+- **discard** any number of cards (0 to 5) onto the dead pile, and
+- **draw** the same number from the draw pile.
 
-## Scoring
+You can't discard more cards than the draw pile holds. Once the draw pile is
+empty, the players after that can't swap.
 
-Each round has exactly **5 tricks** (one per card in hand). After all tricks are played:
+### The dealer takes the trump
 
-- Each **participating player** who won **at least 1 trick** subtracts the number of tricks they won from their score.
-- Any participating player who won **0 tricks** adds **5 points** to their score.
-- Folded players' scores are **unchanged**.
+After everyone has swapped, a dealer who is playing may **discard one card and
+take the face-up trump card** into their hand. Unless every card they hold is
+better than it, they should. Once it's taken, the trump card is gone from the
+table; only its suit remains trump.
 
-The maximum a player can subtract in one round is **5** (if they won all 5 tricks and all others won none).
+---
 
-## Winning
+## 6. Playing tricks
 
-The first player whose score reaches **0** wins the game. The session ends and a new one may begin.
+- The **first trick** is led by the first playing player **left of the dealer**.
+- Each later trick is led by **whoever ate the previous one**.
+- Play goes **clockwise**; everyone who is playing puts down **one card**.
 
-## Match/Round/Trick Structure
+### What you must play
 
-- A match consists of multiple rounds.
-- A match ends when a player reaches 0 points.
-- Each round starts with a new dealer and a new deck.
-- Each round ends after 5 tricks (meaning each player has played 5 cards).
+**Other suit led (not trump):**
+
+- If you hold a card of the led suit that is **higher** than the highest card of
+  that suit on the table, you **must** play one of them.
+- Otherwise you may play **any card** — including a trump, to eat the pile.
+
+**Trump led:**
+
+- You should play a **higher trump** if you have one.
+- If you have no higher trump, you should play **any trump**.
+- If you have no trump at all, play any card.
+
+Breaking a trump rule is allowed, but punished: see **Debuffed cards**.
+
+### Who eats the pile
+
+The **highest trump** on the table eats the pile. If no trump was played, the
+**highest card of the led suit** does. A card of any other suit can never win.
+
+On the table the trick is a **stack**: a card that beats the top card goes on
+top, anything weaker is tucked underneath. When everyone has played, **whoever's
+card is on top eats the pile**.
+
+---
+
+## 7. Debuffed cards
+
+You get a **debuffed card** when you hold back a trump you were supposed to
+play:
+
+1. **Trump rule.** Trump was led and you didn't play a higher trump (or any
+   trump, when you had no higher one). Your **highest trump left in hand** is
+   debuffed.
+2. **The Ace rule.** You hold the **Ace of trumps** and, on any trick where you
+   are allowed to play it, you play something else. The Ace is debuffed. (If
+   you're leading, you're always allowed to play it — so lead with it.)
+
+A debuffed card:
+
+- is shown greyed out and blurred with a **DEBUFFED** stamp,
+- is the **weakest card** in the game — it can never eat a pile,
+- **must be played on the next trick**; it's the only card you may play. You
+  have forfeited that trick.
+
+If a debuffed card is led, the led suit is set by the next card played.
+
+---
+
+## 8. Scoring
+
+A round has exactly **5 tricks**. When they're done:
+
+| Piles eaten this round | Score change |
+|---|---|
+| 0 (and you played) | **+5** |
+| 1 to 5 | **−1 per pile** |
+| Folded | no change |
+
+Eating **all 5 piles** **wins the round**: you drop 5, and everyone else who
+played ate nothing, so they each take +5.
+
+## 9. Winning the match
+
+The match ends after the first round in which someone reaches **0 or less**.
+The **lowest score** wins; if that's a tie, the player who ate more piles in
+that last round wins.

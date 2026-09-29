@@ -196,14 +196,14 @@ function LogLine({ msg, color = "#ead8b1" }) {
       </div>
     );
   }
-  if (msg.kind === "trick") return <Divider>{msg.name} TAKES THE TRICK</Divider>;
-  if (msg.kind === "roundEnd") return <Divider color="#f4c430">{msg.name} WINS THE ROUND</Divider>;
+  if (msg.kind === "trick") return <Divider>{msg.name} {msg.verb || "TAKES THE TRICK"}</Divider>;
+  if (msg.kind === "roundEnd") return <Divider color="#f4c430">{msg.name} {msg.verb || "WINS THE ROUND"}</Divider>;
 
   if (msg.kind === "pass") {
     return (
       <div className="flex items-center gap-2 px-2 py-1 opacity-60" title={msg.timestamp}>
         {name}
-        <span className="font-pixel-body text-[18px] leading-none text-bone/80">passed</span>
+        <span className="font-pixel-body text-[18px] leading-none text-bone/80">{msg.verb || "passed"}</span>
       </div>
     );
   }

@@ -1,357 +1,611 @@
-// GAME MUUSHIG - Pixel Retro Round Table (5 players)
+// GAME MUUSHIG — a Muushig match against four CPU players.
+//
+// The rules live in utils/muushig/engine.js and the CPUs in utils/muushig/
+// ai.js; this page renders the engine's state and feeds it moves. It runs
+// entirely in the browser (there's no Muushig server yet), at the difficulty
+// picked in the lobby. You always sit in seat 0, at the bottom; seats go
+// clockwise from you.
 
-import React from "react";
-import { useNavigate } from "react-router-dom";
-import { PixelCard, PixelAvatar, CardFan } from "../../components/PixelCard";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
+import { useTableMetrics } from "../../hooks/useTableMetrics";
+import PlayerHand from "../../components/thirteen/PlayerHand";
+import OpponentSection from "../../components/thirteen/OpponentSection";
+import GameChat from "../../components/thirteen/GameChat";
+import RoundTable from "../../components/muushig/RoundTable";
+import SidePiles from "../../components/muushig/SidePiles";
+import RoundResults from "../../components/muushig/RoundResults";
+import Suit from "../../components/muushig/Suit";
+import MuushigScoreBoard from "../../components/muushig/MuushigScoreBoard";
+import MuushigControls from "../../components/muushig/MuushigControls";
+import MuushigRules from "../../components/muushig/MuushigRules";
 import PixelIcon from "../../components/PixelIcon";
 import { SignalBars } from "../../components/PixelUI";
+import {
+  PHASES,
+  START_SCORE,
+  TRICKS_PER_ROUND,
+  allowedPlays,
+  canFold,
+  collectTrick,
+  createMatch,
+  decide,
+  maxDiscard,
+  penaltyFor,
+  playCard,
+  rematch,
+  stackOrder,
+  startNextRound,
+  swap,
+  takeTrump,
+} from "../../utils/muushig/engine";
+import { aiAction, applyAction } from "../../utils/muushig/ai";
+import { soundManager } from "../../utils/SoundManager";
 
-// Placeholder game state for UI preview
-const SEATS = [
-  { seat: 0, x: 0, y: 290, name: "YOU", variant: "me", cards: 5, wins: 1, score: 12, isMe: true, active: false, dealer: false },
-  { seat: 1, x: -310, y: 95, name: "StarryEye", variant: 2, cards: 5, wins: 0, score: 20, isMe: false, active: false, dealer: false },
-  { seat: 2, x: -330, y: -155, name: "GrandmaJ", variant: 3, cards: 5, wins: 3, score: 4, isMe: false, active: true, dealer: false, leader: true },
-  { seat: 3, x: 330, y: -155, name: "glitch_19", variant: 4, cards: 5, wins: 0, score: 15, isMe: false, active: false, dealer: false },
-  { seat: 4, x: 310, y: 95, name: "YakRider", variant: 1, cards: 5, wins: 2, score: 8, isMe: false, active: false, dealer: true },
+const ME = 0;
+const AVATAR_COLOR = { 1: "#f4c430", 2: "#5fd4d6", 3: "#e85a7a", 4: "#9bd14f", 5: "#c5a8ff", custom: "#ead8b1" };
+const LEVEL_COLOR = { EASY: "#9bd14f", MEDIUM: "#f4c430", HARD: "#e85a7a" };
+const CPUS = [
+  { name: "Sarnai", variant: 2 },
+  { name: "Batu", variant: 3 },
+  { name: "Oyun", variant: 4 },
+  { name: "Temur", variant: 1 },
 ];
+// Seats clockwise from yours: bottom, bottom-left, top-left, top-right, bottom-right.
+const SEAT_POSITIONS = ["bottom", "bottomLeft", "topLeft", "topRight", "bottomRight"];
+// How long a CPU "thinks" in each phase, and how long a full trick stays up.
+const AI_DELAY = { DECIDE: 700, SWAP: 900, TRUMP: 900, PLAY: 950 };
+const TRICK_PAUSE = 1500;
+const ACTION_PHASES = new Set([PHASES.DECIDE, PHASES.SWAP, PHASES.TRUMP, PHASES.PLAY]);
 
-const PILE = [
-  { rank: "A", suit: "♠", who: "YakRider (trump)", isTrump: true },
-  { rank: "6", suit: "♠", who: "YakRider" },
-  { rank: "9", suit: "♠", who: "glitch_19" },
-  { rank: "K", suit: "♠", who: "GrandmaJ" },
-];
+const now = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const cardText = (c) => `${c.rank}${c.suit}`;
+const baseName = (name = "") => name.split(" #")[0];
 
-const MUUSHIG_HAND = [
-  { rank: "J", suit: "♣" },
-  { rank: "8", suit: "♦" },
-  { rank: "9", suit: "♥" },
-  { rank: "10", suit: "♠" },
-  { rank: "Q", suit: "♣" },
-];
-
-const MUUSHIG_LOG = [
-  { id: "1", type: "SYSTEM", text: "Round 4 begins. YakRider deals.", timestamp: "14:31" },
-  { id: "2", type: "SYSTEM", text: "Trump suit revealed: ♠", timestamp: "14:31" },
-  { id: "3", type: "SYSTEM", text: "GrandmaJ leads K♠.", timestamp: "14:31" },
-  { id: "4", type: "CHAT", sender: "StarryEye", text: "rude opener", timestamp: "14:31", isMe: false },
-  { id: "5", type: "SYSTEM", text: "YakRider plays 6♠.", timestamp: "14:32" },
-  { id: "6", type: "SYSTEM", text: "glitch_19 plays 9♠.", timestamp: "14:32" },
-  { id: "7", type: "CHAT", sender: "YOU", text: "gotta burn the J", timestamp: "14:32", isMe: true },
-];
-
-const TABLE_SIZE = 380;
+/** One engine event → one chat-log entry (see GameChat's LogLine), or null. */
+function logEntry(e, game) {
+  const name = (seat) => baseName(game.players[seat]?.name);
+  const at = (fields) => ({ playerIndex: e.seat, name: name(e.seat), ...fields });
+  switch (e.type) {
+    case "firstDealer":
+      return { text: `${name(e.seat)} drew the highest card and deals first.` };
+    case "round":
+      return { kind: "round", round: e.round };
+    case "playIn":
+      return at({ kind: "pass", verb: "plays this round" });
+    case "fold":
+      return at({ kind: "pass", verb: "folded" });
+    case "swap":
+      return at({
+        kind: "pass",
+        verb: e.emptyPile ? "can't swap: the draw pile is empty" : e.count ? `swapped ${e.count} card${e.count > 1 ? "s" : ""}` : "kept all 5 cards",
+      });
+    case "takeTrump":
+      return at({ kind: "pass", verb: `took the trump ${cardText(e.card)}` });
+    case "keepTrump":
+      return at({ kind: "pass", verb: "left the trump card" });
+    case "play":
+      return at({ kind: "play", cards: [e.card] });
+    case "debuff":
+      return at({ kind: "pass", verb: `${e.reason === "ace" ? "held back the trump ace" : "held back a trump"}: ${cardText(e.card)} is debuffed` });
+    case "eat":
+      return at({ kind: "trick", verb: "EATS THE PILE" });
+    case "roundEnd":
+      return e.roundWinner !== null
+        ? { kind: "roundEnd", playerIndex: e.roundWinner, name: name(e.roundWinner) }
+        : { text: `Round ${e.round} scored.` };
+    case "matchEnd":
+      return at({ kind: "roundEnd", verb: "WINS THE MATCH" });
+    default:
+      return null;
+  }
+}
 
 const GameMuushig = () => {
   const navigate = useNavigate();
-  const trumpCard = PILE[0];
-  const topCard = PILE[PILE.length - 1];
+  const { lobbyId, playerName, aiDifficulty = "MEDIUM" } = useLocation().state || {};
+  const { identity } = useAuth();
+  const myName = baseName(playerName || identity?.name || "You");
+  const { handW, deckW } = useTableMetrics();
+
+  const [game, setGame] = useState(() =>
+    createMatch({
+      players: [{ name: myName, type: "HUMAN" }, ...CPUS.map((c) => ({ name: c.name, type: "AI", level: aiDifficulty }))],
+    }),
+  );
+  // Selection and errors belong to one turn: a new turn starts clean.
+  const turnKey = `${game.matchNumber}-${game.roundNumber}-${game.phase}-${game.turn}-${game.trickNumber}`;
+  const [selection, setSelection] = useState({ key: null, cards: [] });
+  const selected = selection.key === turnKey ? selection.cards : [];
+  const setSelected = (cards) => setSelection({ key: turnKey, cards });
+  const [messages, setMessages] = useState([]);
+  const [error, setError] = useState({ key: null, text: "" });
+  const errorMessage = error.key === turnKey ? error.text : "";
+  const [showRules, setShowRules] = useState(false);
+  const closeRules = useCallback(() => setShowRules(false), []);
+  const [showSettings, setShowSettings] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [volumes, setVolumes] = useState({ master: 50, sfx: 50 });
+  const [sortMode, setSortMode] = useState(() => {
+    try {
+      return localStorage.getItem("khuzur_sort") === "suit" ? "suit" : "rank";
+    } catch {
+      return "rank";
+    }
+  });
+  const loggedRef = useRef({ first: null, count: 0 });
+
+  const safePlay = (method) => {
+    try {
+      if (soundManager.context?.state === "suspended") soundManager.context.resume();
+      soundManager[method]?.();
+    } catch {
+      /* audio not ready yet — safe to ignore */
+    }
+  };
+
+  useEffect(() => {
+    soundManager.init?.();
+  }, []);
+
+  // --- CPU turns, and the pause after a full trick ---
+  useEffect(() => {
+    let run = null;
+    let delay = 0;
+    if (game.phase === PHASES.TRICK_END) {
+      run = collectTrick;
+      delay = TRICK_PAUSE;
+    } else if (ACTION_PHASES.has(game.phase) && game.players[game.turn]?.type === "AI") {
+      run = (s) => applyAction(s, aiAction(s));
+      delay = AI_DELAY[game.phase];
+    }
+    if (!run) return;
+    const timer = setTimeout(() => setGame((s) => run(s)), delay);
+    return () => clearTimeout(timer);
+  }, [game]);
+
+  // --- Your turn: a ping ---
+  const myTurn = ACTION_PHASES.has(game.phase) && game.turn === ME;
+  useEffect(() => {
+    if (myTurn) safePlay("playTurnAlert");
+  }, [turnKey, myTurn]);
+
+  // --- Engine events → the move log, plus sounds ---
+  useEffect(() => {
+    const logged = loggedRef.current;
+    if (logged.first !== game.events[0]) {
+      // A new match: its event list starts over.
+      logged.first = game.events[0];
+      logged.count = 0;
+    }
+    const fresh = game.events.slice(logged.count);
+    logged.count = game.events.length;
+    if (!fresh.length) return;
+    const entries = fresh
+      .map((e) => {
+        if (e.type === "play") safePlay("playSnap");
+        if (e.type === "round") safePlay("playDeal");
+        const fields = logEntry(e, game);
+        return fields && { id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type: "SYSTEM", timestamp: now(), ...fields };
+      })
+      .filter(Boolean);
+    setMessages((m) => [...m, ...entries]);
+  }, [game]);
+
+  const changeSortMode = (mode) => {
+    setSortMode(mode);
+    safePlay("playClick");
+    try {
+      localStorage.setItem("khuzur_sort", mode);
+    } catch {
+      /* private window: the choice just won't persist */
+    }
+  };
+
+  // --- Your moves ---
+  // Validate against the current state first so a rule error shows in the
+  // status line instead of throwing inside a state update.
+  const act = (fn) => {
+    try {
+      const next = fn(game);
+      setGame(next);
+    } catch (err) {
+      setError({ key: turnKey, text: err.message });
+      safePlay("playError");
+    }
+  };
+  const onDecide = (play) => act((s) => decide(s, ME, play));
+  const onSwap = () => act((s) => swap(s, ME, selected.map((c) => c.id)));
+  const onTakeTrump = (cardId) => act((s) => takeTrump(s, ME, cardId));
+  const onThrow = () => selected[0] && act((s) => playCard(s, ME, selected[0].id));
+  const onNextRound = () => setGame((s) => startNextRound(s));
+  const onRematch = () => {
+    setMessages([]);
+    setGame((s) => rematch(s));
+  };
+
+  const handleSendMessage = (text) => {
+    if (!text.trim()) return;
+    setMessages((m) => [
+      ...m,
+      { id: `msg-${Date.now()}-${Math.random()}`, type: "CHAT", sender: myName, text: text.trim(), timestamp: now(), isMe: true },
+    ]);
+  };
+
+  const handleToggleMute = () => setIsMuted(soundManager.toggleMute());
+  const handleVolumeChange = (type, value) => {
+    const v = parseInt(value);
+    setVolumes((prev) => ({ ...prev, [type]: v }));
+    if (type === "master") soundManager.setMasterVolume(v / 100);
+    if (type === "sfx") soundManager.setSFXVolume(v / 100);
+    if (!isMuted) soundManager.playClick();
+  };
+
+  // --- Derived view ---
+  const { players, phase, trumpSuit } = game;
+  const me = players[ME];
+  const nameOf = (seat) => baseName(players[seat]?.name);
+
+  const faceFor = (seat) =>
+    seat === ME
+      ? { variant: identity?.avatar ?? 1, customAvatarData: identity?.customAvatar }
+      : { variant: CPUS[seat - 1].variant, customAvatarData: null };
+  const colorFor = (seat) => (players[seat] ? AVATAR_COLOR[faceFor(seat).variant] : null) || "#ead8b1";
+  const avatarFor = (msg) => (msg.isMe ? faceFor(ME) : faceFor(Math.max(0, players.findIndex((p) => p.name === msg.sender))));
+
+  const allowed = useMemo(
+    () => (game.phase === PHASES.PLAY && game.turn === ME ? new Set(allowedPlays(game, ME).map((c) => c.id)) : null),
+    [game],
+  );
+  const stack = stackOrder(game.trick, trumpSuit).map((p) => ({
+    key: `${game.roundNumber}-${game.trickNumber}-${p.card.id}`,
+    card: p.card,
+    seat: SEAT_POSITIONS[p.seat],
+    name: nameOf(p.seat),
+  }));
+  const eater = stack.length ? stack[stack.length - 1].name : null;
+  const phaseLabel = {
+    [PHASES.DECIDE]: "PLAY OR FOLD",
+    [PHASES.SWAP]: "SWAPPING",
+    [PHASES.TRUMP]: "DEALER'S TRUMP",
+  }[phase];
+
+  // Status line and buttons for the current phase.
+  const pick = selected[0] ? me.hand.find((c) => c.id === selected[0].id) : null;
+  let message;
+  let warning = null;
+  let buttons = [];
+  if (!myTurn) {
+    const who = nameOf(game.turn);
+    message =
+      phase === PHASES.DECIDE
+        ? `${who} is deciding...`
+        : phase === PHASES.SWAP
+          ? `${who} is swapping...`
+          : phase === PHASES.TRUMP
+            ? `${who} may take the trump card...`
+            : phase === PHASES.PLAY
+              ? `Waiting for ${who}...`
+              : phase === PHASES.TRICK_END
+                ? `${nameOf(game.trickWinner)} eats the pile!`
+                : "Round over.";
+    if (me.status === "fold" && phase !== PHASES.DECIDE) message = `You folded. ${message}`;
+  } else if (phase === PHASES.DECIDE) {
+    const foldable = canFold(game, ME);
+    message = foldable ? "Play this round, or fold and sit it out?" : "You must play: at least 2 players are needed.";
+    buttons = [
+      { label: "FOLD", tone: "rose", onClick: () => onDecide(false), disabled: !foldable },
+      { label: "PLAY", tone: "green", primary: true, onClick: () => onDecide(true) },
+    ];
+  } else if (phase === PHASES.SWAP) {
+    const max = maxDiscard(game);
+    message = `Pick up to ${max} card${max === 1 ? "" : "s"} to swap. The draw pile has ${game.drawPile.length}.`;
+    buttons = [
+      selected.length
+        ? { label: `SWAP ${selected.length}`, tone: "green", primary: true, onClick: onSwap }
+        : { label: "KEEP ALL", tone: "dusk", primary: true, onClick: onSwap },
+    ];
+  } else if (phase === PHASES.TRUMP) {
+    message = (
+      <>
+        You're the dealer: take the trump {game.trumpCard.rank}
+        <Suit suit={trumpSuit} size={18} />? Pick a card to give up.
+      </>
+    );
+    buttons = [
+      { label: "KEEP HAND", tone: "dusk", onClick: () => onTakeTrump(null) },
+      { label: "TAKE TRUMP", tone: "gold", primary: true, disabled: !pick, onClick: () => onTakeTrump(pick.id) },
+    ];
+  } else if (phase === PHASES.PLAY) {
+    const debuffed = me.hand.find((c) => c.debuffed);
+    const led = game.trick.find((p) => !p.card.debuffed)?.card.suit;
+    const followSuit = led && led !== trumpSuit;
+    message = debuffed ? (
+      <>
+        Your {debuffed.rank}
+        <Suit suit={debuffed.suit} size={18} /> is debuffed. You must throw it and lose this pile.
+      </>
+    ) : !game.trick.length ? (
+      "Your lead. Throw any card."
+    ) : (
+      <>
+        {eater} is eating. Play a higher {followSuit ? "" : "trump "}
+        <Suit suit={followSuit ? led : trumpSuit} size={18} /> if you have one.
+      </>
+    );
+    const hit = pick ? penaltyFor(game, ME, pick) : null;
+    if (hit)
+      warning = (
+        <>
+          Throwing this debuffs your {hit.rank}
+          <Suit suit={hit.suit} size={18} />: you'll have to throw it next trick.
+        </>
+      );
+    buttons = [{ label: "THROW", tone: "green", primary: true, disabled: !pick, onClick: onThrow }];
+  }
+  if (errorMessage) warning = errorMessage;
+
+  const canSelect = myTurn && (phase === PHASES.SWAP || phase === PHASES.TRUMP || phase === PHASES.PLAY);
+  const onSelectionChange = (picked) => {
+    if (phase === PHASES.SWAP) {
+      if (picked.length <= maxDiscard(game)) setSelected(picked);
+    } else {
+      // One card at a time: the newest pick replaces the old one.
+      setSelected(picked.filter((c) => !selected.some((s) => s.id === c.id)).slice(-1));
+    }
+    safePlay("playClick");
+  };
+
+  const seat = (index, position) => {
+    const p = players[index];
+    const folded = p.status === "fold";
+    const active = index === game.turn && ACTION_PHASES.has(phase);
+    return (
+      <OpponentSection
+        player={{ ...p, isEliminated: folded }}
+        isActive={active}
+        position={position}
+        face={faceFor(index)}
+        chip={
+          folded
+            ? { label: "FOLD", bg: "#463a78", fg: "#ead8b1" }
+            : active
+              ? { label: "TURN", bg: "#f4c430", blink: true }
+              : p.status === "play" && phase === PHASES.DECIDE
+                ? { label: "IN", bg: "#9bd14f", fg: "#1a3a0e" }
+                : null
+        }
+        tag={index === game.dealer ? { label: "DEAL", bg: "#5fd4d6", fg: "#0a3a3a" } : null}
+        detail={<SeatDetail eaten={p.eaten} folded={folded} />}
+      />
+    );
+  };
+
+  const showResults = (phase === PHASES.ROUND_END || phase === PHASES.MATCH_OVER) && game.roundResults;
+  const isSolo = !lobbyId || lobbyId.startsWith("SOLO-");
 
   return (
     <div className="relative w-full h-full font-pixel-body text-parchment overflow-hidden flex flex-col" style={{ position: "fixed", inset: 0 }}>
-      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, #1d3e30 0%, #0e2418 65%, #0a0712 100%)" }} />
-      <div className="absolute inset-0 dither-shadow opacity-30 pointer-events-none" />
+      {/* TABLE BACKDROP */}
+      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, #123526 0%, #14102a 60%, #0a0712 100%)" }} />
+      <div className="absolute inset-0 dither-shadow opacity-40 pointer-events-none" />
 
-      {/* HEADER */}
-      <div className="relative flex items-center justify-between px-5 py-3 z-10" style={{ backgroundColor: "rgba(10,7,18,0.85)", borderBottom: "4px solid #0a0712" }}>
+      {/* HEADER BAR */}
+      <div
+        className="relative flex items-center justify-between px-5 py-3 z-10"
+        style={{ backgroundColor: "rgba(10,7,18,0.85)", borderBottom: "4px solid #0a0712", backdropFilter: "blur(2px)" }}
+      >
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/")} className="pixel-btn font-pixel-display text-[10px] px-3 py-2" style={{ backgroundColor: "#7a1530", borderColor: "#3a0a18", color: "#ead8b1" }}><span className="flex items-center gap-2"><PixelIcon name="back" size={12} />EXIT</span></button>
-          <div className="font-pixel-display text-[10px] text-bone/60 ml-2">
-            LOBBY <span className="text-glow-cyan">#JADE12</span>
-          </div>
+          <button
+            onClick={() => navigate("/")}
+            className="pixel-btn font-pixel-display text-[10px] px-3 py-2"
+            style={{ backgroundColor: "#7a1530", borderColor: "#3a0a18", color: "#ead8b1" }}
+          >
+            <span className="flex items-center gap-2">
+              <PixelIcon name="back" size={12} />
+              EXIT
+            </span>
+          </button>
+          <span
+            className="font-pixel-display text-[10px] leading-none px-1.5 py-1 ml-2"
+            style={{ backgroundColor: LEVEL_COLOR[aiDifficulty] || "#f4c430", color: "#1a1024", boxShadow: "0 0 0 2px #0a0712" }}
+            title={isSolo ? "Practice against CPU players" : "Online Muushig isn't available yet, so this is a practice game"}
+          >
+            PRACTICE · {aiDifficulty}
+          </span>
         </div>
+
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-6">
-          <div className="flex flex-col items-center px-3 py-1" style={{ backgroundColor: "#0a0712", border: "3px solid #1a3a2c" }}>
-            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">ROUND</div>
-            <div className="font-pixel-display text-sm text-glow-gold">4</div>
+          <div className="flex flex-col items-center px-3 py-1" style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}>
+            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">MATCH</div>
+            <div className="font-pixel-display text-sm text-glow-gold">{game.matchNumber}</div>
           </div>
           <div className="flex flex-col items-center">
-            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">PLAYING</div>
-            <div className="font-pixel-display text-base" style={{ color: "#9bd14f", textShadow: "2px 2px 0 #000, 0 0 8px rgba(155,209,79,0.4)" }}>MUUSHIG</div>
+            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">NOW PLAYING</div>
+            <div className="font-pixel-display text-base" style={{ color: "#9bd14f", textShadow: "2px 2px 0 #000, 0 0 8px rgba(155,209,79,0.4)" }}>
+              MUUSHIG
+            </div>
           </div>
-          <div className="flex flex-col items-center px-3 py-1" style={{ backgroundColor: "#0a0712", border: "3px solid #1a3a2c" }}>
-            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">TRUMP</div>
-            <div className="font-pixel-display text-sm" style={{ color: "#f4c430" }}>{trumpCard.suit} SPADES</div>
+          <div className="flex flex-col items-center px-3 py-1" style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}>
+            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">ROUND</div>
+            <div className="font-pixel-display text-sm text-glow-gold">{game.roundNumber}</div>
           </div>
         </div>
+
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 font-pixel-body text-sm">
             <SignalBars level={3} color="#9bd14f" />
-            <span className="text-bone/70">22ms</span>
+            <span className="text-bone/70">LOCAL</span>
           </div>
-          <button className="pixel-btn font-pixel-display" style={{ backgroundColor: "#463a78", borderColor: "#2a234d", color: "#ead8b1", width: 36, height: 36, padding: 0, fontSize: 12 }} title="Settings"><PixelIcon name="gear" size={16} className="mx-auto" /></button>
+          <button
+            onClick={() => setShowRules(true)}
+            className="pixel-btn font-pixel-display text-[10px] px-3 flex items-center gap-2"
+            style={{ backgroundColor: "#9bd14f", borderColor: "#6a9a30", color: "#1a3a0e", height: 36 }}
+            title="How to play"
+          >
+            <PixelIcon name="book" size={14} />
+            RULES
+          </button>
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className="pixel-btn font-pixel-display"
+            style={{ backgroundColor: "#463a78", borderColor: "#2a234d", color: "#ead8b1", width: 36, height: 36, padding: 0, fontSize: 12 }}
+            title="Settings"
+          >
+            <PixelIcon name="gear" size={16} className="mx-auto" />
+          </button>
         </div>
       </div>
 
-      {/* GAME REGION */}
-      <div className="relative flex-1 grid min-h-0" style={{ gridTemplateColumns: "1fr 320px" }}>
-        <div className="relative flex flex-col min-h-0">
-          {/* ROUND TABLE STAGE */}
-          <div className="flex-1 relative flex items-center justify-center min-h-0">
-            {/* Round table felt */}
-            <div style={{
-              position: "relative", width: TABLE_SIZE, height: TABLE_SIZE, borderRadius: "50%",
-              background: "radial-gradient(circle at 50% 45%, #2c6650 0%, #1a4030 45%, #0e2418 80%, #061810 100%)",
-              border: "6px solid #6b3a1f",
-              boxShadow: "0 0 0 4px #0a0712, 0 0 0 12px #2a1810, 0 0 0 16px #0a0712, inset 0 0 0 8px #1a3a2c, inset 0 0 80px rgba(0,0,0,0.6), 0 0 60px rgba(155,209,79,0.10)",
-            }}>
-              <div style={{ position: "absolute", inset: 16, borderRadius: "50%", border: "2px dashed rgba(155,209,79,0.18)" }} />
+      {showRules && <MuushigRules onClose={closeRules} />}
 
-              {/* CENTER: Trash + Pile + Trump */}
-              <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", display: "flex", alignItems: "center", gap: 28 }}>
-                {/* Trash pile */}
-                <div style={{ textAlign: "center", width: 70 }}>
-                  <div className="font-pixel-display text-[7px] text-bone/60 mb-1 tracking-widest">TRASH</div>
-                  <div style={{ position: "relative", width: 50, height: 64, margin: "0 auto" }}>
-                    {[0, 1, 2, 3].map((i) => (
-                      <div key={i} style={{ position: "absolute", left: i * 1.5 - 2, top: i * 1.5, width: 46, height: 60, background: "repeating-linear-gradient(45deg, #2a1a4d 0 3px, #1a0e3a 3px 6px)", border: "2px solid #0a0712", transform: `rotate(${(i - 1.5) * 4}deg)`, boxShadow: "inset 0 0 0 1px #6a4ab0" }} />
-                    ))}
-                  </div>
-                  <div className="font-pixel-display text-[7px] mt-1" style={{ color: "#7a6abf" }}>x17</div>
-                </div>
-
-                {/* THE PILE */}
-                <div style={{ textAlign: "center" }}>
-                  <div className="font-pixel-display text-[7px] mb-1 tracking-widest" style={{ color: "#f4c430" }}>ON TOP</div>
-                  <div style={{ position: "relative", width: 70, height: 96, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {PILE.length > 1 && Array.from({ length: Math.min(PILE.length - 1, 3) }).map((_, i) => (
-                      <div key={i} style={{ position: "absolute", left: 4 + i * 2, top: 4 + i * 2, width: 56, height: 80, background: "#0a0712", border: "2px solid #1f1a3d", opacity: 0.5 }} />
-                    ))}
-                    <div style={{ position: "relative", filter: "drop-shadow(0 0 12px rgba(244,196,48,0.5)) drop-shadow(2px 2px 0 #000)", animation: "float 2.4s ease-in-out infinite" }}>
-                      <PixelCard rank={topCard.rank} suit={topCard.suit} size="medium" />
-                    </div>
-                  </div>
-                  <div className="font-pixel-display text-[8px] mt-1" style={{ color: "#ead8b1" }}>{topCard.who.toUpperCase()}</div>
-                  <div className="font-pixel-body text-xs text-bone/60 mt-0.5">pile · {PILE.length} cards</div>
-                </div>
-
-                {/* Trump indicator */}
-                <div style={{ textAlign: "center", width: 70 }}>
-                  <div className="font-pixel-display text-[7px] mb-1 tracking-widest" style={{ color: "#f4c430" }}>TRUMP</div>
-                  <div style={{ padding: 3, border: "3px solid #f4c430", background: "rgba(244,196,48,0.12)", boxShadow: "0 0 10px rgba(244,196,48,0.4), 0 0 0 2px #0a0712", display: "inline-block" }}>
-                    <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 22, color: "#f4c430", padding: "8px 12px", textShadow: "2px 2px 0 #000" }}>{trumpCard.suit}</div>
-                  </div>
-                  <div className="font-pixel-display text-[7px] mt-1" style={{ color: "#bbb" }}>BURIED</div>
-                </div>
-              </div>
-
-              <div style={{ position: "absolute", left: "50%", bottom: 18, transform: "translateX(-50%)", textAlign: "center" }}>
-                <div className="font-pixel-display text-[8px] text-bone/60 tracking-widest">ROUND PILE · WINNER TAKES ALL</div>
-              </div>
-            </div>
-
-            {/* Opponent seats */}
-            {SEATS.filter((s) => !s.isMe).map((seat) => (
-              <div key={seat.seat} style={{ position: "absolute", left: "50%", top: "50%", transform: `translate(-50%, -50%) translate(${seat.x}px, ${seat.y}px)`, width: 200, pointerEvents: "none" }}>
-                <SeatPanel seat={seat} />
+      {/* SETTINGS */}
+      {showSettings && (
+        <div
+          className="absolute top-16 right-4 z-50 p-4"
+          style={{ backgroundColor: "#1f1a3d", border: "4px solid #0a0712", boxShadow: "0 0 0 4px #463a78, 4px 4px 0 #0a0712" }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-pixel-display text-[10px] text-glow-gold">SETTINGS</span>
+            <button onClick={() => setShowSettings(false)} className="font-pixel-display text-[10px] text-rose">
+              <PixelIcon name="close" size={12} title="Close" />
+            </button>
+          </div>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={handleToggleMute}
+              className="pixel-btn font-pixel-display text-[9px] px-3 py-2"
+              style={{ backgroundColor: isMuted ? "#7a1530" : "#463a78", borderColor: isMuted ? "#3a0a18" : "#2a234d", color: "#ead8b1" }}
+            >
+              <span className="flex items-center justify-center gap-2">
+                <PixelIcon name={isMuted ? "mute" : "speaker"} size={12} />
+                {isMuted ? "SOUND OFF" : "SOUND ON"}
+              </span>
+            </button>
+            {[
+              ["master", "MASTER"],
+              ["sfx", "SFX"],
+            ].map(([key, label]) => (
+              <div key={key}>
+                <label className="font-pixel-display text-[9px] text-bone/60">
+                  {label}: {volumes[key]}%
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={volumes[key]}
+                  onChange={(e) => handleVolumeChange(key, e.target.value)}
+                  className="w-full"
+                />
               </div>
             ))}
           </div>
+        </div>
+      )}
 
-          {/* MY HAND */}
-          <MyHand hand={MUUSHIG_HAND} me={SEATS[0]} trumpSuit={trumpCard.suit} />
+      {/* GAME REGION */}
+      <div className="relative flex-1 grid min-h-0" style={{ gridTemplateColumns: "minmax(0, 1fr) 300px" }}>
+        {/* TABLE */}
+        <div className="relative flex flex-col min-h-0 px-4 py-2">
+          <RoundTable
+            seats={{
+              bottomLeft: seat(1, "left"),
+              topLeft: seat(2, "left"),
+              topRight: seat(3, "right"),
+              bottomRight: seat(4, "right"),
+            }}
+            stack={stack}
+            trump={game.trumpCard}
+            trumpTakenBy={game.trumpTakenBy !== null ? nameOf(game.trumpTakenBy) : null}
+            trickNumber={Math.max(1, game.trickNumber)}
+            tricksPerRound={TRICKS_PER_ROUND}
+            phaseLabel={phaseLabel}
+            maxCardWidth={deckW}
+          />
+
+          {/* My hand, with the draw and dead piles in the corner beside it */}
+          <div className="relative">
+            <div className="absolute left-2 bottom-2 z-10">
+              <SidePiles drawCount={game.drawPile.length} deadCount={game.deadPile.length} cardWidth={Math.round(deckW * 0.85)} />
+            </div>
+            <PlayerHand
+              hand={me.hand}
+              selectedCards={selected}
+              onSelectionChange={onSelectionChange}
+              isActive={canSelect}
+              cardWidth={handW}
+              deckWidth={deckW}
+              sortMode={sortMode}
+              isPlayable={allowed ? (c) => allowed.has(c.id) : undefined}
+              spread={1.08} // only 5 cards: lay them out side by side
+              emptyMessage={me.status === "fold" ? "YOU FOLDED — SITTING THIS ROUND OUT" : ""}
+            />
+          </div>
+          <MuushigControls message={message} warning={warning} buttons={buttons} sortMode={sortMode} onSortModeChange={changeSortMode} />
         </div>
 
         {/* SIDEBAR */}
-        <Sidebar5 seats={SEATS} messages={MUUSHIG_LOG} />
+        <div className="flex flex-col min-h-0 border-l-4" style={{ borderColor: "#0a0712", background: "#0e0a1f" }}>
+          <MuushigScoreBoard
+            players={players.map((p) => ({ ...p, folded: p.status === "fold" }))}
+            currentPlayerIndex={ACTION_PHASES.has(phase) ? game.turn : -1}
+            dealerIndex={game.dealer}
+            startScore={START_SCORE}
+            myIndex={ME}
+            faceFor={faceFor}
+          />
+          <GameChat messages={messages} onSendMessage={handleSendMessage} avatarFor={avatarFor} colorFor={colorFor} />
+        </div>
       </div>
+
+      {showResults && (
+        <RoundResults
+          round={game.roundNumber}
+          results={game.roundResults.results}
+          players={players}
+          faceFor={faceFor}
+          matchWinner={phase === PHASES.MATCH_OVER ? game.matchWinner : null}
+          onNext={onNextRound}
+          onRematch={onRematch}
+          onExit={() => navigate("/")}
+        />
+      )}
     </div>
   );
 };
 
-function SeatPanel({ seat }) {
+// Piles eaten this round: one box per trick (5 a round); all 5 wins the
+// round. Scores live on the scoreboard.
+function SeatDetail({ eaten, folded }) {
+  const sweep = eaten >= 5;
   return (
-    <div style={{ pointerEvents: "auto" }}>
-      <div className="relative w-full" style={{
-        backgroundColor: "#0e2418",
-        border: `4px solid ${seat.active ? "#f4c430" : seat.dealer ? "#5fd4d6" : "#0a0712"}`,
-        boxShadow: seat.active
-          ? "0 0 0 4px #0a0712, 0 0 16px rgba(244,196,48,0.5), inset 0 4px 0 rgba(255,255,255,0.06)"
-          : seat.dealer
-            ? "0 0 0 4px #0a0712, 0 0 12px rgba(95,212,214,0.35), inset 0 4px 0 rgba(255,255,255,0.04)"
-            : "0 0 0 4px #0a0712, inset 0 4px 0 rgba(255,255,255,0.04)",
-        animation: seat.active ? "pulse-glow 1.6s ease-in-out infinite" : "none",
-        padding: "8px 10px",
-      }}>
-        <div className="flex items-center gap-2.5">
-          <PixelAvatar variant={seat.variant} size={36} active={seat.active} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <div className="font-pixel-display text-[10px] text-parchment truncate">{seat.name}</div>
-              {seat.active && <span className="font-pixel-display text-[7px] px-1 blink" style={{ backgroundColor: "#f4c430", color: "#1a1024" }}>TURN</span>}
-              {seat.dealer && <span className="font-pixel-display text-[7px] px-1" style={{ backgroundColor: "#5fd4d6", color: "#0a3a3a" }}>DEAL</span>}
-              {seat.leader && <span className="font-pixel-display text-[7px] px-1" style={{ backgroundColor: "#9bd14f", color: "#1a3a0e" }}>LEAD</span>}
-            </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="font-pixel-body text-xs text-bone/70">{seat.cards}c</span>
-              <span className="font-pixel-body text-xs" style={{ color: "#f4c430" }}>{seat.score}pt</span>
-            </div>
-          </div>
-        </div>
-        <div className="mt-2 flex items-center justify-between">
-          <div className="font-pixel-display text-[8px] text-bone/60">EATEN</div>
-          <PipRow won={seat.wins} total={5} />
-        </div>
+    <div className="mt-2 flex flex-col items-center gap-1.5">
+      <div
+        className={`font-pixel-display text-[10px] leading-none ${sweep ? "text-glow-gold" : ""}`}
+        style={{ color: folded ? "#8a7fb0" : sweep ? undefined : "rgba(234,216,177,0.7)" }}
+      >
+        {folded ? "FOLDED" : sweep ? "ROUND WON" : "EATEN"}
       </div>
-    </div>
-  );
-}
-
-function PipRow({ won, total }) {
-  return (
-    <div style={{ display: "flex", gap: 3 }}>
-      {Array.from({ length: total }).map((_, i) => (
-        <div key={i} style={{
-          width: 14, height: 14,
-          backgroundColor: i < won ? "#f4c430" : "#0a0712",
-          border: i < won ? "2px solid #c89820" : "2px solid #1f1a3d",
-          boxShadow: i < won ? "inset 0 1px 0 rgba(255,255,255,0.3)" : "none",
-        }} />
-      ))}
-    </div>
-  );
-}
-
-function MyHand({ hand, me, trumpSuit }) {
-  return (
-    <div className="px-6 pb-3 pt-1 relative z-10" style={{ background: "linear-gradient(180deg, transparent 0%, rgba(10,7,18,0.6) 40%, rgba(10,7,18,0.9) 100%)" }}>
-      <div className="flex items-center justify-between mb-2 px-2">
-        <div className="font-pixel-body text-base text-bone/70">
-          <span className="text-glow-gold">YOUR HAND</span> · {hand.length} cards · trump <span style={{ color: "#f4c430" }}>{trumpSuit}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="font-pixel-display text-[8px] text-bone/60">SORT</span>
-          <button className="font-pixel-display text-[9px] px-2 py-1" style={{ backgroundColor: "#9bd14f", color: "#1a3a0e", border: "2px solid #0a0712" }}>SUIT</button>
-          <button className="font-pixel-display text-[9px] px-2 py-1" style={{ backgroundColor: "#1f1a3d", color: "#ead8b1", border: "2px solid #0a0712" }}>RANK</button>
-        </div>
-      </div>
-
-      <div className="relative flex items-end justify-center pb-2" style={{ height: 110 }}>
-        {hand.map((c, i) => {
-          const mid = (hand.length - 1) / 2;
-          const offset = (i - mid) * 60;
-          const isLegal = c.suit === trumpSuit || hand.every((x) => x.suit !== trumpSuit);
-          return (
-            <div key={i} style={{
-              position: "absolute", left: "50%", bottom: 0,
-              transform: `translateX(calc(-50% + ${offset}px)) rotate(${(i - mid) * 3}deg)`,
-              transformOrigin: "bottom center", zIndex: i,
-            }}>
-              <PixelCard rank={c.rank} suit={c.suit} size="medium" selectable dim={!isLegal} />
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="flex items-center justify-between gap-3 px-2 mt-1">
-        <div className="flex-1 flex items-center gap-3 px-3 py-2" style={{ backgroundColor: "#0a0712", border: "3px solid #1a3a2c" }}>
-          <PixelAvatar variant="me" size={32} />
-          <div className="flex-1">
-            <div className="font-pixel-display text-[10px]" style={{ color: "#9bd14f" }}>{me.name} · Lv.7</div>
-            <div className="font-pixel-body text-sm text-bone/70">
-              Eaten: <span className="text-glow-gold">{me.wins}/5</span> · Score: <span className="text-glow-gold">{me.score}pt</span>
-              <span className="text-bone/40"> (lower = better)</span>
-            </div>
-          </div>
-          <PipRow won={me.wins} total={5} />
-        </div>
-        <button className="pixel-btn font-pixel-display text-sm px-6 py-3" style={{ backgroundColor: "#7a1530", borderColor: "#3a0a18", color: "#ead8b1" }}>DISCARD</button>
-        <button className="pixel-btn font-pixel-display text-sm px-8 py-3" style={{ backgroundColor: "#9bd14f", borderColor: "#6a9a30", color: "#1a3a0e" }}>THROW CARD</button>
-      </div>
-    </div>
-  );
-}
-
-function Sidebar5({ seats, messages }) {
-  const [tab, setTab] = React.useState("chat");
-  const ranked = [...seats].sort((a, b) => a.score - b.score);
-
-  return (
-    <div className="flex flex-col min-h-0 border-l-4" style={{ borderColor: "#0a0712", background: "#0e0a1f" }}>
-      {/* SCOREBOARD */}
-      <div style={{ borderBottom: "4px solid #0a0712" }}>
-        <div className="px-3 py-2 font-pixel-display text-[10px] tracking-wider flex items-center justify-between" style={{ backgroundColor: "#1a1024", color: "#f4c430" }}>
-          <span>SCOREBOARD</span>
-          <span className="text-bone/60">RD 4 · TO 0</span>
-        </div>
-        <div className="px-3 py-2 flex flex-col gap-1.5">
-          {seats.map((p) => {
-            const place = ranked.findIndex((r) => r.seat === p.seat) + 1;
-            const delta = p.wins > 0 ? -p.wins : +5;
-            const placeColors = ["#f4c430", "#c8b890", "#c89820", "#7a1530", "#5a4a8a"];
-            return (
-              <div key={p.seat} className="flex items-center gap-2 px-2 py-1.5" style={{ backgroundColor: p.active ? "#2e1a3a" : "#14102a", border: p.isMe ? "2px solid #5fd4d6" : "2px solid #1f1a3d" }}>
-                <div className="font-pixel-display text-[10px]" style={{ color: placeColors[place - 1], width: 20 }}>#{place}</div>
-                <PixelAvatar variant={p.variant} size={24} active={p.active} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
-                    <div className="font-pixel-display text-[9px] text-parchment truncate">{p.name}</div>
-                    {p.dealer && <span className="font-pixel-display text-[7px] px-1" style={{ backgroundColor: "#5fd4d6", color: "#0a3a3a" }}>D</span>}
-                  </div>
-                  <div className="font-pixel-body text-xs text-bone/60">{p.wins} eaten</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-pixel-display text-[10px] text-glow-gold">{p.score}pt</div>
-                  <div className="font-pixel-body text-xs" style={{ color: delta < 0 ? "#9bd14f" : delta > 0 ? "#e85a7a" : "#7a6abf" }}>
-                    {delta > 0 ? "+" : ""}{delta}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* CHAT */}
-      <div className="flex flex-col flex-1 min-h-0">
-        <div className="px-3 py-2 font-pixel-display text-[10px] tracking-wider flex items-center justify-between" style={{ backgroundColor: "#1a1024", color: "#5fd4d6" }}>
-          <div className="flex gap-3">
-            <button onClick={() => setTab("chat")} style={{ color: tab === "chat" ? "#5fd4d6" : "#7a6abf" }}>CHAT</button>
-            <button onClick={() => setTab("log")} style={{ color: tab === "log" ? "#5fd4d6" : "#7a6abf" }}>LOG</button>
-          </div>
-          <span className="text-bone/60 text-[8px]">{messages.length} MSGS</span>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-2 text-sm">
-          {messages.filter((m) => tab === "log" ? m.type === "SYSTEM" : true).map((m) => (
-            <ChatBubble key={m.id} m={m} />
+      {!folded && (
+        <div className="flex gap-1" title={`${eaten} eaten this round`} aria-label={`${eaten} of 5 piles eaten`}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <span
+              key={i}
+              style={{
+                width: 12,
+                height: 12,
+                backgroundColor: i < eaten ? "#f4c430" : "#0a0712",
+                boxShadow:
+                  i < eaten
+                    ? `inset 0 -2px 0 #c89820, 0 0 0 1px #0a0712${sweep ? ", 0 0 6px rgba(244,196,48,0.8)" : ""}`
+                    : "inset 0 0 0 2px #463a78",
+              }}
+            />
           ))}
         </div>
-
-        <div className="p-2 flex gap-1.5" style={{ borderTop: "3px solid #1f1a3d", backgroundColor: "#14102a" }}>
-          <input placeholder="Say something..." className="flex-1 font-pixel-body text-base px-2 py-2 text-parchment" style={{ backgroundColor: "#0a0712", border: "2px solid #1f1a3d", boxShadow: "inset 0 2px 0 0 rgba(0,0,0,0.5)" }} />
-          <button className="pixel-btn font-pixel-display text-[10px] px-3" style={{ backgroundColor: "#5fd4d6", borderColor: "#2a8a8c", color: "#0a3a3a" }} aria-label="Send"><PixelIcon name="right" size={12} /></button>
-        </div>
-        <div className="px-2 pb-2 flex gap-1 flex-wrap">
-          {["gg", "wp", "eat", "cat?", "lol", "?"].map((q) => (
-            <button key={q} className="font-pixel-body text-xs px-2 py-1" style={{ backgroundColor: "#1f1a3d", color: "#bbb", border: "2px solid #0a0712" }}>{q}</button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChatBubble({ m }) {
-  if (m.type === "SYSTEM") {
-    return (
-      <div className="font-pixel-body text-sm text-bone/60 italic px-2">
-        <span className="text-mist">&gt; </span>{m.text} <span className="text-bone/30 text-xs">{m.timestamp}</span>
-      </div>
-    );
-  }
-  return (
-    <div className={`flex gap-2 ${m.isMe ? "flex-row-reverse" : ""}`}>
-      <PixelAvatar variant={m.isMe ? "me" : 2} size={20} />
-      <div className="max-w-[80%]">
-        <div className={`flex items-center gap-1 ${m.isMe ? "justify-end" : ""}`}>
-          <span className="font-pixel-display text-[9px]" style={{ color: m.isMe ? "#5fd4d6" : "#f4c430" }}>{m.sender}</span>
-          <span className="font-pixel-body text-xs text-bone/40">{m.timestamp}</span>
-        </div>
-        <div className="font-pixel-body text-base px-2 py-1 mt-0.5" style={{ backgroundColor: m.isMe ? "#2a8a8c" : "#1f1a3d", color: m.isMe ? "#0a3a3a" : "#ead8b1", border: "2px solid #0a0712" }}>
-          {m.text}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

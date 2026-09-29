@@ -39,22 +39,29 @@ Honest status, as of the move off Supabase to self-hosted Postgres.
 | Auth (email + password) in the Node server | Built. OAuth buttons are shown but not wired up yet |
 | Database schema, views | Built; applied automatically on server start |
 | **Thirteen** | **Playable.** Server-authoritative, reconnect handling, match recording |
-| **Muushig** | **Not implemented.** UI mockup only — see below |
+| **Muushig** | **Playable offline** against 4 CPUs (Easy/Medium/Hard). No online play yet — see below |
 | Shop / economy | Not started; `coins` accrues in the DB |
 | Deployment | Not deployed. Everything runs locally |
 
-**Muushig is a static mockup.** `src/pages/muushig/GameMuushig.jsx` renders
-hardcoded `SEATS`, `PILE` and `MUUSHIG_HAND` arrays as a UI preview. It opens no
-socket and there is no Muushig logic anywhere in `server/game/`. This is why
-`recordMatch` hardcodes `game_type: 'thirteen'`. The rulebook is written; the
-implementation is not.
+**Muushig runs in the browser only.** The rules are pure functions in
+`src/utils/muushig/engine.js` (state in, new state out, no React or sockets) and
+the CPU players are in `src/utils/muushig/ai.js`, at the lobby's three
+difficulty levels. `src/pages/muushig/GameMuushig.jsx` renders the engine's
+state with Thirteen's seat, hand and chat components plus
+`components/muushig/`, and plays the CPU turns on timers. It opens no socket:
+every Muushig table, online or practice, is a local game against CPUs, and
+nothing is recorded, which is why `recordMatch` still hardcodes
+`game_type: 'thirteen'`. The engine has no browser dependencies, so the server
+can import it as-is for online play.
 
 Thirteen is covered by a Vitest suite (`npm test`, config in `vitest.config.js`)
 in three projects: `unit` (rules, CPU logic and seeded whole-match simulations,
 run against both the client and server copies of the logic), `server` (engine
 with fake timers, real-socket end-to-end against a spawned server, and
 Postgres suites that run only when `TEST_DATABASE_URL` is set) and `ui`
-(table components in jsdom). See the README's Testing section.
+(table components in jsdom). Muushig's engine and CPU players have their own
+`unit` suites (`tests/unit/muushig-*.test.js`), including whole CPU matches at
+each difficulty. See the README's Testing section.
 
 ## 3. Tech stack
 
@@ -81,11 +88,12 @@ consolidated plain-Postgres equivalent.
 ```
 src/
   pages/          MainMenu, AvatarPaint, thirteen/, muushig/
-  components/     PixelCard (design primitives), auth/, thirteen/
+  components/     PixelCard (design primitives), auth/, thirteen/, muushig/
   hooks/          useAuth (session + profile), useServerStats
   lib/            api (HTTP client + session token), guestIdentity
   utils/          socket, SoundManager, avatarConstants,
-                  + a client-side copy of the game rules (display only)
+                  + a client-side copy of the Thirteen rules (display only)
+                  + muushig/ (the Muushig engine and CPU players)
 server/
   index.js        Socket.IO entry, auth middleware, lobby management
   game/           engine.js (ThirteenGame, redactState) + rules modules
@@ -343,9 +351,10 @@ Inspect data with `podman exec -it khuzur-db psql -U khuzur`.
 
 Roughly in dependency order:
 
-1. **Implement Muushig for real** — a `MuushigGame` engine in `server/game/`
-   mirroring `ThirteenGame`, then replace the mockup with socket-driven state.
-   `recordMatch` stops hardcoding `game_type` at that point.
+1. **Muushig online** — a `MuushigGame` wrapper in `server/game/` mirroring
+   `ThirteenGame`, built on `src/utils/muushig/engine.js`, then drive
+   `GameMuushig.jsx` from socket state. `recordMatch` stops hardcoding
+   `game_type` at that point.
 2. **Deploy** — client as static files, server on a host with persistent
    WebSocket support, Postgres managed. Add the deployed origin to
    `CORS_ORIGIN`.

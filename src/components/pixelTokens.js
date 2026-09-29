@@ -32,5 +32,6 @@ export function cardSizeStyle(width) {
     "--corner-inset": `${Math.round(w * 0.08)}px`,
     "--center-fs": `${snap4(w * 0.36)}px`,
     "--back-fs": `${snap4(w * 0.28)}px`,
+    "--debuff-fs": `${Math.max(7, Math.round(w * 0.105))}px`,
   };
 }

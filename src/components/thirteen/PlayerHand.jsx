@@ -23,11 +23,11 @@ const SORT_SLIDE = 0.42;
 const REFLOW = 0.32;
 
 /** Bottom-center of card i of n, relative to the hand's anchor point. */
-function handSlot(i, n, cardW, width) {
+function handSlot(i, n, cardW, width, spread) {
   const mid = (n - 1) / 2;
   const d = i - mid;
   const room = Math.max(0, width - cardW - 48);
-  const spacing = n > 1 ? Math.min(cardW * 0.74, room / (n - 1)) : 0;
+  const spacing = n > 1 ? Math.min(cardW * spread, room / (n - 1)) : 0;
   const dip = cardW * 0.1; // how far the outermost cards sit below the middle
   return {
     x: d * spacing,
@@ -47,6 +47,9 @@ const PlayerHand = ({
   dealOriginRef,
   sortMode = "rank",
   isEliminated = false,
+  isPlayable, // optional (card) => bool; unplayable cards are dimmed and locked
+  spread = 0.74, // card-to-card step as a share of card width (<1 overlaps)
+  emptyMessage, // optional text shown when the hand is empty
 }) => {
   const containerRef = useRef(null);
   const [width, setWidth] = useState(0);
@@ -89,7 +92,7 @@ const PlayerHand = ({
     placedRef.current.forEach((id) => !ids.has(id) && placedRef.current.delete(id));
 
     const n = isDealing ? Math.max(HAND_SIZE, displayHand.length) : displayHand.length;
-    const slots = displayHand.map((_, i) => handSlot(i, n, cardWidth, w));
+    const slots = displayHand.map((_, i) => handSlot(i, n, cardWidth, w, spread));
     const reduce = prefersReducedMotion();
     const dealEnded = wasDealing && !isDealing;
     const startSort = (dealEnded || (resorted && !isDealing)) && displayHand.length > 1 && !reduce;
@@ -173,7 +176,7 @@ const PlayerHand = ({
       gsap.to(els.slot, { ...s, scale: 1, duration: REFLOW, ease: "power3.out", overwrite: "auto" });
       gsap.set(els.slot, { zIndex: i });
     });
-  }, [displayHand, isDealing, sortMode, cardWidth, deckWidth, cardH, base, width, dealOriginRef]);
+  }, [displayHand, isDealing, sortMode, cardWidth, deckWidth, cardH, base, width, dealOriginRef, spread]);
 
   useEffect(() => () => sortTlRef.current?.kill(), []);
 
@@ -191,14 +194,17 @@ const PlayerHand = ({
   const canSelect = isActive && !isDealing;
 
   const toggleCardSelection = (card, e) => {
-    if (!canSelect || sortingRef.current) return;
+    if (!canSelect || sortingRef.current || isPlayable?.(card) === false) return;
     const currentIndex = displayHand.findIndex((c) => c.id === card.id);
 
     if (e?.shiftKey && lastSelectedIndex.current !== -1) {
       const start = Math.min(lastSelectedIndex.current, currentIndex);
       const end = Math.max(lastSelectedIndex.current, currentIndex);
       const next = new Map(selectedCards.map((c) => [c.id, c]));
-      displayHand.slice(start, end + 1).forEach((c) => next.set(c.id, c));
+      displayHand
+        .slice(start, end + 1)
+        .filter((c) => isPlayable?.(c) !== false)
+        .forEach((c) => next.set(c.id, c));
       onSelectionChange(Array.from(next.values()));
       return;
     }
@@ -221,7 +227,7 @@ const PlayerHand = ({
     >
       {hand.length === 0 && !isDealing ? (
         <div className="absolute inset-0 flex items-center justify-center font-pixel-display text-[12px] text-glow-gold">
-          {isEliminated ? "YOU'RE OUT — WATCHING THE REST OF THE MATCH" : "NO CARDS — YOU WIN!"}
+          {emptyMessage ?? (isEliminated ? "YOU'RE OUT — WATCHING THE REST OF THE MATCH" : "NO CARDS — YOU WIN!")}
         </div>
       ) : (
         displayHand.map((card) => (
@@ -244,7 +250,9 @@ const PlayerHand = ({
                 suit={card.suit}
                 width={cardWidth}
                 selected={selectedCards.some((c) => c.id === card.id)}
-                selectable={canSelect}
+                selectable={canSelect && isPlayable?.(card) !== false}
+                dim={!isDealing && isPlayable?.(card) === false}
+                debuffed={card.debuffed}
                 onClick={(e) => toggleCardSelection(card, e)}
                 style={liftVars}
               />
