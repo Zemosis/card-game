@@ -66,7 +66,8 @@ leaving mid-match hands the seat to a CPU; rematch replays the same table.
 Each lobby gains `seats`: an array of 4 slots, each one of
 
 - `{ kind: "human", key }` — `key` is the member's `playerKey`
-- `{ kind: "cpu", name }` — named `CPU {seat number}`
+- `{ kind: "cpu", name }` — named `CPU n`, the lowest number not already used
+  at the table (so a host alone gets CPU 1, 2, 3)
 - `null` — empty
 
 The host is seated in slot 0 at creation. `member.seatIndex` is the slot index
@@ -137,8 +138,8 @@ still disconnected, the existing in-game grace timer applies.
   current identity, sends `join_lobby { lobbyId: code }` (uppercased; `PUB-`
   prefix optional, as the server already accepts), and on `lobby_joined`
   navigates to `/game-13` with the same state the lobby page passes. On
-  `error_message` it shows "Table not found" with a button back to the Thirteen
-  lobby.
+  `error_message` it shows "Can't join this table" with the server's reason
+  ("Lobby not found" / "Lobby is full") and a button back to the Thirteen lobby.
 - **`GameThirteen`**: when it has a `table_update` and no game state, it renders
   the waiting table:
   - seats laid out relative to `mySeat` exactly as opponents are today
@@ -168,7 +169,7 @@ UI tests (`tests/ui/`):
 
 - the waiting table renders shadow seats, host controls and the invite panel
 - a non-host sees "Waiting for … to start" and no host controls
-- `/join/:code` joins and navigates; a bad code shows "Table not found"
+- `/join/:code` joins and navigates; a bad code shows the server's reason
 
 Manual: two browser identities (normal + private window) against the dev
 server — create, invite by link, add/remove CPU, start.
