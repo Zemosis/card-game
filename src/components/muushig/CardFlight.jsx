@@ -112,7 +112,21 @@ const CardFlight = ({ legs, fromRects, seat, rotation = 0, cardWidth, deadRef, d
     });
     // A leg into your hand ends when PlayerHand's cards have landed and turned.
     tl.set({}, {}, start + 0.1);
-    return () => tl.kill();
+
+    // The CPUs wait for the flight, so it must not stall without animation
+    // frames: jump to the end (firing every landing) when the tab is hidden,
+    // or on the clock once the flight's own length has passed, since a window
+    // merely covered by another (GNOME/Wayland) gets no frames while visible.
+    const skipToEnd = () => tl.progress() < 1 && tl.progress(1);
+    const skipIfHidden = () => document.hidden && skipToEnd();
+    skipIfHidden();
+    document.addEventListener("visibilitychange", skipIfHidden);
+    const deadline = setTimeout(skipToEnd, (tl.duration() + 0.5) * 1000);
+    return () => {
+      clearTimeout(deadline);
+      document.removeEventListener("visibilitychange", skipIfHidden);
+      tl.kill();
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sprite = { position: "absolute", left: 0, top: 0, width: W, height: H, visibility: "hidden" };
