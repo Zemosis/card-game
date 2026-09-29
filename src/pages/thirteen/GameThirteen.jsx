@@ -17,6 +17,7 @@ import {
 } from "../../utils/deckUtils";
 import DealAnimation from "../../components/thirteen/DealAnimation";
 import RulesModal from "../../components/thirteen/RulesModal";
+import WaitingTable from "../../components/thirteen/WaitingTable";
 
 import {
   createGameState,
@@ -53,6 +54,8 @@ const GameThirteen = () => {
   const { identity } = useAuth();
 
   const [gameState, setGameState] = useState(null);
+  // The waiting table before the deal (server `table_update`); null once dealt.
+  const [table, setTable] = useState(null);
   const [selectedCards, setSelectedCards] = useState([]);
   const [messages, setMessages] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
@@ -100,6 +103,13 @@ const GameThirteen = () => {
   useEffect(() => {
     gameStateRef.current = gameState;
   }, [gameState]);
+
+  // A rejected waiting-table command shows for 4s, then clears.
+  useEffect(() => {
+    if (!errorMessage || gameState) return;
+    const t = setTimeout(() => setErrorMessage(""), 4000);
+    return () => clearTimeout(t);
+  }, [errorMessage, gameState]);
 
   const safePlay = (method) => {
     try {
@@ -210,12 +220,14 @@ const GameThirteen = () => {
     socket.on("game_state_update", handleStateUpdate);
     socket.on("receive_chat", handleReceiveChat);
     socket.on("move_rejected", handleMoveRejected);
+    socket.on("table_update", setTable);
 
     return () => {
       socket.off("connect", joinGame);
       socket.off("game_state_update", handleStateUpdate);
       socket.off("receive_chat", handleReceiveChat);
       socket.off("move_rejected", handleMoveRejected);
+      socket.off("table_update", setTable);
     };
   }, [lobbyId]);
 
@@ -346,6 +358,11 @@ const GameThirteen = () => {
       socket.emit("request_move", { lobbyId, action: "pass", data: {} });
     }
   };
+
+  // --- WAITING TABLE (host) ---
+  const handleAddCpu = (seat) => socket.emit("add_cpu", { lobbyId, seat });
+  const handleRemoveCpu = (seat) => socket.emit("remove_cpu", { lobbyId, seat });
+  const handleStart = () => socket.emit("start_game", { lobbyId });
 
   const handleSendMessage = (text) => {
     if (!text.trim()) return;
@@ -487,6 +504,21 @@ const GameThirteen = () => {
   }, [gameState?.moveHistory]);
 
   // --- RENDER ---
+  if (!gameState && table)
+    return (
+      <WaitingTable
+        table={table}
+        messages={messages}
+        onSendMessage={handleSendMessage}
+        onExit={handleExit}
+        onAddCpu={handleAddCpu}
+        onRemoveCpu={handleRemoveCpu}
+        onStart={handleStart}
+        errorMessage={errorMessage}
+        myFace={{ variant: identity.avatar, customAvatarData: identity.customAvatar }}
+      />
+    );
+
   if (!gameState)
     return (
       <div className="flex items-center justify-center h-full starfield">

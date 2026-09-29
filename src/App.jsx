@@ -11,6 +11,7 @@ const GameMuushig = lazy(() => import("./pages/muushig/GameMuushig"));
 const LobbyMuushig = lazy(() => import("./pages/muushig/LobbyMuushig"));
 const AvatarPaint = lazy(() => import("./pages/AvatarPaint"));
 const Profile = lazy(() => import("./pages/Profile"));
+const JoinTable = lazy(() => import("./pages/JoinTable"));
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
               <Route path="/game-muushig" element={<GameMuushig />} />
               <Route path="/avatar-paint" element={<AvatarPaint />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/join/:code" element={<JoinTable />} />
             </Routes>
           </Suspense>
         </div>
