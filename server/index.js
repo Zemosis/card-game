@@ -48,6 +48,8 @@ const io = new Server(server, {
  *     key, userId, name, tag, displayName,
  *     socketId, connected, seatIndex, disconnectTimer
  *   }>,
+ *   seats: Array(4) of { kind: "human", key } | { kind: "cpu", name } | null,
+ *     // who sits where while the table waits; frozen into the game at start
  *   roster: Map<playerKey, seat ledger>,   // never pruned — see below
  *   rounds: Array<round summary>,
  *   sessionPromise, recorded,
@@ -109,6 +111,69 @@ const makeLobbyId = (isPrivate) => {
   const code = Math.random().toString(36).substring(2, 8).toUpperCase();
   return isPrivate ? code : `PUB-${code}`;
 };
+
+const SEATS = 4;
+
+// The 6 characters people type or share; public ids carry a "PUB-" prefix.
+const shareCode = (id) => id.replace(/^PUB-/, "");
+
+/** "CPU n" with the lowest n not already used at this table. */
+function nextCpuName(seats) {
+  const used = new Set(seats.filter((s) => s?.kind === "cpu").map((s) => s.name));
+  let n = 1;
+  while (used.has(`CPU ${n}`)) n++;
+  return `CPU ${n}`;
+}
+
+/** Seats a member at a waiting table: first empty seat, else bumps a CPU. */
+function takeSeat(lobby, member) {
+  let i = lobby.seats.findIndex((s) => s === null);
+  if (i === -1) i = lobby.seats.findIndex((s) => s?.kind === "cpu");
+  if (i === -1) return false;
+  lobby.seats[i] = { kind: "human", key: member.key };
+  member.seatIndex = i;
+  return true;
+}
+
+/** The waiting table as one member sees it. Never includes player keys. */
+function tableViewFor(lobby, member) {
+  return {
+    lobbyId: lobby.id,
+    name: lobby.name,
+    isPrivate: lobby.isPrivate,
+    status: "waiting",
+    code: shareCode(lobby.id),
+    mySeat: member.seatIndex,
+    isHost: lobby.hostKey === member.key,
+    seats: lobby.seats.map((s) => {
+      if (!s) return null;
+      if (s.kind === "cpu") return { kind: "cpu", name: s.name };
+      const m = lobby.members.get(s.key);
+      return {
+        kind: "human",
+        name: m?.displayName || "?",
+        avatar: m?.avatar || null,
+        isHost: lobby.hostKey === s.key,
+        connected: !!m?.connected,
+      };
+    }),
+  };
+}
+
+/** Sends every connected member of a WAITING table their view of it. */
+function broadcastTable(lobby) {
+  if (lobby.game) return;
+  for (const member of lobby.members.values()) {
+    if (!member.connected || !member.socketId) continue;
+    io.to(member.socketId).emit("table_update", tableViewFor(lobby, member));
+  }
+}
+
+function sendTableTo(lobby, socket) {
+  if (lobby.game) return;
+  const member = lobby.members.get(socket.data.playerKey);
+  if (member) socket.emit("table_update", tableViewFor(lobby, member));
+}
 
 function publicLobbyList() {
   return [...lobbies.values()]
@@ -263,16 +328,14 @@ function beginSession(lobby) {
 }
 
 function startGame(lobby) {
-  const seats = [];
-  for (const member of lobby.members.values()) {
-    if (seats.length >= 4) break;
-    member.seatIndex = seats.length;
-    seats.push({ type: "HUMAN", name: member.displayName, socketId: member.socketId, avatar: member.avatar });
-  }
-  let cpu = 1;
-  while (seats.length < 4) {
-    seats.push({ type: "AI", name: `CPU ${cpu++}`, socketId: null });
-  }
+  // Empty seats become CPUs; seat i is engine player i.
+  lobby.seats = lobby.seats.map((s) => s ?? { kind: "cpu", name: null });
+  for (const s of lobby.seats) if (s.kind === "cpu" && !s.name) s.name = nextCpuName(lobby.seats);
+  const seats = lobby.seats.map((s) => {
+    if (s.kind === "cpu") return { type: "AI", name: s.name, socketId: null };
+    const m = lobby.members.get(s.key);
+    return { type: "HUMAN", name: m.displayName, socketId: m.socketId, avatar: m.avatar };
+  });
 
   lobby.game = new ThirteenGame({
     seats,
@@ -379,12 +442,14 @@ io.on("connection", (socket) => {
       sessionPromise: null,
       recorded: false,
       game: null,
+      seats: Array(SEATS).fill(null),
     };
-    addMember(lobby, socket);
+    takeSeat(lobby, addMember(lobby, socket));
     lobbies.set(lobbyId, lobby);
     socket.join(lobbyId);
     console.log(`Lobby created: ${lobbyId} by ${socket.data.displayName}`);
     socket.emit("lobby_joined", { lobbyId, isHost: true, mySocketId: socket.id });
+    sendTableTo(lobby, socket);
     broadcastLobbyList();
   });
 
@@ -423,6 +488,7 @@ io.on("connection", (socket) => {
         mySocketId: socket.id,
       });
       sendStateTo(lobby, socket);
+      broadcastTable(lobby); // shows them connected again
       return;
     }
 
@@ -434,6 +500,7 @@ io.on("connection", (socket) => {
     member = addMember(lobby, socket);
     socket.join(lobbyId);
     console.log(`${socket.data.displayName} joined ${lobbyId}`);
+    if (!lobby.game) takeSeat(lobby, member);
 
     // Game already running: take over the first free CPU seat.
     if (lobby.game) {
@@ -457,24 +524,41 @@ io.on("connection", (socket) => {
 
     socket.emit("lobby_joined", { lobbyId, isHost: false, mySocketId: socket.id });
     sendStateTo(lobby, socket);
+    broadcastTable(lobby);
     broadcastLobbyList();
   });
 
-  // Game page asks for state; the host's first ask starts the match.
+  // Game page asks where things stand: the waiting table, or the live game.
   socket.on("check_game_status", ({ lobbyId } = {}) => {
     const lobby = lobbies.get(lobbyId);
     if (!lobby) {
       socket.emit("error_message", "Lobby not found");
       return;
     }
-    const member = lobby.members.get(socket.data.playerKey);
-    if (!member) return;
+    if (!lobby.members.has(socket.data.playerKey)) return;
+    if (lobby.game) sendStateTo(lobby, socket);
+    else sendTableTo(lobby, socket);
+  });
 
-    if (lobby.game) {
-      sendStateTo(lobby, socket);
-    } else if (lobby.hostKey === member.key) {
-      startGame(lobby);
+  /** The lobby, if this socket is its host and it is still waiting. */
+  const hostCommand = (lobbyId) => {
+    const lobby = lobbies.get(lobbyId);
+    const member = lobby?.members.get(socket.data.playerKey);
+    if (!lobby || !member) return null;
+    if (lobby.hostKey !== member.key) {
+      socket.emit("move_rejected", { reason: "Only the host can do that" });
+      return null;
     }
+    if (lobby.game) {
+      socket.emit("move_rejected", { reason: "The game has already started" });
+      return null;
+    }
+    return lobby;
+  };
+
+  socket.on("start_game", ({ lobbyId } = {}) => {
+    const lobby = hostCommand(lobbyId);
+    if (lobby) startGame(lobby);
   });
 
   socket.on("request_move", ({ lobbyId, action, data } = {}) => {

@@ -66,6 +66,8 @@ const guest = async (name = `G${++guestCount}`, tag = String(1000 + guestCount),
   const sock = connectClient(url, { auth: { name, tag, avatar }, forceNew: true, transports: ["websocket"] });
   sock.states = [];
   sock.on("game_state_update", (s) => sock.states.push(s));
+  sock.tables = [];
+  sock.on("table_update", (t) => sock.tables.push(t));
   open.push(sock);
   await new Promise((resolve, reject) => {
     sock.once("connect", resolve);
@@ -96,6 +98,12 @@ const stateWhere = (sock, match = () => true, timeout) => {
   return seen ? Promise.resolve(seen) : next(sock, "game_state_update", match, timeout);
 };
 
+/** Like stateWhere(), for the waiting table's `table_update`. */
+const tableWhere = (sock, match = () => true, timeout) => {
+  const seen = [...sock.tables].reverse().find(match);
+  return seen ? Promise.resolve(seen) : next(sock, "table_update", match, timeout);
+};
+
 const ack = (sock, event) => new Promise((resolve) => sock.emit(event, resolve));
 
 const createLobby = async (host, opts = {}) => {
@@ -110,10 +118,10 @@ const joinLobby = async (sock, lobbyId) => {
   return joined;
 };
 
-/** Host starts the match; resolves with each socket's first dealt state. */
+/** Host presses START; resolves with each socket's first dealt state. */
 const startMatch = async (host, lobbyId, others = []) => {
   const firsts = [host, ...others].map((s) => next(s, "game_state_update"));
-  host.emit("check_game_status", { lobbyId });
+  host.emit("start_game", { lobbyId });
   return Promise.all(firsts);
 };
 
@@ -187,17 +195,80 @@ describe("lobbies", () => {
     late.emit("join_lobby", { lobbyId });
     expect(await full).toBe("Lobby is full");
   });
+});
 
-  it("only the host's check_game_status starts the match", async () => {
+describe("the waiting table", () => {
+  it("a new table waits: the host is seated alone and nothing is dealt", async () => {
+    const host = await guest("WAITER", "0101");
+    const lobbyId = await createLobby(host, { lobbyName: "Patience" });
+    host.emit("check_game_status", { lobbyId });
+    const t = await tableWhere(host);
+    expect(t).toMatchObject({
+      lobbyId,
+      name: "Patience",
+      isPrivate: false,
+      status: "waiting",
+      code: lobbyId.replace("PUB-", ""),
+      mySeat: 0,
+      isHost: true,
+    });
+    expect(t.seats).toHaveLength(4);
+    expect(t.seats[0]).toMatchObject({ kind: "human", name: "WAITER #0101", isHost: true, connected: true });
+    expect(t.seats.slice(1)).toEqual([null, null, null]);
+    expect(JSON.stringify(t)).not.toMatch(/guest:/);
+    await new Promise((r) => setTimeout(r, 150));
+    expect(host.states).toHaveLength(0);
+  });
+
+  it("a joiner is seated and everyone sees them; the joiner is not host", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    const b = await guest("BEE", "0202");
+    await joinLobby(b, lobbyId);
+    const mine = await tableWhere(b, (t) => t.mySeat === 1);
+    expect(mine.isHost).toBe(false);
+    const seen = await tableWhere(host, (t) => t.seats[1]?.name === "BEE #0202");
+    expect(seen.seats[1]).toMatchObject({ kind: "human", isHost: false, connected: true });
+  });
+
+  it("only the host can start; start fills empty seats with CPUs and deals", async () => {
     const host = await guest();
     const lobbyId = await createLobby(host);
     const b = await guest();
     await joinLobby(b, lobbyId);
-    b.emit("check_game_status", { lobbyId });
-    await new Promise((r) => setTimeout(r, 150));
-    expect(b.states).toHaveLength(0);
-    const [hs] = await startMatch(host, lobbyId, [b]);
+
+    const r = next(b, "move_rejected");
+    b.emit("start_game", { lobbyId });
+    expect((await r).reason).toBe("Only the host can do that");
+
+    const [hs, bs] = await startMatch(host, lobbyId, [b]);
     expect(hs.gameState).toBe("PLAYING");
+    expect(mySeat(hs)).toBe(0);
+    expect(mySeat(bs)).toBe(1);
+    expect(hs.players.map((p) => p.type)).toEqual(["HUMAN", "HUMAN", "AI", "AI"]);
+    expect(hs.players.slice(2).map((p) => p.name)).toEqual(["CPU 1", "CPU 2"]);
+  });
+
+  it("start_game twice is rejected and does not re-deal", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    const [first] = await startMatch(host, lobbyId);
+    const r = next(host, "move_rejected");
+    host.emit("start_game", { lobbyId });
+    expect((await r).reason).toBe("The game has already started");
+    // The host never plays, so their 13 cards only change if a new game dealt.
+    await new Promise((r2) => setTimeout(r2, 100));
+    const ids = (st) => st.players[0].hand.map((c) => c.id).sort();
+    expect(ids(host.states.at(-1))).toEqual(ids(first));
+  });
+
+  it("check_game_status on a playing table sends the game state", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    await startMatch(host, lobbyId);
+    const again = next(host, "game_state_update");
+    host.emit("check_game_status", { lobbyId });
+    expect((await again).gameState).toBeDefined();
   });
 });
 
@@ -350,7 +421,7 @@ describe("a whole match over sockets", () => {
     host.on("move_rejected", ({ reason }) => rejections.push(reason));
 
     const over = next(host, "game_state_update", (s) => s.gameState === "GAME_OVER", 25000);
-    host.emit("check_game_status", { lobbyId });
+    host.emit("start_game", { lobbyId });
     const final = await over;
     expect(final.players.filter((p) => !p.isEliminated)).toHaveLength(1);
     expect(final.matchWins.reduce((a, b) => a + b, 0)).toBe(1);
