@@ -297,6 +297,7 @@ function TablesPanel({ game, lobbies, onJoin, onRefresh }) {
             return (
               <div
                 key={lobby.id}
+                data-table={lobby.id}
                 className="grid items-center px-4 gap-3"
                 style={{
                   gridTemplateColumns: cols,
@@ -306,7 +307,19 @@ function TablesPanel({ game, lobbies, onJoin, onRefresh }) {
                 }}
               >
                 <div className="min-w-0">
-                  <div className="font-pixel-display text-[12px] text-parchment truncate">{lobby.name}</div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-pixel-display text-[12px] text-parchment truncate">{lobby.name}</span>
+                    <span
+                      className="font-pixel-display text-[8px] px-1.5 py-1 shrink-0"
+                      style={
+                        lobby.inProgress
+                          ? { backgroundColor: "#7a1530", color: "#ead8b1" }
+                          : { backgroundColor: "#2a8a8c", color: "#0a2a2c" }
+                      }
+                    >
+                      {lobby.inProgress ? "PLAYING" : "WAITING"}
+                    </span>
+                  </div>
                   <div className="font-pixel-body text-[18px] text-bone/60 leading-none mt-1">{lobby.id}</div>
                 </div>
                 <div className="font-pixel-body text-[22px] text-bone truncate">{lobby.host}</div>
