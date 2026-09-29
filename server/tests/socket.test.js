@@ -426,6 +426,78 @@ describe("the waiting table", () => {
     b.disconnect();
     expect((await freed).seats[1]).toBeNull();
   });
+
+  it("leaving the page (browser Back) holds the seat like a disconnect, then frees it", async () => {
+    const host = await guest("BACKER", "0606");
+    const lobbyId = await createLobby(host);
+    const b = await guest();
+    await joinLobby(b, lobbyId);
+    await tableWhere(b, (t) => t.seats[0]);
+
+    const away = next(b, "table_update", (t) => t.seats[0] && !t.seats[0].connected);
+    host.emit("leave_page", { lobbyId });
+    expect((await away).seats[0].name).toBe("BACKER #0606");
+
+    // Nobody came back: the seat empties and host passes on.
+    const handed = next(b, "table_update", (t) => t.isHost, GRACE_MS * 5);
+    expect((await handed).seats[0]).toBeNull();
+  });
+
+  it("coming back to the page inside the grace period keeps the seat", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    const b = await guest();
+    await joinLobby(b, lobbyId);
+    await tableWhere(b, (t) => t.seats[0]);
+    b.emit("leave_page", { lobbyId });
+    await joinLobby(b, lobbyId);
+    const back = await tableWhere(b, (t) => t.seats[1]?.connected);
+    expect(back.mySeat).toBe(1);
+    await new Promise((r) => setTimeout(r, GRACE_MS * 1.5));
+    const now = next(host, "table_update");
+    host.emit("check_game_status", { lobbyId });
+    expect((await now).seats[1]).toMatchObject({ connected: true });
+  });
+});
+
+describe("who is host, as each player's game state says", () => {
+  it("a player promoted at the waiting table is host in the game (can rematch)", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    const b = await guest();
+    await joinLobby(b, lobbyId);
+    host.emit("leave_lobby", { lobbyId });
+    await tableWhere(b, (t) => t.isHost);
+    const [bs] = await startMatch(b, lobbyId);
+    expect(bs.amHost).toBe(true);
+  });
+
+  it("host hand-off mid-match reaches the new host's state", async () => {
+    const host = await guest();
+    const lobbyId = await createLobby(host);
+    const b = await guest();
+    await joinLobby(b, lobbyId);
+    const [hs, bs] = await startMatch(host, lobbyId, [b]);
+    expect(hs.amHost).toBe(true);
+    expect(bs.amHost).toBe(false);
+    const promoted = next(b, "game_state_update", (s) => s.amHost);
+    host.emit("leave_lobby", { lobbyId });
+    expect((await promoted).amHost).toBe(true);
+  });
+});
+
+describe("malformed payloads", () => {
+  it("null payloads are ignored instead of crashing the server", async () => {
+    const a = await guest();
+    const events = [
+      "create_lobby", "join_lobby", "leave_lobby", "leave_page", "check_game_status", "add_cpu",
+      "remove_cpu", "start_game", "request_move", "request_rematch", "send_chat", "get_public_lobbies",
+    ];
+    for (const ev of events) a.emit(ev, null);
+    await new Promise((r) => setTimeout(r, 100));
+    const b = await guest();
+    await expect(ack(b, "ping_check")).resolves.toBeUndefined();
+  });
 });
 
 describe("a running match", () => {

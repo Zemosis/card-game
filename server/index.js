@@ -228,7 +228,10 @@ function broadcastState(lobby, game = lobby.game) {
   for (const member of lobby.members.values()) {
     if (!member.connected || !member.socketId) continue;
     const seat = member.seatIndex ?? -1;
-    io.to(member.socketId).emit("game_state_update", redactState(state, seat));
+    io.to(member.socketId).emit("game_state_update", {
+      ...redactState(state, seat),
+      amHost: lobby.hostKey === member.key,
+    });
   }
 }
 
@@ -236,7 +239,10 @@ function sendStateTo(lobby, socket) {
   if (!lobby.game) return;
   const member = lobby.members.get(socket.data.playerKey);
   const seat = member?.seatIndex ?? -1;
-  socket.emit("game_state_update", redactState(lobby.game.state, seat));
+  socket.emit("game_state_update", {
+    ...redactState(lobby.game.state, seat),
+    amHost: !!member && lobby.hostKey === member.key,
+  });
 }
 
 /** Adds (or refreshes) a seat in the recording ledger. Never removes. */
@@ -383,6 +389,7 @@ function removeMember(lobby, member, { convertSeat = true } = {}) {
       // Waiting: next human by seat order. Playing: first remaining member.
       const seated = !lobby.game && lobby.seats.find((s) => s?.kind === "human");
       lobby.hostKey = seated ? seated.key : lobby.members.keys().next().value;
+      broadcastState(lobby); // mid-match: the new host's state now says so
     }
     broadcastTable(lobby);
   }
@@ -400,6 +407,20 @@ function destroyLobby(lobby) {
   console.log(`Lobby destroyed: ${lobby.id}`);
 }
 
+/**
+ * Holds a member's seat while they are away (disconnected, or left the page),
+ * then removes them unless they rejoined. Rejoining clears the timer.
+ */
+function holdSeat(lobby, member) {
+  member.connected = false;
+  if (member.disconnectTimer) clearTimeout(member.disconnectTimer);
+  member.disconnectTimer = setTimeout(() => {
+    member.disconnectTimer = null;
+    if (!member.connected) removeMember(lobby, member);
+  }, DISCONNECT_GRACE_MS);
+  broadcastTable(lobby); // the waiting table shows them as reconnecting
+}
+
 function findMembership(socket) {
   for (const lobby of lobbies.values()) {
     const member = lobby.members.get(socket.data.playerKey);
@@ -411,6 +432,13 @@ function findMembership(socket) {
 // ---------- SOCKET HANDLERS ----------
 
 io.on("connection", (socket) => {
+  // Handlers destructure their payload with a `= {}` default, which only covers
+  // undefined. A null payload would throw outside any try and kill the process.
+  socket.use((packet, next) => {
+    if (packet[1] === null) packet[1] = undefined;
+    next();
+  });
+
   console.log(`Connected: ${socket.id} (${socket.data.displayName}${socket.data.userId ? ", auth" : ", guest"})`);
 
   socket.on("get_public_lobbies", () => {
@@ -647,22 +675,27 @@ io.on("connection", (socket) => {
     removeMember(lobby, member);
   });
 
+  // The game page closed without EXIT (browser Back, route change). The socket
+  // stays up in a single-page app, so treat it like a disconnect. Coming back
+  // re-sends join_lobby, which reclaims the seat.
+  socket.on("leave_page", ({ lobbyId } = {}) => {
+    const lobby = lobbies.get(lobbyId);
+    const member = lobby?.members.get(socket.data.playerKey);
+    if (!lobby || !member || member.socketId !== socket.id || !member.connected) return;
+    holdSeat(lobby, member);
+  });
+
   socket.on("disconnect", () => {
     console.log(`Disconnected: ${socket.id}`);
     const found = findMembership(socket);
     if (!found) return;
     const { lobby, member } = found;
 
-    member.connected = false;
     const entry = lobby.roster.get(member.key);
     if (entry) entry.disconnectCount += 1;
 
     // Grace period, waiting or playing: a refresh/rejoin within it keeps the seat.
-    member.disconnectTimer = setTimeout(() => {
-      member.disconnectTimer = null;
-      if (!member.connected) removeMember(lobby, member);
-    }, DISCONNECT_GRACE_MS);
-    broadcastTable(lobby); // the waiting table shows them as reconnecting
+    holdSeat(lobby, member);
   });
 });
 
