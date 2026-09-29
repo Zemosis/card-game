@@ -65,13 +65,27 @@ function EmptySpot({ w, h, children }) {
 
 // The trump: the face-up card lying sideways, or — once the dealer has taken
 // it — a badge with the suit.
-function TrumpSpot({ trump, takenBy, cw }) {
+function TrumpSpot({ trump, takenBy, cw, trumpRef }) {
+  const flipRef = useRef(null);
+  // The trump is turned face up when the deal ends: a quick flip.
+  useLayoutEffect(() => {
+    if (!flipRef.current) return;
+    gsap.fromTo(flipRef.current, { scaleX: 0 }, { scaleX: 1, duration: 0.28, ease: "back.out(1.6)" });
+  }, [trump?.id]);
+
   if (!trump) return null;
   if (!takenBy) {
     return (
       <div className="flex flex-col items-center">
         <SpotLabel color="#f4c430">TRUMP</SpotLabel>
-        <div className="relative" style={{ width: Math.round(cw * CARD_RATIO), height: cw }}>
+        <div
+          ref={(el) => {
+            flipRef.current = el;
+            if (trumpRef) trumpRef.current = el;
+          }}
+          className="relative"
+          style={{ width: Math.round(cw * CARD_RATIO), height: cw }}
+        >
           <div
             className="absolute left-1/2 top-1/2"
             style={{ transform: "translate(-50%, -50%) rotate(90deg)", filter: "drop-shadow(0 0 10px rgba(244,196,48,0.5))" }}
@@ -134,6 +148,7 @@ function TrickStack({ stack, cw, ch, D }) {
         return (
           <div
             key={s.key}
+            data-trick-card={s.card.id}
             className="absolute inset-0"
             style={{
               zIndex: i + 1,
@@ -167,7 +182,39 @@ function TrickStack({ stack, cw, ch, D }) {
   );
 }
 
-function Felt({ D, stack, trump, trumpTakenBy, trickNumber, tricksPerRound, phaseLabel, maxCardWidth }) {
+// Where the dealer marker sits for each seat, as a fraction of the diameter:
+// on the felt's edge, facing that seat.
+const DEALER_SPOT = {
+  bottom: [0, 0.41],
+  bottomLeft: [-0.3, 0.17],
+  topLeft: [-0.3, -0.12],
+  topRight: [0.3, -0.12],
+  bottomRight: [0.3, 0.17],
+};
+
+function DealerMarker({ seat, D }) {
+  const [fx, fy] = DEALER_SPOT[seat] || DEALER_SPOT.bottom;
+  return (
+    <div
+      className="absolute left-1/2 top-1/2 z-20 pointer-events-none"
+      style={{
+        transform: `translate(-50%, -50%) translate(${Math.round(fx * D)}px, ${Math.round(fy * D)}px)`,
+        // Slides to the next dealer's side when the deal passes.
+        transition: "transform 600ms ease-in-out",
+      }}
+      title="Dealer"
+    >
+      <div
+        className="font-pixel-display text-[10px] leading-none px-2 py-1.5 whitespace-nowrap"
+        style={{ backgroundColor: "#5fd4d6", color: "#0a3a3a", boxShadow: "0 0 0 2px #0a0712, 2px 2px 0 2px #0a0712, 0 0 12px rgba(95,212,214,0.5)" }}
+      >
+        DEALER
+      </div>
+    </div>
+  );
+}
+
+function Felt({ D, stack, trump, trumpTakenBy, trickNumber, tricksPerRound, phaseLabel, maxCardWidth, dealing, overlay, centerRef, dealerSeat, trumpRef }) {
   const cw = Math.round(Math.max(48, Math.min(maxCardWidth, D * 0.2)));
   const ch = Math.round(cw * CARD_RATIO);
   const at = (fy) => ({
@@ -179,6 +226,7 @@ function Felt({ D, stack, trump, trumpTakenBy, trickNumber, tricksPerRound, phas
 
   return (
     <div
+      ref={centerRef}
       className="relative shrink-0"
       style={{
         width: D,
@@ -192,26 +240,36 @@ function Felt({ D, stack, trump, trumpTakenBy, trickNumber, tricksPerRound, phas
     >
       <div className="absolute pointer-events-none" style={{ inset: 16, borderRadius: "50%", border: "2px dashed rgba(155,209,79,0.18)" }} />
 
-      <div style={at(-0.3)}>
-        <TrumpSpot trump={trump} takenBy={trumpTakenBy} cw={cw} />
-      </div>
+      {!dealing && (
+        <>
+          <div style={at(-0.3)}>
+            <TrumpSpot trump={trump} takenBy={trumpTakenBy} cw={cw} trumpRef={trumpRef} />
+          </div>
 
-      <div style={at(0.04)}>
-        <TrickStack stack={stack} cw={cw} ch={ch} D={D} />
-      </div>
+          <div style={at(0.04)}>
+            <TrickStack stack={stack} cw={cw} ch={ch} D={D} />
+          </div>
+        </>
+      )}
 
-      <div style={at(0.34)}>
-        <div
-          className="font-pixel-display text-[10px] leading-none px-2 py-1.5 whitespace-nowrap"
-          style={{ backgroundColor: "#0a0712", color: "#ead8b1", boxShadow: "0 0 0 2px #1a3a2c" }}
-        >
-          {phaseLabel ?? (
-            <>
-              TRICK <span className="text-glow-gold">{trickNumber}</span>/{tricksPerRound}
-            </>
-          )}
+      {dealerSeat && <DealerMarker seat={dealerSeat} D={D} />}
+
+      {overlay?.(cw)}
+
+      {phaseLabel !== false && (
+        <div style={at(0.3)}>
+          <div
+            className="font-pixel-display text-[10px] leading-none px-2 py-1.5 whitespace-nowrap"
+            style={{ backgroundColor: "#0a0712", color: "#ead8b1", boxShadow: "0 0 0 2px #1a3a2c" }}
+          >
+            {phaseLabel ?? (
+              <>
+                TRICK <span className="text-glow-gold">{trickNumber}</span>/{tricksPerRound}
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -220,7 +278,13 @@ function Felt({ D, stack, trump, trumpTakenBy, trickNumber, tricksPerRound, phas
  * seats: { topLeft, topRight, bottomLeft, bottomRight } — rendered seat nodes.
  * stack: the trick in stack order, bottom first: { key, card, seat, name }.
  * trumpTakenBy: the dealer's name once they've taken the trump card.
- * phaseLabel: shown instead of the trick counter before tricks start.
+ * phaseLabel: shown instead of the trick counter before tricks start;
+ *   false hides the counter.
+ * dealing: hides the trump and the trick while the deal animation runs.
+ * overlay: (cardWidth) => node drawn on the felt (the deal animation).
+ * centerRef: ref to the felt, where dealt cards fly from.
+ * dealerSeat: seat name (bottom, bottomLeft, …) the DEALER marker faces.
+ * trumpRef: ref to the face-up trump card while it lies on the felt.
  */
 const RoundTable = ({ seats, maxCardWidth = 100, ...felt }) => {
   const boxRef = useRef(null);

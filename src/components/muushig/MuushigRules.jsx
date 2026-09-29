@@ -13,7 +13,7 @@ const SECTIONS = [
   ["goal", "The goal"],
   ["cards", "Cards"],
   ["deal", "Dealer, deal, trump"],
-  ["join", "Play or fold"],
+  ["join", "Go in or fold"],
   ["swap", "Swapping cards"],
   ["tricks", "Playing tricks"],
   ["debuff", "Debuffed cards"],
@@ -37,7 +37,7 @@ export default function MuushigRules({ onClose }) {
         </p>
         <p>
           Play a round and eat nothing, and you <Hi color="#e85a7a">gain {ZERO_PILES_PENALTY} points</Hi>. So every hand is a
-          choice: play and fight for piles, or fold and sit it out.
+          choice: go in and fight for piles, or fold and sit it out.
         </p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-2">
           {[
@@ -53,7 +53,7 @@ export default function MuushigRules({ onClose }) {
           ))}
         </div>
         <p>
-          A round goes: <Key>deal → play or fold → swap cards → dealer takes the trump → {TRICKS_PER_ROUND} tricks →
+          A round goes: <Key>deal → go in or fold → swap cards → dealer takes the trump → {TRICKS_PER_ROUND} tricks →
           scoring</Key>.
         </p>
       </Section>
@@ -103,16 +103,16 @@ export default function MuushigRules({ onClose }) {
         </p>
       </Section>
 
-      <Section id="join" n={4} title="Play or fold">
+      <Section id="join" n={4} title="Go in or fold">
         <p>
           Starting <Key>left of the dealer</Key> and going clockwise (the dealer decides last), each player says whether they{" "}
-          <Key>play</Key> this round or <Key>fold</Key>.
+          <Key>go in</Key> this round or <Key>fold</Key>.
         </p>
         <p>
           A folded hand goes to the dead pile and its player sits the round out. Their <Hi>score doesn't change</Hi>: a
           safe choice with a bad hand.
         </p>
-        <Callout tone="rule" title={`AT LEAST ${MIN_PLAYING} MUST PLAY`}>
+        <Callout tone="rule" title={`AT LEAST ${MIN_PLAYING} MUST GO IN`}>
           When the players still to decide are needed to make {MIN_PLAYING}, they can't fold.
         </Callout>
       </Section>
@@ -143,9 +143,10 @@ export default function MuushigRules({ onClose }) {
             name="OTHER SUIT LED"
             spec="9♠"
             text="If you hold a higher card of that suit, you must play one. Otherwise play anything, a trump included."
+            extra="Once someone has trumped in, the trump rule below applies to you too."
           />
           <CardRow
-            name="TRUMP LED"
+            name="TRUMP LED OR TRUMPED IN"
             spec="Q♦"
             text="You should play a higher trump; with no higher one, any trump; with no trump at all, anything."
             extra="Breaking this is allowed, but it debuffs a card (see Debuffed cards)."
@@ -167,8 +168,9 @@ export default function MuushigRules({ onClose }) {
         <Steps
           items={[
             <>
-              <Key>Trump rule.</Key> Trump was led and you didn't play a higher trump (or any trump, when you had no higher
-              one). Your <Key>highest trump left</Key> is debuffed.
+              <Key>Trump rule.</Key> A trump was on the table (led, or played on top of another suit) and you didn't play
+              a higher trump (or any trump, when you had no higher one). Your <Key>highest trump left</Key> is debuffed.
+              If you must follow the led suit with a higher card, you do that instead.
             </>,
             <>
               <Key>Ace rule.</Key> You hold the <Key>Ace of trumps</Key> and, on a trick where you're allowed to play it,

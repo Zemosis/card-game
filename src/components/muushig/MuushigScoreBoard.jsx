@@ -70,12 +70,15 @@ const MuushigScoreBoard = ({ players = [], currentPlayerIndex = -1, dealerIndex 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="font-pixel-display text-[10px] text-parchment truncate">{baseName(player.name)}</span>
+                  {index === dealerIndex && (
+                    <span title="Dealer">
+                      <StatusChip label="D" bg="#5fd4d6" fg="#0a3a3a" />
+                    </span>
+                  )}
                   {player.folded ? (
                     <StatusChip label="FOLD" bg="#463a78" fg="#ead8b1" />
                   ) : isActive ? (
                     <StatusChip label="TURN" bg="#f4c430" blink />
-                  ) : index === dealerIndex ? (
-                    <StatusChip label="DEAL" bg="#5fd4d6" fg="#0a3a3a" />
                   ) : null}
                 </div>
                 <div className="font-pixel-body text-[18px] leading-none mt-1 text-bone/70 whitespace-nowrap">

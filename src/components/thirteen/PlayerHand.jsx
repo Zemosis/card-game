@@ -50,6 +50,11 @@ const PlayerHand = ({
   isPlayable, // optional (card) => bool; unplayable cards are dimmed and locked
   spread = 0.74, // card-to-card step as a share of card width (<1 overlaps)
   emptyMessage, // optional text shown when the hand is empty
+  handSize = HAND_SIZE, // slots laid out while cards are being dealt
+  // Optional cards drawn mid-round: { ids, originRef, delay, stagger,
+  // sideways, faceUp }. Those cards fly from originRef (a pile, or a card
+  // lying sideways), `delay` seconds from now; face down unless faceUp.
+  arrival,
 }) => {
   const containerRef = useRef(null);
   const [width, setWidth] = useState(0);
@@ -91,7 +96,7 @@ const PlayerHand = ({
     const ids = new Set(displayHand.map((c) => c.id));
     placedRef.current.forEach((id) => !ids.has(id) && placedRef.current.delete(id));
 
-    const n = isDealing ? Math.max(HAND_SIZE, displayHand.length) : displayHand.length;
+    const n = isDealing ? Math.max(handSize, displayHand.length) : displayHand.length;
     const slots = displayHand.map((_, i) => handSlot(i, n, cardWidth, w, spread));
     const reduce = prefersReducedMotion();
     const dealEnded = wasDealing && !isDealing;
@@ -116,6 +121,7 @@ const PlayerHand = ({
       sortTlRef.current = sortTl;
     }
 
+    let arrived = 0;
     displayHand.forEach((card, i) => {
       const els = elsRef.current.get(card.id);
       if (!els) return;
@@ -123,29 +129,33 @@ const PlayerHand = ({
 
       if (!placedRef.current.has(card.id)) {
         placedRef.current.add(card.id);
-        const origin = dealOriginRef?.current?.getBoundingClientRect();
-        if (!isDealing || !origin || reduce) {
+        const drawn = !isDealing && arrival?.ids.includes(card.id);
+        const origin = (isDealing ? dealOriginRef : drawn ? arrival.originRef : null)?.current?.getBoundingClientRect();
+        if (!origin || reduce) {
           gsap.set(els.slot, { ...s, scale: 1, zIndex: i });
           gsap.set(els.back, { autoAlpha: 0 });
           return;
         }
-        // Fly face-down from the deck, then turn face-up on landing.
+        // Fly face-down from the deck (or pile), then turn face-up on landing.
         const c = containerRef.current.getBoundingClientRect();
-        const scale = deckWidth / cardWidth;
-        const from = {
-          x: origin.left + origin.width / 2 - (c.left + c.width / 2),
-          y: origin.top + origin.height / 2 + (cardH * scale) / 2 - (c.bottom - base),
-          rotation: gsap.utils.random(-20, 20),
-          scale,
-          zIndex: i,
-        };
-        gsap.set(els.back, { autoAlpha: 1 });
-        gsap
-          .timeline()
-          .fromTo(els.slot, from, { ...s, scale: 1, duration: DEAL_FLY, ease: "power2.out" })
-          .to(els.flip, { scaleX: 0, duration: 0.07, ease: "power1.in" })
-          .set(els.back, { autoAlpha: 0 })
-          .to(els.flip, { scaleX: 1, duration: 0.09, ease: "power1.out" });
+        const sideways = drawn && arrival.sideways;
+        const faceUp = drawn && arrival.faceUp;
+        const scale = (isDealing ? deckWidth : sideways ? origin.height : origin.width) / cardWidth;
+        const delay = drawn ? (arrival.delay ?? 0) + arrived++ * (arrival.stagger ?? 0) : 0;
+        const ox = origin.left + origin.width / 2 - (c.left + c.width / 2);
+        const oy = origin.top + origin.height / 2 - (c.bottom - base);
+        const half = (cardH * scale) / 2;
+        // Slots turn about their bottom centre: a sideways card's pivot sits
+        // half a card to the left of its middle, an upright one's below it.
+        const from = sideways
+          ? { x: ox - half, y: oy, rotation: 90, scale, zIndex: i }
+          : { x: ox, y: oy + half, rotation: gsap.utils.random(-20, 20), scale, zIndex: i };
+        gsap.set(els.back, { autoAlpha: faceUp ? 0 : 1 });
+        const tl = gsap.timeline({ delay }).fromTo(els.slot, from, { ...s, scale: 1, duration: DEAL_FLY, ease: "power2.out" });
+        if (!faceUp)
+          tl.to(els.flip, { scaleX: 0, duration: 0.07, ease: "power1.in" })
+            .set(els.back, { autoAlpha: 0 })
+            .to(els.flip, { scaleX: 1, duration: 0.09, ease: "power1.out" });
         return;
       }
 
@@ -176,7 +186,9 @@ const PlayerHand = ({
       gsap.to(els.slot, { ...s, scale: 1, duration: REFLOW, ease: "power3.out", overwrite: "auto" });
       gsap.set(els.slot, { zIndex: i });
     });
-  }, [displayHand, isDealing, sortMode, cardWidth, deckWidth, cardH, base, width, dealOriginRef, spread]);
+    // arrival is read only when new cards show up, alongside the new hand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayHand, isDealing, sortMode, cardWidth, deckWidth, cardH, base, width, dealOriginRef, spread, handSize]);
 
   useEffect(() => () => sortTlRef.current?.kill(), []);
 
@@ -234,6 +246,7 @@ const PlayerHand = ({
           <div
             key={card.id}
             ref={(el) => setEls(card.id, "slot", el)}
+            data-card-id={card.id}
             style={{
               position: "absolute",
               left: "50%",

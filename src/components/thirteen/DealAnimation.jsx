@@ -1,10 +1,13 @@
 // DEAL ANIMATION — riffle shuffle, then a one-card-at-a-time deal.
 //
 // The deck sits at the table center. Two riffles split it into halves and
-// interleave them back, then 52 cards go out round-robin from the dealer's
+// interleave them back, then the cards go out round-robin from the dealer's
 // left. Opponent cards fly to their seat's fan (found by data-deal-seat) and
 // only count once they land. The player's own cards are flown by PlayerHand
 // itself, so the real card lands in its real slot; here they only count.
+//
+// Defaults are Thirteen's (4 seats, 13 cards each); Muushig passes its own
+// seat layout and 5 cards.
 
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { PixelCard } from "../PixelCard";
@@ -27,6 +30,7 @@ const SEATS = ["bottom", "left", "top", "right"];
 // Landing rotation per seat: side fans hold cards sideways, the top seat's
 // cards turn to face the player across the table.
 const SEAT_ROTATION = { left: 90, top: 180, right: 270 };
+const ALL_IN = [true, true, true, true];
 
 const stackY = (k) => -k * 1.5;
 
@@ -34,7 +38,10 @@ const DealAnimation = ({
   dealerIndex = 0,
   viewIndex = 0,
   deckWidth = 72,
-  seatsIn = [true, true, true, true], // false for eliminated seats, who get no cards
+  seatsIn = ALL_IN, // false for eliminated seats, who get no cards
+  seats = SEATS, // data-deal-seat names, clockwise from the player
+  seatRotation = SEAT_ROTATION, // landing rotation per seat name
+  cardsPerSeat = 13,
   onDealProgress,
   onComplete,
 }) => {
@@ -51,6 +58,11 @@ const DealAnimation = ({
   const deckH = Math.round(deckWidth * CARD_RATIO);
   // Stable dependency for the effect (a fresh array every render otherwise).
   const seatsKey = seatsIn.map(Number).join("");
+  const layoutKey = `${seats.join(",")}|${JSON.stringify(seatRotation)}`;
+  const seatsRef = useRef(seats);
+  const rotationRef = useRef(seatRotation);
+  seatsRef.current = seats;
+  rotationRef.current = seatRotation;
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -118,14 +130,17 @@ const DealAnimation = ({
       };
     };
 
-    // 13 cards to each seat still in the match, round-robin from the dealer's left.
+    // Cards to each seat still in the match, round-robin from the dealer's left.
+    const seatNames = seatsRef.current;
+    const rotations = rotationRef.current;
+    const n = seatNames.length;
     const dealSeats = [];
-    for (let k = 1; k <= 4; k++) {
-      const seat = (dealerIndex + k) % 4;
-      if (seatsKey[seat] === "1") dealSeats.push(seat);
+    for (let k = 1; k <= n; k++) {
+      const seat = (dealerIndex + k) % n;
+      if (seatsKey[seat] !== "0") dealSeats.push(seat);
     }
-    const total = dealSeats.length * 13;
-    const counts = [0, 0, 0, 0];
+    const total = dealSeats.length * cardsPerSeat;
+    const counts = Array(n).fill(0);
     const land = (seat) => {
       counts[seat]++;
       progressRef.current?.([...counts]);
@@ -133,7 +148,7 @@ const DealAnimation = ({
 
     for (let i = 0; i < total; i++) {
       const seat = dealSeats[i % dealSeats.length];
-      const pos = SEATS[(seat - viewIndex + 4) % 4];
+      const pos = seatNames[(seat - viewIndex + n) % n];
 
       tl.call(
         () => {
@@ -153,7 +168,7 @@ const DealAnimation = ({
             {
               x: t.x,
               y: t.y,
-              rotation: SEAT_ROTATION[pos] + gsap.utils.random(-6, 6),
+              rotation: (rotations[pos] || 0) + gsap.utils.random(-6, 6),
               scale: FAN_CARD_W / deckWidth,
               duration: fly,
               ease: "power2.out",
@@ -195,7 +210,7 @@ const DealAnimation = ({
       tl.kill();
       gsap.killTweensOf(pool);
     };
-  }, [dealerIndex, viewIndex, deckWidth, seatsKey]);
+  }, [dealerIndex, viewIndex, deckWidth, seatsKey, layoutKey, cardsPerSeat]);
 
   const cardBox = { position: "absolute", marginLeft: -deckWidth / 2, marginTop: -deckH / 2 };
 

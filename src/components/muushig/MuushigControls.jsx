@@ -1,5 +1,5 @@
 // MUUSHIG CONTROLS — the bar under your hand: a status line, the sort toggle,
-// and the buttons for the current phase (PLAY / FOLD, SWAP, TAKE TRUMP,
+// and the buttons for the current phase (GO IN / FOLD, SWAP, TAKE TRUMP,
 // THROW). The page decides which buttons show; the primary one also fires on
 // SPACE.
 

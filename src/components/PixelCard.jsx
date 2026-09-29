@@ -80,6 +80,7 @@ export function PixelCard({
         {rank}
         <span className="suit">{suit}</span>
       </span>
+      {debuffed && <span className="debuff-slash" />}
       {debuffed && <span className="debuff-tag">DEBUFFED</span>}
     </div>
   );

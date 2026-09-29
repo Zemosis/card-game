@@ -326,6 +326,35 @@ html, body, #root { height: 100%; }
   background: #c0203a;
   box-shadow: 0 0 0 2px #0a0712, 2px 2px 0 #0a0712;
   pointer-events: none;
+  animation: debuff-stamp 320ms 180ms cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+/* One red slash corner to corner, under the stamp. It's drawn in when the
+   card is debuffed, then the stamp lands on it. */
+.pixel-card .debuff-slash {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom right,
+    transparent calc(50% - 4%),
+    rgba(224, 48, 72, 0.85) calc(50% - 4%),
+    rgba(224, 48, 72, 0.85) calc(50% + 4%),
+    transparent calc(50% + 4%)
+  );
+  animation: debuff-slash 220ms ease-out both;
+}
+@keyframes debuff-slash {
+  from { clip-path: inset(100% 0 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@keyframes debuff-stamp {
+  from { transform: translate(-50%, -50%) rotate(-16deg) scale(2.4); opacity: 0; }
+  to { transform: translate(-50%, -50%) rotate(-16deg) scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pixel-card .debuff-slash,
+  .pixel-card .debuff-tag { animation: none; }
 }
 
 .pixel-card-back {
