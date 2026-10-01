@@ -1,7 +1,7 @@
 // MAIN MENU - Pixel Retro Landing Page
 
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   PixelCard,
   PixelButton,
@@ -219,6 +219,10 @@ const MainMenu = () => {
           <div className="font-pixel-body text-bone/60 text-sm">
             v1.0.0 — patch{" "}
             <span className="text-parchment">"CUTE RAY"</span>
+            <span className="text-mist mx-2">|</span>
+            <Link to="/privacy" className="underline hover:text-parchment">
+              Privacy
+            </Link>
           </div>
           <div className="flex items-center gap-4 font-pixel-body text-bone/70 text-sm">
             {stats.connected ? (

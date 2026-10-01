@@ -13,6 +13,7 @@ const AvatarPaint = lazy(() => import("./pages/AvatarPaint"));
 const Profile = lazy(() => import("./pages/Profile"));
 const JoinTable = lazy(() => import("./pages/JoinTable"));
 const AuthCallback = lazy(() => import("./pages/AuthCallback"));
+const Privacy = lazy(() => import("./pages/Privacy"));
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/join/:code" element={<JoinTable />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/privacy" element={<Privacy />} />
             </Routes>
           </Suspense>
         </div>

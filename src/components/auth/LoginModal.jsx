@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { PixelButton } from "../PixelCard";
 import { useAuth } from "../../hooks/useAuth";
 import { api } from "../../lib/api";
+import { Link } from "react-router-dom";
 import AvatarPicker from "./AvatarPicker";
 import PixelIcon from "../PixelIcon";
 
@@ -408,6 +409,12 @@ export default function LoginModal({ onClose, initialSetup = false }) {
                 {tab === 0
                   ? "No account? Switch to Sign Up above."
                   : "Already have an account? Switch to Sign In above."}
+              </div>
+              <div className="font-pixel-body text-sm text-bone/50 text-center">
+                What we keep about you:{" "}
+                <Link to="/privacy" onClick={onClose} className="underline" style={{ color: "#5fd4d6" }}>
+                  privacy policy
+                </Link>
               </div>
             </form>
           </>
