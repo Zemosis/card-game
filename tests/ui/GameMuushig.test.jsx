@@ -98,7 +98,21 @@ describe("GameMuushig", () => {
     openTable(dealt({ dealer: 4, turn: 0 }));
     await user.click(await button("FOLD"));
     expect(document.querySelectorAll('[aria-label="Your hand"] [data-card-id]')).toHaveLength(0);
+    expect(screen.getByLabelText("Your hand")).toHaveTextContent("YOU FOLDED — SITTING OUT THIS ROUND");
     expect(status()).toHaveTextContent("Bot Saturn is deciding...");
+  }, 20_000);
+
+  it("throwing your last card empties the hand without claiming a win", async () => {
+    // The round's last trick; nobody reaches 0, so the match goes on.
+    const s = upTo(PHASES.PLAY, 4);
+    const players = s.players.map((p) => ({ ...p, score: 9, hand: [p.hand[0]] }));
+    openTable({ ...s, players, trickNumber: E.TRICKS_PER_ROUND });
+    const user = userEvent.setup();
+    const thrw = await button("THROW");
+    await pickCard(user, players[0].hand[0].id);
+    await user.click(thrw);
+    expect(screen.getByLabelText("Your hand")).toHaveTextContent("ALL CARDS PLAYED");
+    expect(screen.getByLabelText("Your hand")).not.toHaveTextContent(/YOU WIN/);
   }, 20_000);
 
   it("after folding 2 rounds in a row, FOLD is locked and the line says why", async () => {

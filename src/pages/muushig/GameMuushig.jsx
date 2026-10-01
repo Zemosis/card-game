@@ -859,6 +859,8 @@ const GameMuushig = () => {
               deckWidth={deckW}
               sortMode={sortMode}
               isPlayable={allowed ? (c) => allowed.has(c.id) : undefined}
+              // An empty hand never means a win here: you folded, or the round's cards are all out.
+              emptyMessage={me.status === "fold" ? "YOU FOLDED — SITTING OUT THIS ROUND" : "ALL CARDS PLAYED"}
               arrival={
                 flight?.seat === ME && incomingLeg >= 0
                   ? {
