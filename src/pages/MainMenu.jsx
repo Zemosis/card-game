@@ -10,7 +10,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useServerStats } from "../hooks/useServerStats";
 import { connectSocket } from "../utils/socket";
 import LoginModal from "../components/auth/LoginModal";
-import AvatarPickerDropdown from "../components/auth/AvatarPickerDropdown";
+import PlayerMenu from "../components/auth/PlayerMenu";
 import SettingsModal from "../components/SettingsModal";
 import PixelIcon from "../components/PixelIcon";
 import RulebookPicker from "../components/RulebookPicker";
@@ -71,37 +71,13 @@ const MainMenu = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <div
-            className="flex items-center gap-2 px-3 py-2"
-            style={{
-              backgroundColor: "#1f1a3d",
-              border: "3px solid #0a0712",
-              boxShadow: "inset 0 2px 0 0 rgba(255,255,255,0.06)",
-            }}
-          >
-            <AvatarPickerDropdown
-              currentVariant={identity.avatar}
-              size={24}
-              disabled={isGuest}
-              onSelect={(v) => updateProfile({ avatar: v }).catch(console.error)}
-              customAvatarData={identity.customAvatar}
-              onNavigatePaint={() => navigate("/avatar-paint")}
-            />
-            {/* The avatar opens the picker; the name opens your profile. */}
-            <button
-              onClick={() => navigate("/profile")}
-              aria-label="View profile"
-              title="View profile and stats"
-              className="pixel-hbtn text-left px-1 -mx-1"
-            >
-              <div className="font-pixel-display text-[8px] text-bone uppercase">
-                {isGuest ? "Guest" : "Player"}
-              </div>
-              <div className="font-pixel-body text-xs text-parchment leading-none">
-                {identity.name} #{identity.tag}
-              </div>
-            </button>
-          </div>
+          <PlayerMenu
+            identity={identity}
+            isGuest={isGuest}
+            onSelectAvatar={(v) => updateProfile({ avatar: v }).catch(console.error)}
+            onPaint={() => navigate("/avatar-paint")}
+            onViewProfile={() => navigate("/profile")}
+          />
           {isGuest ? (
             <PixelButton color="gold" size="md" onClick={() => setShowLogin(true)}>
               <span>Sign In</span>

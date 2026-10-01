@@ -5,16 +5,17 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import MainMenu from "../../src/pages/MainMenu";
 
 let stats;
+const { auth } = vi.hoisted(() => ({ auth: { isGuest: true, updateProfile: null } }));
 
 vi.mock("../../src/utils/socket", () => ({ socket: {}, connectSocket: () => {} }));
 vi.mock("../../src/hooks/useServerStats", () => ({ useServerStats: () => stats }));
 vi.mock("../../src/hooks/useAuth", () => ({
   useAuth: () => ({
-    identity: { name: "TESTER", tag: "0001", avatar: 0 },
-    isGuest: true,
+    identity: { name: "TESTER", tag: "0001", avatar: "1" },
+    isGuest: auth.isGuest,
     needsProfileSetup: false,
     signOut: () => {},
-    updateProfile: async () => {},
+    updateProfile: auth.updateProfile,
   }),
 }));
 
@@ -26,6 +27,8 @@ const renderMenu = () =>
   );
 
 beforeEach(() => {
+  auth.isGuest = true;
+  auth.updateProfile = vi.fn(async () => {});
   stats = { connected: true, online: 3, tables: 2, ping: 12, lobbies: { thirteen: 2, muushig: 0 } };
 });
 
@@ -57,8 +60,7 @@ describe("MainMenu", () => {
     expect(screen.queryByText(/lobb(y|ies) open/)).not.toBeInTheDocument();
   });
 
-  it("opens your profile from your name on the player badge", async () => {
-    const user = userEvent.setup();
+  const renderWithProfileRoute = () =>
     render(
       <MemoryRouter initialEntries={["/"]}>
         <Routes>
@@ -67,8 +69,57 @@ describe("MainMenu", () => {
         </Routes>
       </MemoryRouter>,
     );
-    await user.click(screen.getByRole("button", { name: /view profile/i }));
+
+  it("the player badge is one button that opens the player menu", async () => {
+    const user = userEvent.setup();
+    auth.isGuest = false;
+    renderWithProfileRoute();
+    const badge = screen.getByRole("button", { name: /TESTER #0001/ });
+    expect(badge).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    await user.click(badge);
+    expect(badge).toHaveAttribute("aria-expanded", "true");
+    const menu = screen.getByRole("menu", { name: "Player menu" });
+    expect(within(menu).getAllByRole("menuitemradio")).toHaveLength(5);
+    expect(within(menu).getByRole("menuitemradio", { name: "Avatar 1" })).toHaveAttribute("aria-checked", "true");
+
+    await user.click(within(menu).getByRole("menuitem", { name: /view profile/i }));
     expect(screen.getByText("PROFILE PAGE")).toBeInTheDocument();
+  });
+
+  it("switches your avatar straight from the player menu", async () => {
+    const user = userEvent.setup();
+    auth.isGuest = false;
+    renderMenu();
+    await user.click(screen.getByRole("button", { name: /TESTER #0001/ }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Avatar 3" }));
+    expect(auth.updateProfile).toHaveBeenCalledWith({ avatar: "3" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("a guest's menu explains avatars need an account, and still links the profile", async () => {
+    const user = userEvent.setup();
+    renderWithProfileRoute();
+    await user.click(screen.getByRole("button", { name: /TESTER #0001/ }));
+    const menu = screen.getByRole("menu", { name: "Player menu" });
+    expect(within(menu).queryByRole("menuitemradio")).not.toBeInTheDocument();
+    expect(within(menu).getByText(/sign in to choose an avatar/i)).toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: /view profile/i }));
+    expect(screen.getByText("PROFILE PAGE")).toBeInTheDocument();
+  });
+
+  it("closes the player menu on Escape or a click outside", async () => {
+    const user = userEvent.setup();
+    auth.isGuest = false;
+    renderMenu();
+    const badge = screen.getByRole("button", { name: /TESTER #0001/ });
+    await user.click(badge);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu", { name: "Player menu" })).not.toBeInTheDocument();
+    await user.click(badge);
+    await user.click(screen.getByText("KHUZUR"));
+    expect(screen.queryByRole("menu", { name: "Player menu" })).not.toBeInTheDocument();
   });
 
   it("opens either game's rulebook from the Rules picker", async () => {
