@@ -8,6 +8,7 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { io as connectClient } from "socket.io-client";
+import { aiAction } from "../game/muushig/ai.js";
 
 const SERVER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GRACE_MS = 400;
@@ -38,6 +39,7 @@ beforeAll(async () => {
       AI_TURN_DELAY_MS: "2",
       DEAL_DELAY_MS: "2",
       ROUND_END_DELAY_MS: "2",
+      MUUSHIG_DELAY_MS: "2",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -68,6 +70,8 @@ const guest = async (name = `G${++guestCount}`, tag = String(1000 + guestCount),
   sock.on("game_state_update", (s) => sock.states.push(s));
   sock.tables = [];
   sock.on("table_update", (t) => sock.tables.push(t));
+  sock.muushig = [];
+  sock.on("muushig_state", (v) => sock.muushig.push(v));
   open.push(sock);
   await new Promise((resolve, reject) => {
     sock.once("connect", resolve);
@@ -533,6 +537,7 @@ describe("malformed payloads", () => {
     const events = [
       "create_lobby", "join_lobby", "leave_lobby", "leave_page", "check_game_status", "add_cpu",
       "remove_cpu", "start_game", "request_move", "request_rematch", "send_chat", "get_public_lobbies", "leave_public_lobbies",
+      "muushig_move",
     ];
     for (const ev of events) a.emit(ev, null);
     await new Promise((r) => setTimeout(r, 100));
@@ -707,4 +712,151 @@ describe("a whole match over sockets", () => {
     expect(second.matchWins).toEqual(final.matchWins);
     expect(second.players.every((p) => p.score === 0)).toBe(true);
   }, 30000);
+});
+
+describe("muushig tables", () => {
+  const ACTION_PHASES = new Set(["DRAW", "DECIDE", "SWAP", "TRUMP", "PLAY"]);
+  const createMuushig = (host, opts = {}) => createLobby(host, { gameType: "muushig", ...opts });
+  /** Like stateWhere(), for Muushig views. */
+  const viewWhere = (sock, match = () => true, timeout) => {
+    const seen = [...sock.muushig].reverse().find(match);
+    return seen ? Promise.resolve(seen) : next(sock, "muushig_state", match, timeout);
+  };
+  /** Plays this socket's turns with the CPU's own choice, read off its redacted view. */
+  const autoplay = (sock, lobbyId) => {
+    let last = null;
+    const play = (v) => {
+      if (!ACTION_PHASES.has(v.phase) || v.turn !== v.mySeat) return;
+      const key = `${v.matchNumber}:${v.events.length}`;
+      if (key === last) return;
+      last = key;
+      const { seat, ...move } = aiAction(v);
+      sock.emit("muushig_move", { lobbyId, move });
+    };
+    sock.on("muushig_state", play);
+    if (sock.muushig.length) play(sock.muushig.at(-1)); // a turn that already arrived
+    return () => sock.off("muushig_state", play);
+  };
+
+  it("a Muushig table has 5 seats, its own list, and says which game it is", async () => {
+    const host = await guest("MUHOST");
+    const joined = next(host, "lobby_joined");
+    host.emit("create_lobby", { lobbyName: "Ger", isPrivate: false, gameType: "muushig" });
+    const { lobbyId, gameType } = await joined;
+    expect(gameType).toBe("muushig");
+    expect((await tableWhere(host)).seats).toHaveLength(5);
+
+    const a = await guest();
+    const muList = next(a, "public_lobbies_update");
+    a.emit("get_public_lobbies", { gameType: "muushig" });
+    expect((await muList).find((l) => l.id === lobbyId)).toMatchObject({ name: "Ger", max: 5, gameType: "muushig" });
+    const b = await guest();
+    const thirteenList = next(b, "public_lobbies_update");
+    b.emit("get_public_lobbies", {});
+    expect((await thirteenList).some((l) => l.id === lobbyId)).toBe(false);
+
+    const stats = await new Promise((resolve) => b.emit("get_stats", resolve));
+    expect(stats.lobbies.muushig).toBeGreaterThanOrEqual(1);
+
+    // A code typed in either lobby, or an invite link, finds the game it belongs to.
+    expect(await joinLobby(b, lobbyId.replace("PUB-", ""))).toMatchObject({ lobbyId, gameType: "muushig", isHost: false });
+  });
+
+  it("Thirteen tables still say they're Thirteen", async () => {
+    const host = await guest();
+    const joined = next(host, "lobby_joined");
+    host.emit("create_lobby", { lobbyName: "T" });
+    expect(await joined).toMatchObject({ gameType: "thirteen" });
+    expect((await tableWhere(host)).seats).toHaveLength(4);
+  });
+
+  it("the host can seat a CPU in the 5th seat; START fills the rest with bots and sends each player their own view", async () => {
+    const host = await guest("ONE");
+    const lobbyId = await createMuushig(host);
+    const b = await guest("TWO");
+    await joinLobby(b, lobbyId);
+    let t = next(host, "table_update", (x) => x.seats[4]?.kind === "cpu");
+    host.emit("add_cpu", { lobbyId, seat: 4 });
+    expect((await t).seats[4]).toEqual({ kind: "cpu", name: "Bot Saturn" });
+
+    const first = [host, b].map((sock) => next(sock, "muushig_state"));
+    host.emit("start_game", { lobbyId });
+    const [hv, bv] = await Promise.all(first);
+    expect(hv.mySeat).toBe(0);
+    expect(bv.mySeat).toBe(1);
+    expect(hv.players.map((p) => p.name.split(" #")[0])).toEqual(["ONE", "TWO", "Bot Venus", "Bot Mars", "Bot Saturn"]);
+    expect(hv.players.map((p) => p.type)).toEqual(["HUMAN", "HUMAN", "AI", "AI", "AI"]);
+    expect(hv.amHost).toBe(true);
+    expect(bv.amHost).toBe(false);
+    // The deal pile's order is secret: only its size is sent.
+    expect(hv.dealDeck).toHaveLength(32);
+    expect(hv.dealDeck.every((c) => c.hidden)).toBe(true);
+
+    // Both humans draw for the deal; once dealt, each sees their own hand and
+    // only card backs for the others.
+    const stops = [autoplay(host, lobbyId), autoplay(b, lobbyId)];
+    const dealt = await viewWhere(b, (v) => v.roundNumber === 1 && v.phase !== "DRAW");
+    stops.forEach((stop) => stop());
+    expect(dealt.players[1].hand.every((c) => c.id)).toBe(true);
+    for (const seat of [0, 2, 3, 4]) expect(dealt.players[seat].hand.every((c) => c.hidden)).toBe(true);
+  });
+
+  it("moves come in as muushig_move; out of turn, bad or at the wrong table they are rejected", async () => {
+    const host = await guest();
+    const lobbyId = await createMuushig(host);
+    const first = next(host, "muushig_state");
+    host.emit("start_game", { lobbyId });
+    await first;
+
+    const myDraw = await viewWhere(host, (v) => v.phase === "DRAW" && v.turn === v.mySeat);
+    const drew = next(host, "muushig_state", (v) => v.dealDraws.some((d) => d.seat === v.mySeat));
+    host.emit("muushig_move", { lobbyId, move: { type: "drawForDeal", depth: myDraw.dealDeck.length + 1 } });
+    expect((await next(host, "move_rejected")).reason).toMatch(/^Draw a card between 1 and/);
+    host.emit("muushig_move", { lobbyId, move: { type: "drawForDeal", depth: 2 } });
+    expect((await drew).dealDraws.find((d) => d.seat === myDraw.mySeat).depth).toBe(2);
+
+    host.emit("muushig_move", { lobbyId, move: { type: "drawForDeal", depth: 1 } });
+    expect((await next(host, "move_rejected")).reason).toMatch(/Not the DRAW phase|Not your turn/);
+    // Thirteen's move event does nothing at a Muushig table.
+    const before = host.muushig.length;
+    host.emit("request_move", { lobbyId, action: "pass" });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(host.muushig.slice(before).every((v) => v.events.every((e) => e.type !== "pass"))).toBe(true);
+  });
+
+  it("a whole online match plays to the end; only the host can rematch", async () => {
+    const host = await guest("SOLOHOST");
+    const lobbyId = await createMuushig(host);
+    const stop = autoplay(host, lobbyId);
+    const rejections = [];
+    host.on("move_rejected", ({ reason }) => rejections.push(reason));
+    const over = next(host, "muushig_state", (v) => v.phase === "MATCH_OVER", 25000);
+    host.emit("start_game", { lobbyId });
+    const final = await over;
+    stop();
+    expect(final.players.some((p) => p.score <= 0)).toBe(true);
+    expect(final.matchWinner).not.toBeNull();
+    expect(rejections).toEqual([]);
+
+    const rematch = next(host, "muushig_state", (v) => v.matchNumber === 2);
+    host.emit("request_rematch", { lobbyId });
+    expect(await rematch).toMatchObject({ phase: "DRAW", roundNumber: 0 });
+  }, 30000);
+
+  it("a player who leaves mid-match is replaced by a CPU that plays on", async () => {
+    const host = await guest("STAYS");
+    const lobbyId = await createMuushig(host);
+    const b = await guest("GOES");
+    await joinLobby(b, lobbyId);
+    const started = next(host, "muushig_state");
+    host.emit("start_game", { lobbyId });
+    await started;
+    const stop = autoplay(host, lobbyId);
+    const replaced = next(host, "muushig_state", (v) => v.players[1].type === "AI");
+    b.emit("leave_lobby", { lobbyId });
+    expect((await replaced).players[1].name).toBe("GOES (CPU)");
+    // The match carries on through that seat: it gets past the draw for the deal.
+    await viewWhere(host, (v) => v.roundNumber >= 1 && v.events.some((e) => e.type === "playIn" || e.type === "fold"), 15000);
+    stop();
+  }, 20000);
 });

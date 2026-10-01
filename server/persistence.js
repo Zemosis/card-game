@@ -9,6 +9,7 @@
 
 import { pool, withTransaction } from "./db/index.js";
 import { rankSolo } from "./solo.js";
+import { muushigPlaces, muushigSeatStats } from "./game/muushigStats.js";
 
 // Rewards by final position (1st..4th). Level-ups come from exp: 100 exp/level.
 const REWARDS = [
@@ -121,6 +122,7 @@ function rankSeats(state) {
  *
  * @param {Object} rec
  * @param {String}  rec.sessionId
+ * @param {String}  rec.gameType    - 'thirteen' (default) | 'muushig'
  * @param {Boolean} rec.completed   - true if the match played to game over
  * @param {String}  rec.endedReason - 'completed' | 'abandoned' | 'all_left'
  * @param {Date}    rec.finishedAt
@@ -134,8 +136,9 @@ export async function finishSession(rec) {
   if (!pool || !rec.sessionId) return;
 
   const { state, roster, completed } = rec;
+  const muushig = rec.gameType === "muushig";
   const finishedAt = rec.finishedAt || new Date();
-  const positionBySeat = completed && state ? rankSeats(state) : {};
+  const positionBySeat = completed && state ? (muushig ? muushigPlaces(state) : rankSeats(state)) : {};
   const rounds = rec.rounds || [];
 
   /** How many of each hand type a seat played this match (the profile's hand tally). */
@@ -150,6 +153,11 @@ export async function finishSession(rec) {
 
   /** Per-seat round aggregates, derived from the round summaries. */
   function roundStatsFor(seatIndex) {
+    if (muushig) {
+      // Muushig tallies piles and rounds sat out, read from the event log.
+      const stats = muushigSeatStats(state?.events || [], seatIndex);
+      return { roundsWon: stats.rounds_won, stats: stats.rounds_played ? stats : null };
+    }
     let roundsWon = 0;
     let roundsPlayed = 0;
     let cardsLeftTotal = 0;

@@ -9,6 +9,7 @@ import cors from "cors";
 import { Server } from "socket.io";
 import { randomInt, randomUUID } from "node:crypto";
 import { ThirteenGame, redactState, DEFAULT_DELAYS } from "./game/engine.js";
+import { MuushigGame, muushigView, DEFAULT_MUUSHIG_DELAYS } from "./game/muushigGame.js";
 import { BOT_NAMES } from "./game/constants.js";
 import { createSession, finishSession, closeOrphanedSessions } from "./persistence.js";
 import { authRouter, verifyToken } from "./auth.js";
@@ -32,6 +33,31 @@ const GAME_DELAYS = {
   roundEnd: envMs("ROUND_END_DELAY_MS", DEFAULT_DELAYS.roundEnd),
   deal: envMs("DEAL_DELAY_MS", DEFAULT_DELAYS.deal),
 };
+// Muushig paces itself to the browser's animations; the test suite sets every
+// step to MUUSHIG_DELAY_MS at once.
+const MUUSHIG_DELAYS = process.env.MUUSHIG_DELAY_MS
+  ? Object.fromEntries(Object.keys(DEFAULT_MUUSHIG_DELAYS).map((k) => [k, envMs("MUUSHIG_DELAY_MS", 0)]))
+  : DEFAULT_MUUSHIG_DELAYS;
+
+/**
+ * Each game the hall serves: seats at a table, its engine, what each player is
+ * sent (their redacted view) and on which event.
+ */
+const GAMES = {
+  thirteen: {
+    seats: 4,
+    stateEvent: "game_state_update",
+    view: redactState,
+    create: (seats, hooks) => new ThirteenGame({ seats, delays: GAME_DELAYS, ...hooks }),
+  },
+  muushig: {
+    seats: 5,
+    stateEvent: "muushig_state",
+    view: muushigView,
+    create: (seats, hooks) => new MuushigGame({ seats, delays: MUUSHIG_DELAYS, ...hooks }),
+  },
+};
+const gameTypeOf = (type) => (Object.hasOwn(GAMES, type) ? type : "thirteen");
 
 const app = express();
 app.use(cors({ origin: CORS_ORIGINS }));
@@ -45,17 +71,18 @@ const io = new Server(server, {
 
 /**
  * lobbies: Map<lobbyId, {
- *   id, name, isPrivate, maxPlayers, hostKey, createdAt, startedAt,
+ *   id, gameType ("thirteen" | "muushig"), name, isPrivate, maxPlayers,
+ *   hostKey, createdAt, startedAt,
  *   members: Map<playerKey, {
  *     key, userId, name, tag, displayName,
  *     socketId, connected, seatIndex, disconnectTimer
  *   }>,
- *   seats: Array(4) of { kind: "human", key } | { kind: "cpu", name } | null,
+ *   seats: Array(4 or 5) of { kind: "human", key } | { kind: "cpu", name } | null,
  *     // who sits where while the table waits; frozen into the game at start
  *   roster: Map<playerKey, seat ledger>,   // never pruned — see below
  *   rounds: Array<round summary>,
  *   sessionPromise, recorded,
- *   game: ThirteenGame | null
+ *   game: ThirteenGame | MuushigGame | null
  * }>
  *
  * `members` is the LIVE connection map and loses a player the moment they quit.
@@ -117,8 +144,6 @@ const makeLobbyId = (isPrivate) => {
   return isPrivate ? code : `PUB-${code}`;
 };
 
-const SEATS = 4;
-
 // The 6 characters people type or share; public ids carry a "PUB-" prefix.
 const shareCode = (id) => id.replace(/^PUB-/, "");
 
@@ -146,6 +171,7 @@ function takeSeat(lobby, member) {
 function tableViewFor(lobby, member) {
   return {
     lobbyId: lobby.id,
+    gameType: lobby.gameType,
     name: lobby.name,
     isPrivate: lobby.isPrivate,
     status: "waiting",
@@ -182,13 +208,14 @@ function sendTableTo(lobby, socket) {
   if (member) socket.emit("table_update", tableViewFor(lobby, member));
 }
 
-function publicLobbyList() {
+function publicLobbyList(gameType) {
   return [...lobbies.values()]
-    .filter((l) => !l.isPrivate)
+    .filter((l) => !l.isPrivate && l.gameType === gameType)
     .map((l) => {
       const host = l.members.get(l.hostKey);
       return {
         id: l.id,
+        gameType: l.gameType,
         name: l.name,
         host: host?.displayName || "?",
         current: l.members.size,
@@ -198,17 +225,21 @@ function publicLobbyList() {
     });
 }
 
-// Sockets looking at the table list. Only they get its updates: sending every
-// change to every connected player would grow with tables x players.
-const BROWSING = "browsing:thirteen";
+// Sockets looking at a game's table list. Only they get its updates: sending
+// every change to every connected player would grow with tables x players.
+const browsing = (gameType) => `browsing:${gameType}`;
 
-function broadcastLobbyList() {
-  io.to(BROWSING).emit("public_lobbies_update", publicLobbyList());
+function broadcastLobbyList(gameType) {
+  io.to(browsing(gameType)).emit("public_lobbies_update", publicLobbyList(gameType));
 }
 
-/** Seats a socket in a table's room; at a table it no longer watches the list. */
+function stopBrowsing(socket) {
+  for (const type of Object.keys(GAMES)) socket.leave(browsing(type));
+}
+
+/** Seats a socket in a table's room; at a table it no longer watches the lists. */
 function enterRoom(socket, lobbyId) {
-  socket.leave(BROWSING);
+  stopBrowsing(socket);
   socket.join(lobbyId);
 }
 
@@ -241,12 +272,11 @@ function addMember(lobby, socket) {
  */
 function broadcastState(lobby, game = lobby.game) {
   if (!game) return;
-  const state = game.state;
+  const { view, stateEvent } = GAMES[lobby.gameType];
   for (const member of lobby.members.values()) {
     if (!member.connected || !member.socketId) continue;
-    const seat = member.seatIndex ?? -1;
-    io.to(member.socketId).emit("game_state_update", {
-      ...redactState(state, seat),
+    io.to(member.socketId).emit(stateEvent, {
+      ...view(game.state, member.seatIndex ?? -1),
       amHost: lobby.hostKey === member.key,
     });
   }
@@ -254,10 +284,10 @@ function broadcastState(lobby, game = lobby.game) {
 
 function sendStateTo(lobby, socket) {
   if (!lobby.game) return;
+  const { view, stateEvent } = GAMES[lobby.gameType];
   const member = lobby.members.get(socket.data.playerKey);
-  const seat = member?.seatIndex ?? -1;
-  socket.emit("game_state_update", {
-    ...redactState(lobby.game.state, seat),
+  socket.emit(stateEvent, {
+    ...view(lobby.game.state, member?.seatIndex ?? -1),
     amHost: !!member && lobby.hostKey === member.key,
   });
 }
@@ -306,6 +336,7 @@ function closeSession(lobby, { completed, endedReason }) {
 
   // Snapshot now: the lobby may be torn down before the insert resolves.
   const snapshot = {
+    gameType: lobby.gameType,
     completed,
     endedReason,
     finishedAt: lobby.game?.finishedAt || new Date(),
@@ -335,7 +366,7 @@ function beginSession(lobby) {
 
   const host = lobby.members.get(lobby.hostKey);
   lobby.sessionPromise = createSession({
-    gameType: "thirteen",
+    gameType: lobby.gameType,
     lobbyId: lobby.id,
     lobbyName: lobby.name,
     isPrivate: lobby.isPrivate,
@@ -360,9 +391,7 @@ function startGame(lobby) {
     return { type: "HUMAN", name: m.displayName, socketId: m.socketId, avatar: m.avatar };
   });
 
-  lobby.game = new ThirteenGame({
-    seats,
-    delays: GAME_DELAYS,
+  lobby.game = GAMES[lobby.gameType].create(seats, {
     // The engine hands us itself, which is what makes the constructor-time
     // broadcast work -- see broadcastState.
     onState: (game) => broadcastState(lobby, game),
@@ -373,8 +402,8 @@ function startGame(lobby) {
   });
 
   beginSession(lobby);
-  console.log(`Game started in lobby ${lobby.id} (${lobby.members.size} humans)`);
-  broadcastLobbyList();
+  console.log(`${lobby.gameType} started in lobby ${lobby.id} (${lobby.members.size} humans)`);
+  broadcastLobbyList(lobby.gameType);
 }
 
 function removeMember(lobby, member, { convertSeat = true } = {}) {
@@ -410,7 +439,7 @@ function removeMember(lobby, member, { convertSeat = true } = {}) {
     }
     broadcastTable(lobby);
   }
-  broadcastLobbyList();
+  broadcastLobbyList(lobby.gameType);
 }
 
 function destroyLobby(lobby) {
@@ -458,14 +487,16 @@ io.on("connection", (socket) => {
 
   console.log(`Connected: ${socket.id} (${socket.data.displayName}${socket.data.userId ? ", auth" : ", guest"})`);
 
-  // Asking for the list subscribes to its updates until leave_public_lobbies
-  // or taking a seat.
-  socket.on("get_public_lobbies", () => {
-    socket.join(BROWSING);
-    socket.emit("public_lobbies_update", publicLobbyList());
+  // Asking for a game's list subscribes to its updates until
+  // leave_public_lobbies or taking a seat.
+  socket.on("get_public_lobbies", ({ gameType } = {}) => {
+    const type = gameTypeOf(gameType);
+    stopBrowsing(socket);
+    socket.join(browsing(type));
+    socket.emit("public_lobbies_update", publicLobbyList(type));
   });
 
-  socket.on("leave_public_lobbies", () => socket.leave(BROWSING));
+  socket.on("leave_public_lobbies", () => stopBrowsing(socket));
 
   // Latency probe — client measures round-trip via the ack callback.
   socket.on("ping_check", (ack) => {
@@ -474,26 +505,29 @@ io.on("connection", (socket) => {
 
   socket.on("get_stats", (ack) => {
     if (typeof ack !== "function") return;
-    const tables = [...lobbies.values()].filter((l) => !l.isPrivate).length;
+    const open = [...lobbies.values()].filter((l) => !l.isPrivate);
     ack({
       online: io.engine.clientsCount,
-      tables,
-      // Open public lobbies per game. Only Thirteen is served here so far.
-      lobbies: { thirteen: tables, muushig: 0 },
+      tables: open.length,
+      // Open public lobbies per game.
+      lobbies: Object.fromEntries(Object.keys(GAMES).map((type) => [type, open.filter((l) => l.gameType === type).length])),
     });
   });
 
-  socket.on("create_lobby", ({ lobbyName, isPrivate } = {}) => {
+  socket.on("create_lobby", ({ lobbyName, isPrivate, gameType } = {}) => {
     // One lobby per player: leaving any previous one keeps the list clean.
     const existing = findMembership(socket);
     if (existing) removeMember(existing.lobby, existing.member);
 
+    const type = gameTypeOf(gameType);
+    const seatCount = GAMES[type].seats;
     const lobbyId = makeLobbyId(!!isPrivate);
     const lobby = {
       id: lobbyId,
+      gameType: type,
       name: String(lobbyName || `${socket.data.displayName}'s Lobby`).slice(0, 40),
       isPrivate: !!isPrivate,
-      maxPlayers: 4,
+      maxPlayers: seatCount,
       hostKey: socket.data.playerKey,
       createdAt: new Date(),
       members: new Map(),
@@ -502,15 +536,15 @@ io.on("connection", (socket) => {
       sessionPromise: null,
       recorded: false,
       game: null,
-      seats: Array(SEATS).fill(null),
+      seats: Array(seatCount).fill(null),
     };
     takeSeat(lobby, addMember(lobby, socket));
     lobbies.set(lobbyId, lobby);
     enterRoom(socket, lobbyId);
-    console.log(`Lobby created: ${lobbyId} by ${socket.data.displayName}`);
-    socket.emit("lobby_joined", { lobbyId, isHost: true, mySocketId: socket.id });
+    console.log(`${type} lobby created: ${lobbyId} by ${socket.data.displayName}`);
+    socket.emit("lobby_joined", { lobbyId, gameType: type, isHost: true, mySocketId: socket.id });
     sendTableTo(lobby, socket);
-    broadcastLobbyList();
+    broadcastLobbyList(type);
   });
 
   socket.on("join_lobby", ({ lobbyId } = {}) => {
@@ -544,6 +578,7 @@ io.on("connection", (socket) => {
       }
       socket.emit("lobby_joined", {
         lobbyId,
+        gameType: lobby.gameType,
         isHost: lobby.hostKey === member.key,
         mySocketId: socket.id,
       });
@@ -582,10 +617,10 @@ io.on("connection", (socket) => {
       }
     }
 
-    socket.emit("lobby_joined", { lobbyId, isHost: false, mySocketId: socket.id });
+    socket.emit("lobby_joined", { lobbyId, gameType: lobby.gameType, isHost: false, mySocketId: socket.id });
     sendStateTo(lobby, socket);
     broadcastTable(lobby);
-    broadcastLobbyList();
+    broadcastLobbyList(lobby.gameType);
   });
 
   // Game page asks where things stand: the waiting table, or the live game.
@@ -621,12 +656,12 @@ io.on("connection", (socket) => {
     if (lobby) startGame(lobby);
   });
 
-  const isSeat = (seat) => Number.isInteger(seat) && seat >= 0 && seat < SEATS;
+  const isSeat = (lobby, seat) => Number.isInteger(seat) && seat >= 0 && seat < lobby.seats.length;
 
   socket.on("add_cpu", ({ lobbyId, seat } = {}) => {
     const lobby = hostCommand(lobbyId);
     if (!lobby) return;
-    if (!isSeat(seat) || lobby.seats[seat] !== null) {
+    if (!isSeat(lobby, seat) || lobby.seats[seat] !== null) {
       socket.emit("move_rejected", { reason: "That seat isn't empty" });
       return;
     }
@@ -637,7 +672,7 @@ io.on("connection", (socket) => {
   socket.on("remove_cpu", ({ lobbyId, seat } = {}) => {
     const lobby = hostCommand(lobbyId);
     if (!lobby) return;
-    if (!isSeat(seat) || lobby.seats[seat]?.kind !== "cpu") {
+    if (!isSeat(lobby, seat) || lobby.seats[seat]?.kind !== "cpu") {
       socket.emit("move_rejected", { reason: "There's no CPU in that seat" });
       return;
     }
@@ -648,12 +683,21 @@ io.on("connection", (socket) => {
   socket.on("request_move", ({ lobbyId, action, data } = {}) => {
     const lobby = lobbies.get(lobbyId);
     const member = lobby?.members.get(socket.data.playerKey);
-    if (!lobby?.game || !member || member.seatIndex == null) return;
+    if (!lobby?.game || lobby.gameType !== "thirteen" || !member || member.seatIndex == null) return;
 
     const result = lobby.game.handleMove(member.seatIndex, action, data?.cards);
     if (!result.ok) {
       socket.emit("move_rejected", { reason: result.error });
     }
+  });
+
+  // A Muushig move: { type, ...payload }. The seat is the socket's, never the payload's.
+  socket.on("muushig_move", ({ lobbyId, move } = {}) => {
+    const lobby = lobbies.get(lobbyId);
+    const member = lobby?.members.get(socket.data.playerKey);
+    if (!lobby?.game || lobby.gameType !== "muushig" || !member || member.seatIndex == null) return;
+    const result = lobby.game.move(member.seatIndex, move);
+    if (!result.ok) socket.emit("move_rejected", { reason: result.error });
   });
 
   socket.on("request_rematch", ({ lobbyId } = {}) => {

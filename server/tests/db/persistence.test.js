@@ -113,6 +113,58 @@ describe.skipIf(!TEST_DATABASE_URL)("match recording (Postgres)", () => {
     expect(history[0].rating_delta).toBe(profiles[bob.id].rating - 1000);
   });
 
+  it("a completed Muushig match is placed by Muushig's rules and tallies piles, not hands", async () => {
+    const carol = await makeUser(m.pool, "carol@test.dev");
+    const dave = await makeUser(m.pool, "dave@test.dev");
+    const id = await session({ gameType: "muushig", maxPlayers: 5, playerCount: 5 });
+    const result = (seat, eaten, folded = false) => ({ seat, eaten, folded, delta: folded ? 0 : eaten ? -eaten : 5, score: 0 });
+    // Round 1: seat 3 sweeps. Round 2: seat 3 eats 3, seat 1 eats 2, seat 4 folds.
+    const r1 = [result(0, 0), result(1, 0), result(2, 0, true), result(3, 5), result(4, 0)];
+    const r2 = [result(0, 0), result(1, 2), result(2, 0), result(3, 3), result(4, 0, true)];
+    const state = {
+      roundNumber: 2,
+      // Seat 3 reaches 0. Seats 0 and 1 tie on 4: seat 1 ate more last round.
+      players: [4, 4, 9, 0, 20].map((score) => ({ score })),
+      roundResults: { results: r2, roundWinner: null },
+      events: [
+        { type: "roundEnd", round: 1, results: r1, roundWinner: 3 },
+        { type: "roundEnd", round: 2, results: r2, roundWinner: null },
+      ],
+    };
+    const summary = (n, results, winnerSeat) => ({
+      roundNumber: n,
+      winnerSeat,
+      seatResults: results.map((r) => ({ seat_index: r.seat, eaten: r.eaten, folded: r.folded, points_gained: r.delta, score_after: 0, eliminated: false })),
+    });
+    await m.finishSession({
+      sessionId: id,
+      gameType: "muushig",
+      completed: true,
+      endedReason: "completed",
+      finishedAt: new Date(),
+      roster: [0, 1, 2, 3, 4].map((i) =>
+        i === 3 ? seat(3, { playerKey: carol.id, userId: carol.id }) : i === 1 ? seat(1, { playerKey: dave.id, userId: dave.id }) : seat(i),
+      ),
+      rounds: [summary(1, r1, 3), summary(2, r2, null)],
+      state,
+    });
+
+    const s = (await m.pool.query("select * from game_sessions where id = $1", [id])).rows[0];
+    expect(s).toMatchObject({ game_type: "muushig", status: "finished", round_count: 2, max_players: 5 });
+    const players = (await m.pool.query("select * from game_players where session_id = $1 order by seat_index", [id])).rows;
+    expect(players.map((p) => p.final_position)).toEqual([3, 2, 4, 1, 5]);
+    expect(players.map((p) => p.is_winner)).toEqual([false, false, false, true, false]);
+    expect(players.map((p) => p.coins_earned)).toEqual([25, 50, 10, 100, 10]); // 5th gets the last reward
+    expect(players[3]).toMatchObject({ player_id: carol.id, rounds_won: 2, final_score: 0 });
+    expect(players[3].stats).toEqual({ rounds_played: 2, rounds_won: 2, eaten: 8, gone_in: 2, folded: 0, sweeps: 1 });
+    expect(players[4].stats).toEqual({ rounds_played: 2, rounds_won: 0, eaten: 0, gone_in: 1, folded: 1, sweeps: 0 });
+    expect(players[3].rating_after).toBeGreaterThan(1000);
+    expect(players[1].rating_after).toBeLessThan(1000);
+    const r = (await m.pool.query("select * from game_rounds where session_id = $1 order by round_number", [id])).rows;
+    expect(r.map((x) => x.winner_seat)).toEqual([3, null]);
+    expect(r[0].seat_results).toHaveLength(5);
+  });
+
   it("counts each player's hands played by type, for the profile's hand tally", async () => {
     const id = await session();
     const play = (playerIndex, type) => ({ type: "PLAY", playerIndex, cards: [], combination: { type } });
