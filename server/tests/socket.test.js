@@ -246,7 +246,7 @@ describe("the waiting table", () => {
     expect(mySeat(hs)).toBe(0);
     expect(mySeat(bs)).toBe(1);
     expect(hs.players.map((p) => p.type)).toEqual(["HUMAN", "HUMAN", "AI", "AI"]);
-    expect(hs.players.slice(2).map((p) => p.name)).toEqual(["CPU 1", "CPU 2"]);
+    expect(hs.players.slice(2).map((p) => p.name)).toEqual(["Bot Saturn", "Bot Venus"]);
   });
 
   it("start_game twice is rejected and does not re-deal", async () => {
@@ -283,17 +283,17 @@ describe("the waiting table", () => {
     host.emit("add_cpu", { lobbyId, seat: 2 });
     host.emit("add_cpu", { lobbyId, seat: 3 });
     const both = await bothAdded;
-    expect(both.seats[2]).toEqual({ kind: "cpu", name: "CPU 1" });
-    expect(both.seats[3]).toEqual({ kind: "cpu", name: "CPU 2" });
+    expect(both.seats[2]).toEqual({ kind: "cpu", name: "Bot Saturn" });
+    expect(both.seats[3]).toEqual({ kind: "cpu", name: "Bot Venus" });
 
     const removedP = next(b, "table_update", (t) => t.seats[2] === null);
     host.emit("remove_cpu", { lobbyId, seat: 2 });
-    expect((await removedP).seats[3].name).toBe("CPU 2");
+    expect((await removedP).seats[3].name).toBe("Bot Venus");
 
     // The freed name is reused.
     const readded = next(b, "table_update", (t) => t.seats[2] !== null);
     host.emit("add_cpu", { lobbyId, seat: 2 });
-    expect((await readded).seats[2].name).toBe("CPU 1");
+    expect((await readded).seats[2].name).toBe("Bot Saturn");
   });
 
   it("rejects CPU commands from non-hosts and for bad seats", async () => {
@@ -413,7 +413,7 @@ describe("the waiting table", () => {
     expect(joined.isHost).toBe(true);
     const t = await tableWhere(back, (x) => x.seats[0]?.connected);
     expect(t).toMatchObject({ mySeat: 0, isHost: true });
-    expect(t.seats[3]).toEqual({ kind: "cpu", name: "CPU 1" });
+    expect(t.seats[3]).toEqual({ kind: "cpu", name: "Bot Saturn" });
   });
 
   it("staying away past the grace period frees the seat", async () => {

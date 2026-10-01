@@ -30,7 +30,7 @@ const c = (id) => makeCard(id.slice(0, -1), id.slice(-1));
 const cs = (ids) => (ids.trim() ? ids.trim().split(/\s+/).map(c) : []);
 const idsOf = (list) => list.map((x) => x.id);
 
-const PLAYERS = ["You", "Sarnai", "Batu", "Glitch", "Temur"].map((name, i) => ({ name, type: i ? "AI" : "HUMAN", level: "MEDIUM" }));
+const PLAYERS = ["You", "Bot Saturn", "Bot Venus", "Bot Mars", "Bot Jupiter"].map((name, i) => ({ name, type: i ? "AI" : "HUMAN", level: "MEDIUM" }));
 /** Runs the draw for the deal, everyone taking the top card. */
 function drawAll(s, rng) {
   while (s.phase === PHASES.DRAW) s = drawForDeal(s, s.turn, 1, rng);

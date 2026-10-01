@@ -13,24 +13,24 @@ describe.each(COPIES)("rulebook scenarios (%s)", (_name, { logic: L, deck: D, co
   const pass = (s) => L.passAction(s);
   const table = (s) => (s.currentPlay ? ids(s.currentPlay.cards).join(" ") : "");
 
-  it("the rulebook's example trick: CPU 1 passes, then comes back with its 2♠", () => {
+  it("the rulebook's example trick: Bot Saturn passes, then comes back with its 2♠", () => {
     let s = stateWith(L, {
       hands: ["5♣ 7♦ 8♦", "2♠ 4♥ 6♥", "9♦ 3♥ 4♠", "K♥ 3♠ 5♠"],
       current: 0,
     });
     s = play(s, "5♣"); // 1  You lead
-    s = pass(s); //       2  CPU 1 saves its 2♠
-    s = play(s, "9♦"); // 3  CPU 2
-    s = play(s, "K♥"); // 4  CPU 3
+    s = pass(s); //       2  Bot Saturn saves its 2♠
+    s = play(s, "9♦"); // 3  Bot Venus
+    s = play(s, "K♥"); // 4  Bot Mars
     s = pass(s); //       5  You
-    expect(s.currentPlayerIndex).toBe(1); // 6  CPU 1 is asked again
+    expect(s.currentPlayerIndex).toBe(1); // 6  Bot Saturn is asked again
     s = play(s, "2♠");
-    s = pass(s); //       7  CPU 2
-    s = pass(s); //       8  CPU 3
+    s = pass(s); //       7  Bot Venus
+    s = pass(s); //       8  Bot Mars
     expect(table(s)).toBe("2♠");
     s = pass(s); //       9  You
     expect(table(s)).toBe("");
-    expect(s.currentPlayerIndex).toBe(1); // CPU 1 takes the trick and leads
+    expect(s.currentPlayerIndex).toBe(1); // Bot Saturn takes the trick and leads
   });
 
   it("the 3♦ holder leads the first round but may lead something else", () => {

@@ -1,6 +1,6 @@
 // GAME LOGIC - Core Game Rules & Turn Management
 
-import { GAME_SETTINGS, PLAYER_TYPES, GAME_STATES } from "./constants.js";
+import { GAME_SETTINGS, PLAYER_TYPES, GAME_STATES, BOT_NAMES } from "./constants.js";
 import { removeCardsFromHand } from "./deckUtils.js";
 import { validatePlay } from "./handEvaluator.js";
 
@@ -24,7 +24,7 @@ export const createGameState = (
     score: 0,
     isEliminated: false,
     type: index === 0 ? PLAYER_TYPES.HUMAN : PLAYER_TYPES.AI,
-    name: index === 0 ? "You" : `CPU ${index}`,
+    name: index === 0 ? "You" : BOT_NAMES[index - 1],
     hasPassed: false,
     lastPlay: null,
   }));

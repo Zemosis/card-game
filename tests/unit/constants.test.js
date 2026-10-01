@@ -14,6 +14,14 @@ describe.each(COPIES)("constants (%s)", (_name, { constants: C }) => {
     expect(C.SUIT_VALUES["♥"]).toBeLessThan(C.SUIT_VALUES["♠"]);
   });
 
+  it("names bots after the solar system, Saturn and Venus first, never repeating", () => {
+    expect(C.BOT_NAMES.slice(0, 2)).toEqual(["Bot Saturn", "Bot Venus"]);
+    expect(new Set(C.BOT_NAMES).size).toBe(C.BOT_NAMES.length);
+    C.BOT_NAMES.forEach((name) => expect(name).toMatch(/^Bot [A-Z][a-z]+$/));
+    // Muushig seats four bots, the most of any game.
+    expect(C.BOT_NAMES.length).toBeGreaterThanOrEqual(4);
+  });
+
   it("uses the rulebook's scoring thresholds", () => {
     expect(C.GAME_SETTINGS.ELIMINATION_SCORE).toBe(25);
     expect(C.GAME_SETTINGS.PENALTY_THRESHOLD).toBe(10);

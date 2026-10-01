@@ -22,7 +22,7 @@ vi.mock("../../src/hooks/useAuth", () => ({
 
 const E = await vi.importActual("../../src/utils/muushig/engine.js");
 const { PHASES } = E;
-const PLAYERS = [{ name: "TESTER", type: "HUMAN" }, ...["Sarnai", "Batu", "Glitch", "Temur"].map((name) => ({ name, type: "AI", level: "MEDIUM" }))];
+const PLAYERS = [{ name: "TESTER", type: "HUMAN" }, ...["Bot Saturn", "Bot Venus", "Bot Mars", "Bot Jupiter"].map((name) => ({ name, type: "AI", level: "MEDIUM" }))];
 
 /** A dealt first round (seeded), then adjusted: whose deal, whose turn, … */
 function dealt(over = {}) {
@@ -80,7 +80,7 @@ describe("GameMuushig", () => {
     expect(status()).toHaveTextContent(`Take any card from 1 to ${E.MAX_DRAW_DEPTH} down`);
     await user.click(take);
     expect(queryButton("TAKE")).not.toBeInTheDocument();
-    expect(status()).toHaveTextContent(/Sarnai is drawing/);
+    expect(status()).toHaveTextContent(/Bot Saturn is drawing/);
   }, 20_000);
 
   it("go in or fold: GO IN tells the table and hands the turn on", async () => {
@@ -90,7 +90,7 @@ describe("GameMuushig", () => {
     expect(status()).toHaveTextContent("Go in this round, or fold and sit it out?");
     expect(getButton("FOLD")).toBeEnabled();
     await user.click(goIn);
-    expect(status()).toHaveTextContent("Sarnai is deciding...");
+    expect(status()).toHaveTextContent("Bot Saturn is deciding...");
   }, 20_000);
 
   it("folding puts your hand away", async () => {
@@ -98,7 +98,7 @@ describe("GameMuushig", () => {
     openTable(dealt({ dealer: 4, turn: 0 }));
     await user.click(await button("FOLD"));
     expect(document.querySelectorAll('[aria-label="Your hand"] [data-card-id]')).toHaveLength(0);
-    expect(status()).toHaveTextContent("Sarnai is deciding...");
+    expect(status()).toHaveTextContent("Bot Saturn is deciding...");
   }, 20_000);
 
   it("after folding 2 rounds in a row, FOLD is locked and the line says why", async () => {
@@ -133,7 +133,7 @@ describe("GameMuushig", () => {
     await pickCard(user, a.id);
     await pickCard(user, b.id);
     await user.click(getButton("SWAP 2"));
-    expect(status()).toHaveTextContent("Sarnai is swapping...");
+    expect(status()).toHaveTextContent("Bot Saturn is swapping...");
   }, 20_000);
 
   it("the dealer's trump: KEEP HAND, or pick a card to give up and TAKE TRUMP", async () => {
@@ -148,7 +148,7 @@ describe("GameMuushig", () => {
     expect(take).toBeEnabled();
     await user.click(take);
     expect(cardEl(s.trumpCard.id)).not.toBeNull();
-    expect(status()).toHaveTextContent("Waiting for Sarnai...");
+    expect(status()).toHaveTextContent("Waiting for Bot Saturn...");
   }, 20_000);
 
   it("your lead: THROW waits for a card, then plays it", async () => {
@@ -161,7 +161,7 @@ describe("GameMuushig", () => {
     const card = s.players[0].hand[0];
     await pickCard(user, card.id);
     await user.click(thrw);
-    expect(status()).toHaveTextContent("Waiting for Sarnai...");
+    expect(status()).toHaveTextContent("Waiting for Bot Saturn...");
     expect(cardEl(card.id)).toBeNull();
   }, 20_000);
 

@@ -66,8 +66,8 @@ describe("GameThirteen before the deal", () => {
     await user.click(screen.getByRole("button", { name: "Add CPU to seat 2" }));
     expect(fakeSocket.emit).toHaveBeenCalledWith("add_cpu", { lobbyId: "PUB-ABC123", seat: 1 });
 
-    serverSends("table_update", { ...table, seats: [table.seats[0], { kind: "cpu", name: "CPU 1" }, null, null] });
-    await user.click(screen.getByRole("button", { name: "Remove CPU 1" }));
+    serverSends("table_update", { ...table, seats: [table.seats[0], { kind: "cpu", name: "Bot Saturn" }, null, null] });
+    await user.click(screen.getByRole("button", { name: "Remove Bot Saturn" }));
     expect(fakeSocket.emit).toHaveBeenCalledWith("remove_cpu", { lobbyId: "PUB-ABC123", seat: 1 });
 
     await user.click(screen.getByRole("button", { name: /start game/i }));
@@ -87,7 +87,7 @@ describe("GameThirteen before the deal", () => {
     });
     const over = {
       gameState: "GAME_OVER",
-      players: [player(0, "HOSTY #0001", "HUMAN"), player(1, "PROMOTED #0002", "HUMAN"), player(2, "CPU 1"), player(3, "CPU 2")],
+      players: [player(0, "HOSTY #0001", "HUMAN"), player(1, "PROMOTED #0002", "HUMAN"), player(2, "Bot Saturn"), player(3, "Bot Venus")],
       currentPlayerIndex: 0,
       currentPlay: null,
       lastPlayedBy: null,

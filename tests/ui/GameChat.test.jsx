@@ -36,10 +36,10 @@ describe("GameChat", () => {
     const messages = [
       chat(1, "hello"),
       sys(1, { kind: "round", round: 1 }),
-      sys(2, { kind: "play", playerIndex: 1, name: "CPU 1", cards: cards("3♦ 3♠"), combo: "Pair" }),
-      sys(3, { kind: "pass", playerIndex: 2, name: "CPU 2" }),
-      sys(4, { kind: "trick", name: "CPU 1" }),
-      sys(5, { kind: "roundEnd", name: "CPU 1" }),
+      sys(2, { kind: "play", playerIndex: 1, name: "Bot Saturn", cards: cards("3♦ 3♠"), combo: "Pair" }),
+      sys(3, { kind: "pass", playerIndex: 2, name: "Bot Venus" }),
+      sys(4, { kind: "trick", name: "Bot Saturn" }),
+      sys(5, { kind: "roundEnd", name: "Bot Saturn" }),
     ];
     render(<GameChat messages={messages} onSendMessage={() => {}} />);
     const log = screen.getByRole("log");
@@ -50,8 +50,8 @@ describe("GameChat", () => {
     expect(screen.getByText("2 MOVES")).toBeInTheDocument();
     expect(within(log).getByText("ROUND 1")).toBeInTheDocument();
     expect(within(log).getByText("passed")).toBeInTheDocument();
-    expect(within(log).getByText(/CPU 1 TAKES THE TRICK/)).toBeInTheDocument();
-    expect(within(log).getByText(/CPU 1 WINS THE ROUND/)).toBeInTheDocument();
+    expect(within(log).getByText(/Bot Saturn TAKES THE TRICK/)).toBeInTheDocument();
+    expect(within(log).getByText(/Bot Saturn WINS THE ROUND/)).toBeInTheDocument();
     expect(within(log).queryByText("hello")).toBeNull();
   });
 

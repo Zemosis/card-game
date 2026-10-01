@@ -27,7 +27,7 @@ const MATCHES_PER_LEVEL = 25;
 const MOVE_CAP = 20000;
 const DECK_SIZE = 32;
 
-const players = (level) => ["You", "Sarnai", "Batu", "Glitch", "Temur"].map((name) => ({ name, type: "AI", level }));
+const players = (level) => ["You", "Bot Saturn", "Bot Venus", "Bot Mars", "Bot Jupiter"].map((name) => ({ name, type: "AI", level }));
 
 /** Every card the round is using, wherever it is now. */
 function cardsInRound(s) {

@@ -10,7 +10,7 @@ import MuushigScoreBoard from "../../src/components/muushig/MuushigScoreBoard";
 import { MAX_DRAW_DEPTH, MAX_FOLDS_IN_A_ROW, MIN_PLAYING, START_SCORE, ZERO_PILES_PENALTY } from "../../src/utils/muushig/engine";
 
 const SECTIONS = ["The goal", "Cards", "Dealer, deal, trump", "Go in or fold", "Swapping cards", "Playing tricks", "Debuffed cards", "Scoring", "Controls"];
-const NAMES = ["You", "Sarnai", "Batu", "Glitch", "Temur"];
+const NAMES = ["You", "Bot Saturn", "Bot Venus", "Bot Mars", "Bot Jupiter"];
 const players = (over = []) => NAMES.map((name, id) => ({ id, name, score: 15, eaten: 0, ...over[id] }));
 const face = () => ({ variant: 1, customAvatarData: null });
 
@@ -68,7 +68,7 @@ describe("RoundResults", () => {
     );
     expect(screen.getByText("ROUND 3 SCORED")).toBeInTheDocument();
     const rows = screen.getAllByText(/^#\d$/).map((el) => el.parentElement);
-    expect(rows.map((r) => within(r).getByText(new RegExp(NAMES.join("|"))).textContent)).toEqual(["Glitch", "You", "Batu", "Temur", "Sarnai"]);
+    expect(rows.map((r) => within(r).getByText(new RegExp(NAMES.join("|"))).textContent)).toEqual(["Bot Mars", "You", "Bot Venus", "Bot Jupiter", "Bot Saturn"]);
     expect(rows[0]).toHaveTextContent("3 eaten");
     expect(rows[0]).toHaveTextContent("-3");
     expect(rows[2]).toHaveTextContent("folded");
@@ -107,8 +107,8 @@ describe("RoundResults", () => {
       />,
     );
     expect(screen.getByText("MATCH OVER")).toBeInTheDocument();
-    expect(screen.getByText("GLITCH WINS THE MATCH!")).toBeInTheDocument();
-    expect(screen.getByText("#1").parentElement).toHaveTextContent("Glitch");
+    expect(screen.getByText("BOT MARS WINS THE MATCH!")).toBeInTheDocument();
+    expect(screen.getByText("#1").parentElement).toHaveTextContent("Bot Mars");
     expect(screen.queryByRole("button", { name: "NEXT ROUND" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "REMATCH" }));
     await user.click(screen.getByRole("button", { name: "EXIT" }));
@@ -117,7 +117,7 @@ describe("RoundResults", () => {
   });
 
   it("on a tie for the lowest score, ranks the match winner (more piles that round) first", () => {
-    // Rulebook §9: You and Sarnai both finish on 0; Sarnai ate more piles, so wins.
+    // Rulebook §9: You and Bot Saturn both finish on 0; Bot Saturn ate more piles, so wins.
     render(
       <RoundResults
         round={7}
@@ -129,8 +129,8 @@ describe("RoundResults", () => {
         onExit={() => {}}
       />,
     );
-    expect(screen.getByText("SARNAI WINS THE MATCH!")).toBeInTheDocument();
-    expect(screen.getByText("#1").parentElement).toHaveTextContent("Sarnai");
+    expect(screen.getByText("BOT SATURN WINS THE MATCH!")).toBeInTheDocument();
+    expect(screen.getByText("#1").parentElement).toHaveTextContent("Bot Saturn");
   });
 });
 
@@ -146,7 +146,7 @@ describe("MuushigScoreBoard", () => {
       />,
     );
     const rows = within(screen.getByRole("region", { name: "Scoreboard" })).getAllByRole("listitem");
-    expect(rows.map((r) => r.textContent.match(new RegExp(NAMES.join("|")))[0])).toEqual(["Sarnai", "Glitch", "You", "Batu", "Temur"]);
+    expect(rows.map((r) => r.textContent.match(new RegExp(NAMES.join("|")))[0])).toEqual(["Bot Saturn", "Bot Mars", "You", "Bot Venus", "Bot Jupiter"]);
     expect(rows[0]).toHaveTextContent("TURN");
     expect(rows[0]).toHaveTextContent("0 eaten · +5");
     expect(rows[1]).toHaveTextContent("round won · -5");
@@ -160,7 +160,7 @@ describe("MuushigScoreBoard", () => {
   it("breaks a tie on score the way the match does: more piles eaten this round first", () => {
     render(<MuushigScoreBoard players={players([{ score: 0, eaten: 2 }, { score: 0, eaten: 3 }])} faceFor={face} />);
     const rows = within(screen.getByRole("region", { name: "Scoreboard" })).getAllByRole("listitem");
-    expect(rows[0]).toHaveTextContent("Sarnai");
+    expect(rows[0]).toHaveTextContent("Bot Saturn");
     expect(rows[1]).toHaveTextContent("You");
   });
 });

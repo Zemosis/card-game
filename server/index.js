@@ -8,6 +8,7 @@ import http from "http";
 import cors from "cors";
 import { Server } from "socket.io";
 import { ThirteenGame, redactState, DEFAULT_DELAYS } from "./game/engine.js";
+import { BOT_NAMES } from "./game/constants.js";
 import { createSession, finishSession, closeOrphanedSessions } from "./persistence.js";
 import { authRouter, verifyToken } from "./auth.js";
 import { migrate, pool } from "./db/index.js";
@@ -117,12 +118,14 @@ const SEATS = 4;
 // The 6 characters people type or share; public ids carry a "PUB-" prefix.
 const shareCode = (id) => id.replace(/^PUB-/, "");
 
-/** "CPU n" with the lowest n not already used at this table. */
+/** The first BOT_NAMES name not already used at this table ("Bot n" past the list). */
 function nextCpuName(seats) {
   const used = new Set(seats.filter((s) => s?.kind === "cpu").map((s) => s.name));
-  let n = 1;
-  while (used.has(`CPU ${n}`)) n++;
-  return `CPU ${n}`;
+  const free = BOT_NAMES.find((name) => !used.has(name));
+  if (free) return free;
+  let n = BOT_NAMES.length + 1;
+  while (used.has(`Bot ${n}`)) n++;
+  return `Bot ${n}`;
 }
 
 /** Seats a member at a waiting table: first empty seat, else bumps a CPU. */

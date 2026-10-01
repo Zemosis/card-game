@@ -14,7 +14,7 @@ const table = (over = {}) => ({
   code: "ABC123",
   mySeat: 0,
   isHost: true,
-  seats: [human("HOSTY #0001", { isHost: true }), { kind: "cpu", name: "CPU 1" }, null, human("PAL #0002", { connected: false })],
+  seats: [human("HOSTY #0001", { isHost: true }), { kind: "cpu", name: "Bot Saturn" }, null, human("PAL #0002", { connected: false })],
   ...over,
 });
 
@@ -40,7 +40,7 @@ describe("WaitingTable", () => {
   it("shows every seat: humans, CPUs, an empty shadow seat and a reconnecting player", () => {
     render(<WaitingTable {...props()} />);
     expect(screen.getByText("HOSTY")).toBeInTheDocument();
-    expect(screen.getByText("CPU 1")).toBeInTheDocument();
+    expect(screen.getByText("Bot Saturn")).toBeInTheDocument();
     expect(screen.getByText("EMPTY SEAT")).toBeInTheDocument();
     expect(screen.getByText("PAL")).toBeInTheDocument();
     expect(screen.getByText(/reconnecting/i)).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe("WaitingTable", () => {
     render(<WaitingTable {...p} />);
     await user.click(screen.getByRole("button", { name: "Add CPU to seat 3" }));
     expect(p.onAddCpu).toHaveBeenCalledWith(2);
-    await user.click(screen.getByRole("button", { name: "Remove CPU 1" }));
+    await user.click(screen.getByRole("button", { name: "Remove Bot Saturn" }));
     expect(p.onRemoveCpu).toHaveBeenCalledWith(1);
     await user.click(screen.getByRole("button", { name: /start game/i }));
     expect(p.onStart).toHaveBeenCalled();

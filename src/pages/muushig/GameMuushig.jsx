@@ -53,15 +53,16 @@ import { aiAction, applyAction } from "../../utils/muushig/ai";
 import { soundManager } from "../../utils/SoundManager";
 import { useSoloMatchReport } from "../../hooks/useSoloMatchReport";
 import { muushigSoloReport } from "../../utils/soloReport";
+import { BOT_NAMES } from "../../utils/constants";
 
 const ME = 0;
 const AVATAR_COLOR = { 1: "#f4c430", 2: "#5fd4d6", 3: "#e85a7a", 4: "#9bd14f", 5: "#c5a8ff", custom: "#ead8b1" };
 const LEVEL_COLOR = { EASY: "#9bd14f", MEDIUM: "#f4c430", HARD: "#e85a7a" };
 const CPUS = [
-  { name: "Sarnai", variant: 2 },
-  { name: "Batu", variant: 3 },
-  { name: "Oyun", variant: 4 },
-  { name: "Temur", variant: 1 },
+  { name: BOT_NAMES[0], variant: 2 },
+  { name: BOT_NAMES[1], variant: 3 },
+  { name: BOT_NAMES[2], variant: 4 },
+  { name: BOT_NAMES[3], variant: 1 },
 ];
 // Seats clockwise from yours: bottom, bottom-left, top-left, top-right, bottom-right.
 const SEAT_POSITIONS = ["bottom", "bottomLeft", "topLeft", "topRight", "bottomRight"];

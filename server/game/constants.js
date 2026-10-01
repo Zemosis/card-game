@@ -119,12 +119,31 @@ export const PLAYER_TYPES = {
   AI: "AI",
 };
 
+// Bot names in seating order, every game: solar-system planets, then moons.
+// Saturn and Venus always come first; the rest are spares for bigger tables.
+export const BOT_NAMES = [
+  "Bot Saturn",
+  "Bot Venus",
+  "Bot Mars",
+  "Bot Jupiter",
+  "Bot Mercury",
+  "Bot Neptune",
+  "Bot Uranus",
+  "Bot Titan",
+  "Bot Europa",
+  "Bot Ganymede",
+  "Bot Io",
+  "Bot Callisto",
+  "Bot Triton",
+  "Bot Phobos",
+];
+
 // Player positions (for UI layout)
 export const PLAYER_POSITIONS = {
   BOTTOM: 0, // Human player
-  LEFT: 1, // CPU 1
-  TOP: 2, // CPU 2
-  RIGHT: 3, // CPU 3
+  LEFT: 1, // Bot Saturn
+  TOP: 2, // Bot Venus
+  RIGHT: 3, // Bot Mars
 };
 
 // GAME STATES

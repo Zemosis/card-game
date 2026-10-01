@@ -23,7 +23,7 @@ describe.each(COPIES)("gameLogic (%s)", (_name, { logic: L, evaluator: E, consta
       expect(s.roundNumber).toBe(1);
       expect(s.moveHistory).toEqual([]);
       expect(s.players.map((p) => p.type)).toEqual(["HUMAN", "AI", "AI", "AI"]);
-      expect(s.players.map((p) => p.name)).toEqual(["You", "CPU 1", "CPU 2", "CPU 3"]);
+      expect(s.players.map((p) => p.name)).toEqual(["You", "Bot Saturn", "Bot Venus", "Bot Mars"]);
       s.players.forEach((p, i) => {
         expect(p).toMatchObject({ id: i, score: 0, isEliminated: false, hasPassed: false });
         expect(p.hand).toBe(hands[i]);
