@@ -141,7 +141,7 @@ export default function LoginModal({ onClose, initialSetup = false }) {
             className="font-pixel-display text-[10px]"
             style={{ color: "#1a1024" }}
           >
-            {setupMode ? "CREATE PROFILE" : "SIGN IN TO CARD-LORE"}
+            {setupMode ? "CREATE PROFILE" : "SIGN IN TO KHUZUR"}
           </span>
           <button
             onClick={onClose}
@@ -292,7 +292,7 @@ export default function LoginModal({ onClose, initialSetup = false }) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="adventurer@cardlore.gg"
+                  placeholder="adventurer@example.com"
                   required
                   className="w-full font-pixel-body text-base px-3 py-2 text-parchment"
                   style={{
