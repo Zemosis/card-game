@@ -34,7 +34,8 @@ const MuushigControls = ({ message = "", warning = null, buttons = [], sortMode 
   return (
     <div className="flex items-center justify-between gap-3 mt-1 px-2">
       <div className="flex-1 min-w-0 flex items-center gap-3 px-3 py-2" style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d", minHeight: 46 }}>
-        <div className="font-pixel-body text-[20px] leading-none" style={{ color: warning ? "#e85a7a" : "rgba(200,184,144,0.85)" }}>
+        {/* A live region: screen readers hear each new instruction ("Your lead…"). */}
+        <div role="status" className="font-pixel-body text-[20px] leading-none" style={{ color: warning ? "#e85a7a" : "rgba(200,184,144,0.85)" }}>
           {warning || message}
         </div>
       </div>
