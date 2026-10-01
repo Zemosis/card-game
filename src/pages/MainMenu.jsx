@@ -200,7 +200,7 @@ const MainMenu = () => {
           id="locked"
           title="???"
           tag="COMING"
-          desc="A new game stirs in the deck. Reach Rank V to unlock the third table of cards."
+          desc="Coming soon."
           accent="dusk"
           locked
           difficulty={0}
