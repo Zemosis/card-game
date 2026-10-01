@@ -180,11 +180,16 @@ the router state it was opened with.
 ### Socket protocol
 
 Client emits: `create_lobby`, `join_lobby`, `leave_lobby`, `get_public_lobbies`,
-`check_game_status`, `add_cpu`, `remove_cpu`, `start_game`, `leave_page`,
-`request_move`, `request_rematch`, `send_chat`, `ping_check`, `get_stats`.
+`leave_public_lobbies`, `check_game_status`, `add_cpu`, `remove_cpu`,
+`start_game`, `leave_page`, `request_move`, `request_rematch`, `send_chat`,
+`ping_check`, `get_stats`.
 
 Server emits: `lobby_joined`, `table_update`, `game_state_update`,
 `move_rejected`, `public_lobbies_update`, `receive_chat`, `error_message`.
+
+`public_lobbies_update` goes only to sockets watching the table list: asking
+for it (`get_public_lobbies`) subscribes, and `leave_public_lobbies` (sent when
+the lobby screen closes) or taking a seat at a table unsubscribes.
 
 Invite links are `/join/{code}`, handled by `src/pages/JoinTable.jsx`.
 

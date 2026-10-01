@@ -41,4 +41,17 @@ describe("GameLobby open tables", () => {
     expect(screen.getByText("Early Birds").closest("[data-table]")).toHaveTextContent("WAITING");
     expect(screen.getByText("Mid Match").closest("[data-table]")).toHaveTextContent("PLAYING");
   });
+
+  it("asks for the list on open and stops its updates on close", () => {
+    fakeSocket.emit.mockClear();
+    const { unmount } = render(
+      <MemoryRouter>
+        <LobbySelection />
+      </MemoryRouter>,
+    );
+    expect(fakeSocket.emit).toHaveBeenCalledWith("get_public_lobbies");
+    expect(fakeSocket.emit).not.toHaveBeenCalledWith("leave_public_lobbies");
+    unmount();
+    expect(fakeSocket.emit).toHaveBeenCalledWith("leave_public_lobbies");
+  });
 });

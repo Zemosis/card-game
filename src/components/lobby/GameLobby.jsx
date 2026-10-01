@@ -378,6 +378,8 @@ export default function GameLobby({ game }) {
     socket.on("error_message", onError);
     if (ev.listTrigger) socket.on(ev.listTrigger, refresh);
     return () => {
+      // Off this screen the list's updates are just traffic.
+      if (ev.unlist) socket.emit(ev.unlist);
       if (ev.listTrigger) socket.off(ev.listTrigger, refresh);
       clearTimeout(errorTimer);
       socket.off("connect", refresh);

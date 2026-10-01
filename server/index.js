@@ -198,8 +198,18 @@ function publicLobbyList() {
     });
 }
 
+// Sockets looking at the table list. Only they get its updates: sending every
+// change to every connected player would grow with tables x players.
+const BROWSING = "browsing:thirteen";
+
 function broadcastLobbyList() {
-  io.emit("public_lobbies_update", publicLobbyList());
+  io.to(BROWSING).emit("public_lobbies_update", publicLobbyList());
+}
+
+/** Seats a socket in a table's room; at a table it no longer watches the list. */
+function enterRoom(socket, lobbyId) {
+  socket.leave(BROWSING);
+  socket.join(lobbyId);
 }
 
 function addMember(lobby, socket) {
@@ -448,9 +458,14 @@ io.on("connection", (socket) => {
 
   console.log(`Connected: ${socket.id} (${socket.data.displayName}${socket.data.userId ? ", auth" : ", guest"})`);
 
+  // Asking for the list subscribes to its updates until leave_public_lobbies
+  // or taking a seat.
   socket.on("get_public_lobbies", () => {
+    socket.join(BROWSING);
     socket.emit("public_lobbies_update", publicLobbyList());
   });
+
+  socket.on("leave_public_lobbies", () => socket.leave(BROWSING));
 
   // Latency probe — client measures round-trip via the ack callback.
   socket.on("ping_check", (ack) => {
@@ -491,7 +506,7 @@ io.on("connection", (socket) => {
     };
     takeSeat(lobby, addMember(lobby, socket));
     lobbies.set(lobbyId, lobby);
-    socket.join(lobbyId);
+    enterRoom(socket, lobbyId);
     console.log(`Lobby created: ${lobbyId} by ${socket.data.displayName}`);
     socket.emit("lobby_joined", { lobbyId, isHost: true, mySocketId: socket.id });
     sendTableTo(lobby, socket);
@@ -517,7 +532,7 @@ io.on("connection", (socket) => {
       }
       member.socketId = socket.id;
       member.connected = true;
-      socket.join(lobbyId);
+      enterRoom(socket, lobbyId);
       if (lobby.game && member.seatIndex != null) {
         lobby.game.replaceSeat(member.seatIndex, {
           type: "HUMAN",
@@ -543,7 +558,7 @@ io.on("connection", (socket) => {
     }
 
     member = addMember(lobby, socket);
-    socket.join(lobbyId);
+    enterRoom(socket, lobbyId);
     console.log(`${socket.data.displayName} joined ${lobbyId}`);
     if (!lobby.game) takeSeat(lobby, member);
 

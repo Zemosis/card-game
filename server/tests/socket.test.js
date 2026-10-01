@@ -197,6 +197,47 @@ describe("lobbies", () => {
   });
 });
 
+describe("the table list", () => {
+  const browse = async (sock) => {
+    const list = next(sock, "public_lobbies_update");
+    sock.emit("get_public_lobbies");
+    return list;
+  };
+  /** Collects every list update a socket gets from now on. */
+  const overhear = (sock) => {
+    const heard = [];
+    sock.on("public_lobbies_update", (l) => heard.push(l));
+    return heard;
+  };
+  /** Creates a table and resolves once a browsing watcher has seen it listed. */
+  const listedTable = async (watcher, lobbyName) => {
+    const seen = next(watcher, "public_lobbies_update", (l) => l.some((t) => t.name === lobbyName));
+    await createLobby(await guest(), { lobbyName });
+    await seen;
+    // Other sockets' copies of the same update may still be in flight.
+    await new Promise((r) => setTimeout(r, 100));
+  };
+
+  it("updates go only to players looking at the list", async () => {
+    const watcher = await guest();
+    await browse(watcher);
+    const elsewhere = overhear(await guest());
+    await listedTable(watcher, "Fresh Table");
+    expect(elsewhere).toEqual([]);
+  });
+
+  it("leaving the list, hosting a table or joining one stops its updates", async () => {
+    const [leaver, hoster, joiner, watcher] = await Promise.all([guest(), guest(), guest(), guest()]);
+    for (const s of [leaver, hoster, joiner, watcher]) await browse(s);
+    leaver.emit("leave_public_lobbies");
+    const lobbyId = await createLobby(hoster);
+    await joinLobby(joiner, lobbyId);
+    const heard = [leaver, hoster, joiner].map(overhear);
+    await listedTable(watcher, "Another Table");
+    expect(heard).toEqual([[], [], []]);
+  });
+});
+
 describe("the waiting table", () => {
   it("a new table waits: the host is seated alone and nothing is dealt", async () => {
     const host = await guest("WAITER", "0101");
@@ -491,7 +532,7 @@ describe("malformed payloads", () => {
     const a = await guest();
     const events = [
       "create_lobby", "join_lobby", "leave_lobby", "leave_page", "check_game_status", "add_cpu",
-      "remove_cpu", "start_game", "request_move", "request_rematch", "send_chat", "get_public_lobbies",
+      "remove_cpu", "start_game", "request_move", "request_rematch", "send_chat", "get_public_lobbies", "leave_public_lobbies",
     ];
     for (const ev of events) a.emit(ev, null);
     await new Promise((r) => setTimeout(r, 100));

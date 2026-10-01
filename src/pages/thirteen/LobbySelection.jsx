@@ -14,6 +14,7 @@ const THIRTEEN = {
   events: {
     list: "get_public_lobbies",
     listUpdate: "public_lobbies_update",
+    unlist: "leave_public_lobbies",
     create: "create_lobby",
     join: "join_lobby",
     joined: "lobby_joined",
