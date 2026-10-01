@@ -123,6 +123,39 @@ describe("GameMuushig online", () => {
     expect(await screen.findByText(/Bot Saturn is drawing/, {}, { timeout: 10_000 })).toBeInTheDocument();
   }, 20_000);
 
+  it("a tie in the draw for the deal hands you the TAKE button again", async () => {
+    // Two aces on top of the pile: you and the next drawer both take one.
+    let s = newMatch(ME);
+    const aces = s.dealDeck.filter((c) => c.rank === "A");
+    const rest = s.dealDeck.filter((c) => c.rank !== "A");
+    s = { ...s, dealDeck: [aces[0], aces[1], ...rest, aces[2], aces[3]] };
+    open();
+    serverSends("muushig_state", view(s));
+    const user = userEvent.setup();
+    await user.click(await button("TAKE"));
+    for (const seat of [ME, 3, 4, 0, 1]) {
+      s = drawForDeal(s, seat, 1);
+      serverSends("muushig_state", view(s));
+    }
+    expect(s.drawers).toEqual([ME, 3]); // the tie: you draw again first
+    expect(await screen.findByText(/Tie! Draw again/, {}, { timeout: 10_000 })).toBeInTheDocument();
+    const again = await button("TAKE");
+    expect(again).toBeEnabled();
+    await user.click(again);
+    expect(emitted("muushig_move")).toHaveLength(2);
+  }, 20_000);
+
+  it("drawing last for the deal is just sent: the deal pile is hidden, so the server settles it", async () => {
+    let s = newMatch((ME + 1) % 5);
+    for (const seat of [3, 4, 0, 1]) s = drawForDeal(s, seat, 1);
+    expect(s.turn).toBe(ME);
+    open();
+    serverSends("muushig_state", view(s));
+    await userEvent.setup().click(await button("TAKE"));
+    expect(emitted("muushig_move")).toEqual([{ lobbyId: LOBBY, move: { type: "drawForDeal", depth: 1 } }]);
+    expect(screen.getByRole("status")).not.toHaveTextContent(/Cannot read|undefined/);
+  }, 20_000);
+
   it("shows the server's reason when a move is rejected", async () => {
     open();
     serverSends("muushig_state", view(newMatch(ME)));

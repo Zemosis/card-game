@@ -380,9 +380,11 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
   const [selection, setSelection] = useState({ key: null, cards: [] });
   const selected = selection.key === turnKey ? selection.cards : [];
   const setSelected = (cards) => setSelection({ key: turnKey, cards });
-  // Online, a move is sent once per turn; the server's answer moves the table.
+  // Online, a move is sent once per state shown; the server's answer moves the
+  // table. (Not per turn: a tie in the draw can give you the same turn again.)
+  const moveKey = `${turnKey}-${game.events.length}`;
   const [sentKey, setSentKey] = useState(null);
-  const awaiting = !!online && sentKey === turnKey;
+  const awaiting = !!online && sentKey === moveKey;
   const [error, setError] = useState({ key: null, text: "" });
   const errorMessage = error.key === turnKey ? error.text : "";
   const [showRules, setShowRules] = useState(false);
@@ -571,14 +573,16 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
   // --- Your moves ---
   // Checked against the shown state first, so a rule error shows in the
   // status line at once. Practice then plays it; online sends it, and the
-  // server's next state is what moves the table.
+  // server's next state is what moves the table. Online, the draw for the
+  // deal isn't tried here: the pile is hidden from you, so only the server
+  // can settle it (the depth picker already keeps it in range).
   const act = (move) => {
     if (awaiting) return;
     try {
-      const next = applyAction(game, { ...move, seat: mySeat });
+      const next = online && move.type === "drawForDeal" ? null : applyAction(game, { ...move, seat: mySeat });
       if (online) {
         socket.emit("muushig_move", { lobbyId: online.lobbyId, move });
-        setSentKey(turnKey);
+        setSentKey(moveKey);
       } else {
         advance(game, next);
       }
