@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, act } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
+import userEvent from "@testing-library/user-event";
 import LobbySelection from "../../src/pages/thirteen/LobbySelection";
+import LobbyMuushig from "../../src/pages/muushig/LobbyMuushig";
 
 const { handlers, fakeSocket } = vi.hoisted(() => {
   const handlers = {};
@@ -49,9 +51,39 @@ describe("GameLobby open tables", () => {
         <LobbySelection />
       </MemoryRouter>,
     );
-    expect(fakeSocket.emit).toHaveBeenCalledWith("get_public_lobbies");
+    expect(fakeSocket.emit).toHaveBeenCalledWith("get_public_lobbies", { gameType: "thirteen" });
     expect(fakeSocket.emit).not.toHaveBeenCalledWith("leave_public_lobbies");
     unmount();
     expect(fakeSocket.emit).toHaveBeenCalledWith("leave_public_lobbies");
+  });
+});
+
+describe("the Muushig lobby", () => {
+  const renderMuushig = () =>
+    render(
+      <MemoryRouter initialEntries={["/lobby-muushig"]}>
+        <Routes>
+          <Route path="/lobby-muushig" element={<LobbyMuushig />} />
+          <Route path="/game-muushig" element={<div>MUUSHIG TABLE</div>} />
+          <Route path="/game-13" element={<div>THIRTEEN TABLE</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  const serverSends = (ev, data) => act(() => handlers[ev]?.forEach((fn) => fn(data)));
+
+  it("asks for Muushig tables and hosts Muushig tables", async () => {
+    fakeSocket.emit.mockClear();
+    renderMuushig();
+    expect(fakeSocket.emit).toHaveBeenCalledWith("get_public_lobbies", { gameType: "muushig" });
+    await userEvent.setup().click(screen.getByRole("button", { name: /public/i }));
+    expect(fakeSocket.emit).toHaveBeenCalledWith("create_lobby", expect.objectContaining({ gameType: "muushig", isPrivate: false }));
+    serverSends("lobby_joined", { lobbyId: "PUB-MU0001", gameType: "muushig", isHost: true });
+    expect(screen.getByText("MUUSHIG TABLE")).toBeInTheDocument();
+  });
+
+  it("a code for a Thirteen table typed here opens Thirteen", () => {
+    renderMuushig();
+    serverSends("lobby_joined", { lobbyId: "TH1234", gameType: "thirteen", isHost: false });
+    expect(screen.getByText("THIRTEEN TABLE")).toBeInTheDocument();
   });
 });

@@ -29,6 +29,31 @@ const props = (over = {}) => ({
   ...over,
 });
 
+describe("a five-seat (Muushig) table", () => {
+  const five = (over = {}) =>
+    table({
+      gameType: "muushig",
+      mySeat: 2,
+      seats: [human("ANN #0001", { isHost: true }), null, human("ME #0003"), { kind: "cpu", name: "Bot Saturn" }, null],
+      ...over,
+    });
+
+  it("seats me at the bottom and the other four around the table, clockwise", () => {
+    expect([0, 1, 2, 3, 4].map((s) => positionOf(s, 2, 5))).toEqual(["topRight", "bottomRight", "bottom", "bottomLeft", "topLeft"]);
+    render(<WaitingTable {...props({ table: five() })} title="MUUSHIG" />);
+    expect(screen.getByText("MUUSHIG")).toBeInTheDocument();
+    expect(screen.getByText(/3\/5 seated/)).toBeInTheDocument();
+    for (const name of ["ANN", "ME", "Bot Saturn"]) expect(screen.getByText(name)).toBeInTheDocument();
+    expect(screen.getAllByText("EMPTY SEAT")).toHaveLength(2);
+  });
+
+  it("lets a non-host see every seat but no host controls", () => {
+    render(<WaitingTable {...props({ table: five({ isHost: false }) })} title="MUUSHIG" />);
+    expect(screen.queryByRole("button", { name: /add cpu/i })).toBeNull();
+    expect(screen.getByText(/waiting for ANN to start/i)).toBeInTheDocument();
+  });
+});
+
 describe("positionOf", () => {
   it("puts my seat at the bottom and the rest clockwise like the live table", () => {
     expect([0, 1, 2, 3].map((s) => positionOf(s, 0))).toEqual(["bottom", "left", "top", "right"]);

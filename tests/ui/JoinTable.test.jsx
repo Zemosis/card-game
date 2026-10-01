@@ -35,6 +35,7 @@ const renderAt = (path) =>
       <Routes>
         <Route path="/join/:code" element={<JoinTable />} />
         <Route path="/game-13" element={<GamePage />} />
+        <Route path="/game-muushig" element={<div>MUUSHIG PAGE</div>} />
         <Route path="/lobby-13" element={<div>THIRTEEN LOBBY</div>} />
       </Routes>
     </MemoryRouter>,
@@ -71,6 +72,13 @@ describe("JoinTable", () => {
     );
     await act(async () => {});
     expect(fakeSocket.emit).toHaveBeenCalledWith("join_lobby", { lobbyId: "ABC123", playerName: "FRIEND #0007" });
+  });
+
+  it("an invite to a Muushig table opens the Muushig game", async () => {
+    renderAt("/join/mu1234");
+    await act(async () => {});
+    serverSends("lobby_joined", { lobbyId: "MU1234", gameType: "muushig", isHost: false, mySocketId: "s1" });
+    expect(screen.getByText("MUUSHIG PAGE")).toBeInTheDocument();
   });
 
   it("accepts a code that still carries the PUB- prefix", async () => {

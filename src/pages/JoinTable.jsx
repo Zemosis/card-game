@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { socket, connectSocket } from "../utils/socket";
 import { useAuth } from "../hooks/useAuth";
+import { gameRoute } from "../lib/games";
 
 export default function JoinTable() {
   const { code = "" } = useParams();
@@ -19,7 +20,7 @@ export default function JoinTable() {
   useEffect(() => {
     if (loading) return;
     const join = () => socket.emit("join_lobby", { lobbyId, playerName });
-    const onJoined = (data) => navigate("/game-13", { replace: true, state: { ...data, playerName } });
+    const onJoined = (data) => navigate(gameRoute(data.gameType), { replace: true, state: { ...data, playerName } });
     const onError = (msg) => setError(String(msg || "Lobby not found"));
 
     socket.on("connect", join);

@@ -1,7 +1,8 @@
-// WAITING TABLE — a Thirteen table before the deal. Seats sit where they will
-// during the match (you at the bottom); empty ones are shadow spots the host
-// can fill with CPUs. The felt holds the invite panel and the START button.
-// GameThirteen shows this until the server's first game_state_update.
+// WAITING TABLE — an online table before the deal (Thirteen's 4 seats or
+// Muushig's 5). Seats sit where they will during the match (you at the
+// bottom); empty ones are shadow spots the host can fill with CPUs. The felt
+// holds the invite panel and the START button. The game page shows this until
+// the server's first game state.
 
 import React, { useState } from "react";
 import { PixelAvatar } from "../PixelCard";
@@ -109,7 +110,9 @@ function InvitePanel({ table, seatedCount, hostName, onStart, errorMessage }) {
       style={{ backgroundColor: "rgba(10,7,18,0.8)", border: "4px solid #0a0712", boxShadow: "0 0 0 4px #463a78", maxWidth: 520 }}
     >
       <div className="font-pixel-display text-[14px] text-glow-gold">WAITING FOR PLAYERS</div>
-      <div className="font-pixel-body text-[22px] text-bone/80">{seatedCount}/4 seated</div>
+      <div className="font-pixel-body text-[22px] text-bone/80">
+        {seatedCount}/{table.seats.length} seated
+      </div>
 
       <div className="flex flex-col items-center gap-1">
         <div className="font-pixel-display text-[9px] text-bone/60 flex items-center gap-2">
@@ -161,10 +164,24 @@ function InvitePanel({ table, seatedCount, hostName, onStart, errorMessage }) {
   );
 }
 
-export default function WaitingTable({ table, messages, onSendMessage, onExit, onAddCpu, onRemoveCpu, onStart, errorMessage, myFace }) {
+export default function WaitingTable({
+  table,
+  messages,
+  onSendMessage,
+  onExit,
+  onAddCpu,
+  onRemoveCpu,
+  onStart,
+  errorMessage,
+  myFace,
+  title = "THIRTEEN",
+  titleClass = "text-glow-gold",
+  titleColor,
+}) {
+  const five = table.seats.length === 5;
   const at = {};
   table.seats.forEach((seat, i) => {
-    at[positionOf(i, table.mySeat)] = { seat, index: i };
+    at[positionOf(i, table.mySeat, table.seats.length)] = { seat, index: i };
   });
   const slot = (pos) => (
     <SeatSlot
@@ -199,18 +216,27 @@ export default function WaitingTable({ table, messages, onSendMessage, onExit, o
             {table.name.toUpperCase()} <span className="text-glow-cyan">#{table.code}</span>
           </div>
         </div>
-        <div className="font-pixel-display text-base text-glow-gold">THIRTEEN</div>
+        <div className={`font-pixel-display text-base ${titleClass}`} style={{ color: titleColor }}>
+          {title}
+        </div>
         <div style={{ width: 120 }} />
       </div>
 
       <div className="relative flex-1 grid min-h-0" style={{ gridTemplateColumns: "minmax(0, 1fr) 300px" }}>
         <div className="relative flex flex-col items-center justify-between min-h-0 px-4 py-4">
-          {slot("top")}
+          {five ? (
+            <div className="flex justify-center gap-10">
+              {slot("topLeft")}
+              {slot("topRight")}
+            </div>
+          ) : (
+            slot("top")
+          )}
           <div
             className="grid items-center gap-4 w-full mx-auto"
             style={{ gridTemplateColumns: `${SIDE_SEAT_W}px minmax(0,1fr) ${SIDE_SEAT_W}px`, maxWidth: SIDE_SEAT_W * 2 + 820 + 32 }}
           >
-            <div className="flex justify-center">{slot("left")}</div>
+            <div className="flex justify-center">{slot(five ? "bottomLeft" : "left")}</div>
             <div className="flex flex-col items-center gap-3">
               <InvitePanel table={table} seatedCount={seatedCount} hostName={hostName} onStart={onStart} errorMessage={errorMessage} />
               {errorMessage && (
@@ -219,7 +245,7 @@ export default function WaitingTable({ table, messages, onSendMessage, onExit, o
                 </div>
               )}
             </div>
-            <div className="flex justify-center">{slot("right")}</div>
+            <div className="flex justify-center">{slot(five ? "bottomRight" : "right")}</div>
           </div>
           {slot("bottom")}
         </div>

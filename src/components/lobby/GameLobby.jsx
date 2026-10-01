@@ -22,6 +22,7 @@ import { Panel, Btn, HeaderBtn, TopBar } from "../PixelUI";
 import { INK, TONES, inputStyle } from "../pixelTokens";
 import SettingsModal from "../SettingsModal";
 import LoginModal from "../auth/LoginModal";
+import { gameRoute } from "../../lib/games";
 
 const CODE_LENGTH = 6;
 const EXP_PER_LEVEL = 100;
@@ -363,8 +364,9 @@ export default function GameLobby({ game }) {
 
   useEffect(() => {
     let errorTimer;
-    const refresh = () => socket.emit(ev.list);
-    const onJoined = (data) => navigate(game.route, { state: { ...data, playerName } });
+    const refresh = () => socket.emit(ev.list, { gameType: game.id });
+    // The table may be another game's (a code typed here): open the page it belongs to.
+    const onJoined = (data) => navigate(data.gameType ? gameRoute(data.gameType) : game.route, { state: { ...data, playerName } });
     const onError = (msg) => {
       setError(msg);
       clearTimeout(errorTimer);
@@ -376,24 +378,23 @@ export default function GameLobby({ game }) {
     socket.on(ev.listUpdate, setLobbies);
     socket.on(ev.joined, onJoined);
     socket.on("error_message", onError);
-    if (ev.listTrigger) socket.on(ev.listTrigger, refresh);
     return () => {
       // Off this screen the list's updates are just traffic.
       if (ev.unlist) socket.emit(ev.unlist);
-      if (ev.listTrigger) socket.off(ev.listTrigger, refresh);
       clearTimeout(errorTimer);
       socket.off("connect", refresh);
       socket.off(ev.listUpdate, setLobbies);
       socket.off(ev.joined, onJoined);
       socket.off("error_message", onError);
     };
-  }, [ev, game.route, navigate, playerName]);
+  }, [ev, game.id, game.route, navigate, playerName]);
 
   function createTable(name, isPrivate) {
     socket.emit(ev.create, {
       lobbyName: name.trim() || `${identity.name}'s table`,
       playerName,
       isPrivate,
+      gameType: game.id,
     });
   }
 

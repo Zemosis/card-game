@@ -1,15 +1,21 @@
-// GAME MUUSHIG — a Muushig match against four CPU players.
+// GAME MUUSHIG — a Muushig table, practice or online.
 //
 // The rules live in utils/muushig/engine.js and the CPUs in utils/muushig/
-// ai.js; this page renders the engine's state and feeds it moves. It runs
-// entirely in the browser (there's no Muushig server yet), at the difficulty
-// picked in the lobby. You always sit in seat 0, at the bottom; seats go
-// clockwise from you.
+// ai.js. Practice (a SOLO- lobby) runs entirely in the browser against four
+// CPUs at the lobby's difficulty. Online, the server runs the game
+// (server/game/muushigGame.js): it sends each player their redacted view, and
+// this page plays those views through a queue, one at a time, each once the
+// last has finished animating — so every move shows the same way it does in
+// practice. You sit at the bottom wherever your seat is; seats go clockwise.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { useServerStats } from "../../hooks/useServerStats";
+import { socket, connectSocket } from "../../utils/socket";
+import { seatAvatar } from "../../utils/avatarConstants";
+import WaitingTable from "../../components/thirteen/WaitingTable";
 import { prefersReducedMotion, useTableMetrics } from "../../hooks/useTableMetrics";
 import PlayerHand from "../../components/thirteen/PlayerHand";
 import OpponentSection from "../../components/thirteen/OpponentSection";
@@ -37,17 +43,12 @@ import {
   allowedPlays,
   collectTrick,
   createMatch,
-  decide,
-  drawForDeal,
   foldBlock,
   maxDiscard,
   maxDrawDepth,
-  playCard,
   rematch,
   stackOrder,
   startNextRound,
-  swap,
-  takeTrump,
 } from "../../utils/muushig/engine";
 import { aiAction, applyAction } from "../../utils/muushig/ai";
 import { soundManager } from "../../utils/SoundManager";
@@ -55,7 +56,6 @@ import { useSoloMatchReport } from "../../hooks/useSoloMatchReport";
 import { muushigSoloReport } from "../../utils/soloReport";
 import { BOT_NAMES } from "../../utils/constants";
 
-const ME = 0;
 const AVATAR_COLOR = { 1: "#f4c430", 2: "#5fd4d6", 3: "#e85a7a", 4: "#9bd14f", 5: "#c5a8ff", custom: "#ead8b1" };
 const LEVEL_COLOR = { EASY: "#9bd14f", MEDIUM: "#f4c430", HARD: "#e85a7a" };
 const CPUS = [
@@ -79,6 +79,9 @@ const AI_DELAY = { DRAW: 1300, DECIDE: 1100, SWAP: 600, TRUMP: 900, PLAY: 950 };
 const TIE_PAUSE = 2000;
 const TRICK_PAUSE = 1500;
 const ACTION_PHASES = new Set([PHASES.DECIDE, PHASES.SWAP, PHASES.TRUMP, PHASES.PLAY]);
+// Online, a longer backlog than this (a hidden tab, a slow phone) is skipped
+// straight to the latest state instead of animating every move.
+const BACKLOG = 4;
 
 const now = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 const cardText = (c) => `${c.rank}${c.suit}`;
@@ -94,6 +97,7 @@ function dealOrder(hand, salt) {
   return hand.map((c, i) => [h(c.id + salt), i]).sort((a, b) => a[0] - b[0]).map(([, i]) => i);
 }
 const baseName = (name = "") => name.split(" #")[0];
+const roundKeyOf = (g) => `${g.matchNumber}-${g.roundNumber}`;
 
 /** One engine event → chat-log entries (see GameChat's LogLine), or null. */
 function logEntry(e, game) {
@@ -152,10 +156,10 @@ const DEBUFF_CALLOUT = { label: "DEBUFFED", bg: "#c0203a", fg: "#fff7d8" };
 /**
  * The cards `next` moved on top of `prev`, as a flight across the table (see
  * CardFlight), or null: a swap, a fold, the dealer taking the trump, or a
- * trick being eaten. fromRects: where the cards leaving your hand sat. Call it
- * before `next` renders: an eaten trick is measured off the felt.
+ * trick being eaten. `me` is your seat. Call it before `next` renders: your
+ * cards and an eaten trick are measured where they still sit on screen.
  */
-function flightFor(prev, next, fromRects = null) {
+function flightFor(prev, next, me) {
   const e = next.events
     .slice(prev.events.length)
     .find((ev) => (ev.type === "swap" && ev.count > 0) || ["fold", "takeTrump", "eat"].includes(ev.type));
@@ -164,30 +168,35 @@ function flightFor(prev, next, fromRects = null) {
   if (e.type === "eat") {
     // The trick sweeps off the felt, bottom card first, top card on top.
     const cards = stackOrder(prev.trick, prev.trumpSuit).map((p) => p.card);
-    const leg = { count: cards.length, from: "trick", to: e.seat === ME ? "mine" : "plate", faces: cards, stagger: 0.04 };
+    const leg = { count: cards.length, from: "trick", to: e.seat === me ? "mine" : "plate", faces: cards, stagger: 0.04 };
     return { id, seat: e.seat, legs: [leg], fromRects: cardRects(cards, "data-trick-card"), incomingIds: [], leg: 0, landed: 0 };
   }
-  const mine = e.seat === ME;
+  const mine = e.seat === me;
   const p = next.players[e.seat];
   const here = mine ? "hand" : "seat";
   const toDead = (cards) => ({ count: cards.length, from: here, to: "dead", faces: mine ? cards : null });
   let legs;
+  let leaving; // the cards leaving the seat
   let incoming = []; // cards arriving in the hand, which go to its end
   if (e.type === "swap") {
     incoming = p.hand.slice(-e.count);
-    legs = [toDead(p.discarded.slice(-e.count)), { count: e.count, from: "draw", to: here, faces: null }];
+    leaving = p.discarded.slice(-e.count);
+    legs = [toDead(leaving), { count: e.count, from: "draw", to: here, faces: null }];
   } else if (e.type === "fold") {
-    legs = [toDead(prev.players[e.seat].hand)];
+    leaving = prev.players[e.seat].hand;
+    legs = [toDead(leaving)];
   } else {
     incoming = p.hand.slice(-1);
+    leaving = p.discarded.slice(-1);
     // The trump card is public, so it travels face up.
-    legs = [toDead(p.discarded.slice(-1)), { count: 1, from: "trump", to: here, faces: [e.card] }];
+    legs = [toDead(leaving), { count: 1, from: "trump", to: here, faces: [e.card] }];
   }
   return {
     id,
     seat: e.seat,
     legs,
-    fromRects: mine ? fromRects : null,
+    // Your cards leave from where they sit in your hand.
+    fromRects: mine ? handRects(leaving) : null,
     incomingIds: mine ? incoming.map((c) => c.id) : [],
     leg: 0, // the leg in the air
     landed: 0, // its cards that have landed
@@ -210,23 +219,170 @@ function cardRects(cards, attr) {
 const handRects = (cards) => cardRects(cards, "data-card-id");
 
 const GameMuushig = () => {
-  const navigate = useNavigate();
   const { lobbyId, playerName, aiDifficulty = "MEDIUM" } = useLocation().state || {};
-  const { identity } = useAuth();
-  const myName = baseName(playerName || identity?.name || "You");
-  const { handW, deckW } = useTableMetrics();
+  const isSolo = !lobbyId || lobbyId.startsWith("SOLO-");
+  return isSolo ? (
+    <SoloMuushig playerName={playerName} aiDifficulty={aiDifficulty} />
+  ) : (
+    <OnlineMuushig lobbyId={lobbyId} playerName={playerName} />
+  );
+};
 
-  const [game, setGame] = useState(() =>
+/** Practice: you in seat 0 against four CPUs, all in the browser. */
+function SoloMuushig({ playerName, aiDifficulty }) {
+  const { identity } = useAuth();
+  const [initial] = useState(() =>
     createMatch({
-      players: [{ name: myName, type: "HUMAN" }, ...CPUS.map((c) => ({ name: c.name, type: "AI", level: aiDifficulty }))],
+      players: [
+        { name: baseName(playerName || identity?.name || "You"), type: "HUMAN" },
+        ...CPUS.map((c) => ({ name: c.name, type: "AI", level: aiDifficulty })),
+      ],
     }),
   );
+  const [messages, setMessages] = useState([]);
+  return <MuushigTable initial={initial} aiDifficulty={aiDifficulty} messages={messages} setMessages={setMessages} />;
+}
+
+/**
+ * Online: joins the table, shows the waiting table until the deal, then hands
+ * the server's states to the table through a queue (see MuushigTable's pump).
+ */
+function OnlineMuushig({ lobbyId, playerName }) {
+  const navigate = useNavigate();
+  const { identity } = useAuth();
+  const [table, setTable] = useState(null);
+  const [first, setFirst] = useState(null);
+  const firstRef = useRef(null);
+  const feed = useRef([]);
+  const [feedVersion, setFeedVersion] = useState(0);
+  const [messages, setMessages] = useState([]);
+  const [rejection, setRejection] = useState(null);
+  const [fatal, setFatal] = useState("");
+
+  useEffect(() => {
+    const join = () => {
+      socket.emit("join_lobby", { lobbyId, playerName });
+      socket.emit("check_game_status", { lobbyId });
+    };
+    const onState = (v) => {
+      if (!firstRef.current) {
+        firstRef.current = v;
+        setFirst(v);
+        return;
+      }
+      feed.current.push(v);
+      setFeedVersion((n) => n + 1);
+    };
+    const onChat = (msg) => setMessages((m) => [...m, { ...msg, isMe: msg.sender === playerName }]);
+    const onRejected = ({ reason } = {}) => setRejection({ id: Date.now() + Math.random(), text: reason || "Move rejected" });
+    const onError = (msg) => {
+      if (!firstRef.current) setFatal(String(msg || "Lobby not found"));
+    };
+    socket.on("connect", join);
+    socket.on("muushig_state", onState);
+    socket.on("table_update", setTable);
+    socket.on("receive_chat", onChat);
+    socket.on("move_rejected", onRejected);
+    socket.on("error_message", onError);
+    connectSocket(identity).then(() => {
+      if (socket.connected) join();
+    });
+    return () => {
+      socket.off("connect", join);
+      socket.off("muushig_state", onState);
+      socket.off("table_update", setTable);
+      socket.off("receive_chat", onChat);
+      socket.off("move_rejected", onRejected);
+      socket.off("error_message", onError);
+      // Left without EXIT (browser Back): the server holds the seat for the
+      // grace period; coming back re-joins and reclaims it.
+      socket.emit("leave_page", { lobbyId });
+    };
+    // One join per table; identity and name are fixed for the visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lobbyId]);
+
+  const exit = () => {
+    socket.emit("leave_lobby", { lobbyId });
+    navigate("/");
+  };
+  const sendChat = (text) => text.trim() && socket.emit("send_chat", { lobbyId, message: text.trim() });
+
+  if (first) {
+    return (
+      <MuushigTable
+        initial={first}
+        online={{ lobbyId, feed, feedVersion, rejection, onExit: exit, onSendChat: sendChat }}
+        messages={messages}
+        setMessages={setMessages}
+      />
+    );
+  }
+  if (table) {
+    return (
+      <WaitingTable
+        table={table}
+        title="MUUSHIG"
+        titleClass="text-glow-rose"
+        titleColor="#e85a7a"
+        messages={messages}
+        onSendMessage={sendChat}
+        onExit={exit}
+        onAddCpu={(seat) => socket.emit("add_cpu", { lobbyId, seat })}
+        onRemoveCpu={(seat) => socket.emit("remove_cpu", { lobbyId, seat })}
+        onStart={() => socket.emit("start_game", { lobbyId })}
+        errorMessage={rejection?.text}
+        myFace={{ variant: identity?.avatar ?? 1, customAvatarData: identity?.customAvatar }}
+      />
+    );
+  }
+  return (
+    <div className="flex flex-col items-center justify-center gap-5 h-full starfield font-pixel-body text-parchment text-center px-4" style={{ position: "fixed", inset: 0 }}>
+      {fatal ? (
+        <>
+          <div className="font-pixel-display text-[14px]" style={{ color: "#e85a7a" }}>
+            CAN'T OPEN THIS TABLE
+          </div>
+          <div className="font-pixel-body text-[22px] text-bone/80">{fatal}</div>
+          <button
+            onClick={() => navigate("/lobby-muushig")}
+            className="pixel-btn font-pixel-display text-[10px] px-4 py-3"
+            style={{ backgroundColor: "#463a78", borderColor: "#2a234d", color: "#ead8b1" }}
+          >
+            GO TO MUUSHIG LOBBY
+          </button>
+        </>
+      ) : (
+        <div className="font-pixel-display text-[14px] text-glow-gold blink">JOINING TABLE...</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The table. `initial` is the first state shown. Practice owns the game here
+ * (moves and CPUs run locally); online, `online.feed` brings the server's
+ * states and your moves are sent instead.
+ */
+function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, messages, setMessages }) {
+  const navigate = useNavigate();
+  const { identity } = useAuth();
+  const { handW, deckW } = useTableMetrics();
+  const { connected, ping } = useServerStats({ enabled: !!online });
+
+  const [game, setGame] = useState(initial);
+  const isOnline = !!online;
+  // Your seat: always 0 in practice; online, wherever the server seated you.
+  const mySeat = online ? game.mySeat : 0;
+  const posOf = (seat) => SEAT_POSITIONS[(seat - mySeat + 5) % 5];
   // Selection and errors belong to one turn: a new turn starts clean.
   const turnKey = `${game.matchNumber}-${game.roundNumber}-${game.phase}-${game.turn}-${game.trickNumber}`;
   const [selection, setSelection] = useState({ key: null, cards: [] });
   const selected = selection.key === turnKey ? selection.cards : [];
   const setSelected = (cards) => setSelection({ key: turnKey, cards });
-  const [messages, setMessages] = useState([]);
+  // Online, a move is sent once per turn; the server's answer moves the table.
+  const [sentKey, setSentKey] = useState(null);
+  const awaiting = !!online && sentKey === turnKey;
   const [error, setError] = useState({ key: null, text: "" });
   const errorMessage = error.key === turnKey ? error.text : "";
   const [showRules, setShowRules] = useState(false);
@@ -241,7 +397,7 @@ const GameMuushig = () => {
       return "rank";
     }
   });
-  const loggedRef = useRef({ first: null, count: 0 });
+  const loggedRef = useRef({ match: null, count: 0 });
   const feltRef = useRef(null);
   const drawPileRef = useRef(null);
   const deadPileRef = useRef(null);
@@ -252,19 +408,21 @@ const GameMuushig = () => {
   const flying = flight !== null;
   const updateFlight = (fn) => setFlight((f) => f && { ...f, ...fn(f) });
   // Moves to a new state, flying any cards it moved.
-  const advance = (prev, next, fromRects) => {
-    setFlight(flightFor(prev, next, fromRects));
+  const advance = (prev, next) => {
+    setFlight(flightFor(prev, next, mySeat));
     setGame(next);
   };
   // Your IN!/FOLD callout that has already played (by id).
   const [myCalloutDone, setMyCalloutDone] = useState(null);
 
   // --- A match opens with the draw for the deal. Every round opens with the
-  // dealer banner, then the shuffle and deal ---
-  const roundKey = `${game.matchNumber}-${game.roundNumber}`;
-  const [drawnKey, setDrawnKey] = useState(null);
-  const [introKey, setIntroKey] = useState(null);
-  const [dealtKey, setDealtKey] = useState(null);
+  // dealer banner, then the shuffle and deal. Joining a table mid-round skips
+  // what has already happened ---
+  const roundKey = roundKeyOf(game);
+  const joinedLate = !!online && initial.phase !== PHASES.DRAW;
+  const [drawnKey, setDrawnKey] = useState(joinedLate ? initial.matchNumber : null);
+  const [introKey, setIntroKey] = useState(joinedLate ? roundKeyOf(initial) : null);
+  const [dealtKey, setDealtKey] = useState(joinedLate ? roundKeyOf(initial) : null);
   const stage = drawnKey !== game.matchNumber ? "draw" : introKey !== roundKey ? "intro" : dealtKey !== roundKey ? "deal" : "play";
   const drawing = stage === "draw";
   const handleDrawDone = useCallback(() => setDrawnKey(game.matchNumber), [game.matchNumber]);
@@ -288,9 +446,43 @@ const GameMuushig = () => {
     soundManager.init?.();
   }, []);
 
-  // --- CPU turns, and the pause after a full trick (both wait for the deal) ---
+  // --- Online: the next server state, once the table has shown the last one.
+  // These are the same moments practice lets a CPU move (below) ---
+  const feedVersion = online?.feedVersion;
   useEffect(() => {
-    if (flying || (isDealing && game.phase !== PHASES.DRAW)) return;
+    if (!online || flying || (isDealing && game.phase !== PHASES.DRAW)) return;
+    const queue = online.feed.current;
+    if (!queue.length) return;
+    if (queue.length > BACKLOG) {
+      // Too far behind to animate it all: jump to the latest state.
+      const latest = queue[queue.length - 1];
+      queue.length = 0;
+      setFlight(null);
+      setGame(latest);
+      if (latest.phase !== PHASES.DRAW) {
+        setDrawnKey(latest.matchNumber);
+        setIntroKey(roundKeyOf(latest));
+        setDealtKey(roundKeyOf(latest));
+      }
+      return;
+    }
+    advance(game, queue.shift());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game, isDealing, flying, feedVersion]);
+
+  // --- Online: a rejected move shows on the status line, and may be retried ---
+  const rejection = online?.rejection;
+  useEffect(() => {
+    if (!rejection) return;
+    setError({ key: turnKey, text: rejection.text });
+    setSentKey(null);
+    safePlay("playError");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rejection]);
+
+  // --- Practice: CPU turns, and the pause after a full trick (both wait for the deal) ---
+  useEffect(() => {
+    if (isOnline || flying || (isDealing && game.phase !== PHASES.DRAW)) return;
     let run = null;
     let delay = 0;
     if (game.phase === PHASES.DRAW) {
@@ -308,19 +500,22 @@ const GameMuushig = () => {
     if (!run) return;
     const timer = setTimeout(() => advance(game, run(game)), delay);
     return () => clearTimeout(timer);
-  }, [game, isDealing, flying]);
+    // advance() is a plain helper over state setters; the step depends only on these.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline, game, isDealing, flying]);
 
-  // --- A finished match is recorded for your profile's stats ---
+  // --- A finished practice match is recorded for your profile's stats (online
+  // matches are recorded by the server) ---
   useSoloMatchReport({
     prefix: "MU",
     matchNumber: game.matchNumber,
-    finished: game.phase === PHASES.MATCH_OVER,
-    build: (times) => muushigSoloReport(game, { ...times, me: ME }),
+    finished: !online && game.phase === PHASES.MATCH_OVER,
+    build: (times) => muushigSoloReport(game, { ...times, me: 0 }),
   });
 
   // --- Your turn: a ping ---
-  const myTurn = !isDealing && !flying && ACTION_PHASES.has(game.phase) && game.turn === ME;
-  const myDraw = game.phase === PHASES.DRAW && game.turn === ME;
+  const myTurn = !isDealing && !flying && ACTION_PHASES.has(game.phase) && game.turn === mySeat;
+  const myDraw = game.phase === PHASES.DRAW && game.turn === mySeat;
   useEffect(() => {
     if (myTurn || myDraw) safePlay("playTurnAlert");
   }, [turnKey, myTurn, myDraw]);
@@ -345,9 +540,9 @@ const GameMuushig = () => {
   // --- Engine events → the move log, plus sounds ---
   useEffect(() => {
     const logged = loggedRef.current;
-    if (logged.first !== game.events[0]) {
+    if (logged.match !== game.matchNumber) {
       // A new match: its event list starts over.
-      logged.first = game.events[0];
+      logged.match = game.matchNumber;
       logged.count = 0;
     }
     const fresh = game.events.slice(logged.count);
@@ -361,7 +556,7 @@ const GameMuushig = () => {
       .flat()
       .map((fields) => ({ id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type: "SYSTEM", timestamp: now(), ...fields }));
     setMessages((m) => [...m, ...entries]);
-  }, [game]);
+  }, [game, setMessages]);
 
   const changeSortMode = (mode) => {
     setSortMode(mode);
@@ -374,32 +569,47 @@ const GameMuushig = () => {
   };
 
   // --- Your moves ---
-  // Validate against the current state first so a rule error shows in the
-  // status line instead of throwing inside a state update.
-  const act = (fn, fromRects) => {
+  // Checked against the shown state first, so a rule error shows in the
+  // status line at once. Practice then plays it; online sends it, and the
+  // server's next state is what moves the table.
+  const act = (move) => {
+    if (awaiting) return;
     try {
-      advance(game, fn(game), fromRects);
+      const next = applyAction(game, { ...move, seat: mySeat });
+      if (online) {
+        socket.emit("muushig_move", { lobbyId: online.lobbyId, move });
+        setSentKey(turnKey);
+      } else {
+        advance(game, next);
+      }
     } catch (err) {
       setError({ key: turnKey, text: err.message });
       safePlay("playError");
     }
   };
-  const onDraw = () => act((s) => drawForDeal(s, ME, pickDepth));
-  const onDecide = (play) => act((s) => decide(s, ME, play), play ? null : handRects(game.players[ME].hand));
-  const onSwap = () => act((s) => swap(s, ME, selected.map((c) => c.id)), handRects(selected));
-  const onTakeTrump = (cardId) => act((s) => takeTrump(s, ME, cardId), cardId ? handRects(me.hand.filter((c) => c.id === cardId)) : null);
-  const onThrow = () => selected[0] && act((s) => playCard(s, ME, selected[0].id));
-  const onNextRound = () => setGame((s) => startNextRound(s));
-  const onRematch = () => {
-    setMessages([]);
-    setGame((s) => rematch(s));
-  };
+  const onDraw = () => act({ type: "drawForDeal", depth: pickDepth });
+  const onDecide = (play) => act({ type: "decide", play });
+  const onSwap = () => act({ type: "swap", cardIds: selected.map((c) => c.id) });
+  const onTakeTrump = (cardId) => act({ type: "takeTrump", cardId });
+  const onThrow = () => selected[0] && act({ type: "play", cardId: selected[0].id });
+  // Online the server deals on by itself, and only the host can rematch.
+  const onNextRound = online ? undefined : () => setGame((s) => startNextRound(s));
+  const onRematch = online
+    ? game.amHost
+      ? () => socket.emit("request_rematch", { lobbyId: online.lobbyId })
+      : undefined
+    : () => {
+        setMessages([]);
+        setGame((s) => rematch(s));
+      };
+  const onExit = online ? online.onExit : () => navigate("/");
 
   const handleSendMessage = (text) => {
     if (!text.trim()) return;
+    if (online) return online.onSendChat(text);
     setMessages((m) => [
       ...m,
-      { id: `msg-${Date.now()}-${Math.random()}`, type: "CHAT", sender: myName, text: text.trim(), timestamp: now(), isMe: true },
+      { id: `msg-${Date.now()}-${Math.random()}`, type: "CHAT", sender: game.players[0].name, text: text.trim(), timestamp: now(), isMe: true },
     ]);
   };
 
@@ -425,18 +635,18 @@ const GameMuushig = () => {
   const { phase, trumpSuit } = game;
   // While dealing, each seat holds only the cards that have landed so far.
   // Your cards arrive in a random order and get sorted once the deal ends.
-  const myOrder = useMemo(() => dealOrder(game.players[ME].hand, roundKey), [game.players, roundKey]);
+  const myOrder = useMemo(() => dealOrder(game.players[mySeat].hand, roundKey), [game.players, mySeat, roundKey]);
   const players = isDealing
     ? game.players.map((p, seat) => ({
         ...p,
-        hand: seat === ME ? myOrder.slice(0, dealCounts[seat]).map((i) => p.hand[i]) : p.hand.slice(0, dealCounts[seat]),
+        hand: seat === mySeat ? myOrder.slice(0, dealCounts[seat]).map((i) => p.hand[i]) : p.hand.slice(0, dealCounts[seat]),
       }))
     : flight
       ? game.players.map((p, seat) => {
           if (seat !== flight.seat) return p;
           let q = p;
           // An opponent's fan drops as cards leave and fills as new ones land.
-          if (incomingLeg >= 0 && seat !== ME) {
+          if (incomingLeg >= 0 && seat !== mySeat) {
             const landed = flight.leg === incomingLeg ? flight.landed : 0;
             q = { ...q, hand: p.hand.slice(0, p.hand.length - flight.legs[incomingLeg].count + landed) };
           }
@@ -445,24 +655,26 @@ const GameMuushig = () => {
           return q;
         })
       : game.players;
-  const me = players[ME];
+  const me = players[mySeat];
   const nameOf = (seat) => baseName(players[seat]?.name);
 
   const faceFor = (seat) =>
-    seat === ME
+    seat === mySeat
       ? { variant: identity?.avatar ?? 1, customAvatarData: identity?.customAvatar }
-      : { variant: CPUS[seat - 1].variant, customAvatarData: null };
+      : online
+        ? seatAvatar(players[seat], seat)
+        : { variant: CPUS[seat - 1].variant, customAvatarData: null };
   const colorFor = (seat) => (players[seat] ? AVATAR_COLOR[faceFor(seat).variant] : null) || "#ead8b1";
-  const avatarFor = (msg) => (msg.isMe ? faceFor(ME) : faceFor(Math.max(0, players.findIndex((p) => p.name === msg.sender))));
+  const avatarFor = (msg) => (msg.isMe ? faceFor(mySeat) : faceFor(Math.max(0, players.findIndex((p) => p.name === msg.sender))));
 
   const allowed = useMemo(
-    () => (game.phase === PHASES.PLAY && game.turn === ME ? new Set(allowedPlays(game, ME).map((c) => c.id)) : null),
-    [game],
+    () => (game.phase === PHASES.PLAY && game.turn === mySeat ? new Set(allowedPlays(game, mySeat).map((c) => c.id)) : null),
+    [game, mySeat],
   );
   const stack = stackOrder(game.trick, trumpSuit).map((p) => ({
     key: `${game.roundNumber}-${game.trickNumber}-${p.card.id}`,
     card: p.card,
-    seat: SEAT_POSITIONS[p.seat],
+    seat: posOf(p.seat),
     name: nameOf(p.seat),
   }));
   const eater = stack.length ? stack[stack.length - 1].name : null;
@@ -481,7 +693,7 @@ const GameMuushig = () => {
     const tie = game.phase === PHASES.DRAW && game.drawPass > 1;
     message =
       game.phase !== PHASES.DRAW
-        ? game.dealer === ME
+        ? game.dealer === mySeat
           ? "You drew the highest card: you deal first."
           : `${nameOf(game.dealer)} drew the highest card and deals first.`
         : myDraw
@@ -491,7 +703,7 @@ const GameMuushig = () => {
           : `${tie ? "Tie! " : ""}${nameOf(game.turn)} is drawing...`;
     if (myDraw) buttons = [{ label: "TAKE", tone: "gold", primary: true, onClick: onDraw }];
   } else if (isDealing) {
-    message = game.dealer === ME ? "You're the dealer this round. Dealing..." : `${nameOf(game.dealer)} is the dealer this round. Dealing...`;
+    message = game.dealer === mySeat ? "You're the dealer this round. Dealing..." : `${nameOf(game.dealer)} is the dealer this round. Dealing...`;
   } else if (!myTurn) {
     const who = nameOf(game.turn);
     message =
@@ -508,7 +720,7 @@ const GameMuushig = () => {
                 : "Round over.";
     if (me.status === "fold" && phase !== PHASES.DECIDE) message = `You folded. ${message}`;
   } else if (phase === PHASES.DECIDE) {
-    const block = foldBlock(game, ME);
+    const block = foldBlock(game, mySeat);
     const foldable = block === null;
     message =
       block === "streak"
@@ -565,6 +777,8 @@ const GameMuushig = () => {
     buttons = [{ label: "THROW", tone: "green", primary: true, disabled: !pick, onClick: onThrow }];
   }
   if (errorMessage) warning = errorMessage;
+  // Sent and waiting for the server: one move per turn.
+  if (awaiting) buttons = buttons.map((b) => ({ ...b, disabled: true }));
 
   const canSelect = myTurn && (phase === PHASES.SWAP || phase === PHASES.TRUMP || phase === PHASES.PLAY);
   const onSelectionChange = (picked) => {
@@ -598,7 +812,7 @@ const GameMuushig = () => {
         isActive={active}
         position={position}
         face={faceFor(index)}
-        dealSeat={SEAT_POSITIONS[index]}
+        dealSeat={posOf(index)}
         chip={
           drawing
             ? active && { label: "DRAW", bg: "#f4c430", blink: true }
@@ -627,7 +841,7 @@ const GameMuushig = () => {
   const draws = game.dealDraws ?? [];
   const latestBySeat = new Map();
   draws.forEach((d, i) =>
-    latestBySeat.set(d.seat, { key: `${game.matchNumber}-${i}`, seat: SEAT_POSITIONS[d.seat], card: d.card, depth: d.depth }),
+    latestBySeat.set(d.seat, { key: `${game.matchNumber}-${i}`, seat: posOf(d.seat), card: d.card, depth: d.depth }),
   );
   const tieSeats = phase === PHASES.DRAW && game.drawPass > 1 ? game.events.findLast((e) => e.type === "drawTie")?.seats : null;
   const dealDraw = {
@@ -635,8 +849,8 @@ const GameMuushig = () => {
     draws: [...latestBySeat.values()],
     latest: draws.length ? `${game.matchNumber}-${draws.length - 1}` : null,
     label: phase !== PHASES.DRAW ? "HIGHEST CARD DEALS" : tieSeats ? "TIE · DRAW AGAIN" : "DRAW FOR THE DEAL",
-    contenders: tieSeats ? tieSeats.map((s) => SEAT_POSITIONS[s]) : null,
-    winner: phase !== PHASES.DRAW ? SEAT_POSITIONS[game.dealer] : null,
+    contenders: tieSeats ? tieSeats.map((s) => posOf(s)) : null,
+    winner: phase !== PHASES.DRAW ? posOf(game.dealer) : null,
   };
 
   // Your own decision is announced above your hand.
@@ -648,8 +862,6 @@ const GameMuushig = () => {
 
   // The results wait for the last pile to reach its eater.
   const showResults = (phase === PHASES.ROUND_END || phase === PHASES.MATCH_OVER) && game.roundResults && !flying;
-  const isSolo = !lobbyId || lobbyId.startsWith("SOLO-");
-
   return (
     <div className="relative w-full h-full font-pixel-body text-parchment overflow-hidden flex flex-col" style={{ position: "fixed", inset: 0 }}>
       {/* TABLE BACKDROP */}
@@ -663,7 +875,7 @@ const GameMuushig = () => {
       >
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate("/")}
+            onClick={onExit}
             className="pixel-btn font-pixel-display text-[10px] px-3 py-2"
             style={{ backgroundColor: "#7a1530", borderColor: "#3a0a18", color: "#ead8b1" }}
           >
@@ -672,13 +884,23 @@ const GameMuushig = () => {
               EXIT
             </span>
           </button>
-          <span
-            className="font-pixel-display text-[10px] leading-none px-1.5 py-1 ml-2"
-            style={{ backgroundColor: LEVEL_COLOR[aiDifficulty] || "#f4c430", color: "#1a1024", boxShadow: "0 0 0 2px #0a0712" }}
-            title={isSolo ? "Practice against CPU players" : "Online Muushig isn't available yet, so this is a practice game"}
-          >
-            PRACTICE · {aiDifficulty}
-          </span>
+          {online ? (
+            <span
+              className="font-pixel-display text-[10px] leading-none px-1.5 py-1 ml-2"
+              style={{ backgroundColor: "#5fd4d6", color: "#0a2a2c", boxShadow: "0 0 0 2px #0a0712" }}
+              title="An online table"
+            >
+              ONLINE · #{online.lobbyId.replace(/^PUB-/, "")}
+            </span>
+          ) : (
+            <span
+              className="font-pixel-display text-[10px] leading-none px-1.5 py-1 ml-2"
+              style={{ backgroundColor: LEVEL_COLOR[aiDifficulty] || "#f4c430", color: "#1a1024", boxShadow: "0 0 0 2px #0a0712" }}
+              title="Practice against CPU players"
+            >
+              PRACTICE · {aiDifficulty}
+            </span>
+          )}
         </div>
 
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-6">
@@ -700,8 +922,25 @@ const GameMuushig = () => {
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 font-pixel-body text-sm">
-            <SignalBars level={3} color="#9bd14f" />
-            <span className="text-bone/70">LOCAL</span>
+            {!online ? (
+              <>
+                <SignalBars level={3} color="#9bd14f" />
+                <span className="text-bone/70">LOCAL</span>
+              </>
+            ) : !connected ? (
+              <>
+                <SignalBars level={1} color="#e85a7a" />
+                <span style={{ color: "#e85a7a" }}>OFFLINE</span>
+              </>
+            ) : (
+              <>
+                <SignalBars
+                  level={ping == null || ping < 80 ? 3 : ping < 160 ? 2 : 1}
+                  color={ping == null || ping < 80 ? "#9bd14f" : ping < 160 ? "#f4c430" : "#e85a7a"}
+                />
+                <span className="text-bone/70">{ping != null ? `${ping}ms` : "..."}</span>
+              </>
+            )}
           </div>
           <button
             onClick={() => setShowRules(true)}
@@ -776,10 +1015,10 @@ const GameMuushig = () => {
         <div className="relative flex flex-col min-h-0 px-4 py-2">
           <RoundTable
             seats={{
-              bottomLeft: seat(1, "left"),
-              topLeft: seat(2, "left"),
-              topRight: seat(3, "right"),
-              bottomRight: seat(4, "right"),
+              bottomLeft: seat((mySeat + 1) % 5, "left"),
+              topLeft: seat((mySeat + 2) % 5, "left"),
+              topRight: seat((mySeat + 3) % 5, "right"),
+              bottomRight: seat((mySeat + 4) % 5, "right"),
             }}
             stack={stack}
             trump={game.trumpCard}
@@ -791,7 +1030,7 @@ const GameMuushig = () => {
             maxCardWidth={deckW}
             dealing={isDealing}
             centerRef={feltRef}
-            dealerSeat={drawing || stage === "intro" ? null : SEAT_POSITIONS[game.dealer]}
+            dealerSeat={drawing || stage === "intro" ? null : posOf(game.dealer)}
             overlay={(cardWidth, diameter) =>
               drawing ? (
                 <DealDraw
@@ -808,7 +1047,7 @@ const GameMuushig = () => {
                   round={game.roundNumber}
                   dealerName={nameOf(game.dealer)}
                   face={faceFor(game.dealer)}
-                  isMe={game.dealer === ME}
+                  isMe={game.dealer === mySeat}
                   drawnCard={game.roundNumber === 1 ? game.events.find((e) => e.type === "firstDealer")?.card : null}
                   onDone={handleIntroDone}
                 />
@@ -817,7 +1056,7 @@ const GameMuushig = () => {
                   <DealAnimation
                   key={roundKey}
                   dealerIndex={game.dealer}
-                  viewIndex={ME}
+                  viewIndex={mySeat}
                   deckWidth={cardWidth}
                   seats={SEAT_POSITIONS}
                   seatRotation={DEAL_ROTATION}
@@ -862,7 +1101,7 @@ const GameMuushig = () => {
               // An empty hand never means a win here: you folded, or the round's cards are all out.
               emptyMessage={me.status === "fold" ? "YOU FOLDED — SITTING OUT THIS ROUND" : "ALL CARDS PLAYED"}
               arrival={
-                flight?.seat === ME && incomingLeg >= 0
+                flight?.seat === mySeat && incomingLeg >= 0
                   ? {
                       ids: flight.incomingIds,
                       originRef: trumpLeg >= 0 ? trumpRef : drawPileRef,
@@ -887,7 +1126,7 @@ const GameMuushig = () => {
             currentPlayerIndex={phase === PHASES.DRAW || (!isDealing && ACTION_PHASES.has(phase)) ? game.turn : -1}
             dealerIndex={drawing ? -1 : game.dealer}
             startScore={START_SCORE}
-            myIndex={ME}
+            myIndex={mySeat}
             faceFor={faceFor}
           />
           <GameChat messages={messages} onSendMessage={handleSendMessage} avatarFor={avatarFor} colorFor={colorFor} />
@@ -899,8 +1138,8 @@ const GameMuushig = () => {
           key={flight.id}
           legs={flight.legs}
           fromRects={flight.fromRects}
-          seat={SEAT_POSITIONS[flight.seat]}
-          rotation={DEAL_ROTATION[SEAT_POSITIONS[flight.seat]] ?? 0}
+          seat={posOf(flight.seat)}
+          rotation={DEAL_ROTATION[posOf(flight.seat)] ?? 0}
           cardWidth={pileW}
           deadRef={deadPileRef}
           drawRef={drawPileRef}
@@ -921,7 +1160,7 @@ const GameMuushig = () => {
           matchWinner={phase === PHASES.MATCH_OVER ? game.matchWinner : null}
           onNext={onNextRound}
           onRematch={onRematch}
-          onExit={() => navigate("/")}
+          onExit={onExit}
         />
       )}
     </div>

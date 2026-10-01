@@ -36,6 +36,10 @@ function Row({ place, r, player, face }) {
   );
 }
 
+/**
+ * onNext: deals the next round (practice); without it the round closes by
+ * itself (online). onRematch: absent for an online player who isn't the host.
+ */
 const RoundResults = ({ round, results, players, faceFor, matchWinner = null, onNext, onRematch, onExit }) => {
   const over = matchWinner !== null;
   // The match's own order (engine endRound): lowest score, then more piles
@@ -66,7 +70,7 @@ const RoundResults = ({ round, results, players, faceFor, matchWinner = null, on
             <Row key={r.seat} place={i + 1} r={r} player={players[r.seat]} face={faceFor(r.seat)} />
           ))}
         </div>
-        <div className="flex justify-center gap-3 mt-1">
+        <div className="flex justify-center items-center gap-3 mt-1">
           {over ? (
             <>
               <button
@@ -76,16 +80,20 @@ const RoundResults = ({ round, results, players, faceFor, matchWinner = null, on
               >
                 EXIT
               </button>
-              <button
-                onClick={onRematch}
-                autoFocus
-                className="pixel-btn font-pixel-display text-[11px] px-6 py-3"
-                style={{ backgroundColor: "#9bd14f", borderColor: "#6a9a30", color: "#1a3a0e" }}
-              >
-                REMATCH
-              </button>
+              {onRematch ? (
+                <button
+                  onClick={onRematch}
+                  autoFocus
+                  className="pixel-btn font-pixel-display text-[11px] px-6 py-3"
+                  style={{ backgroundColor: "#9bd14f", borderColor: "#6a9a30", color: "#1a3a0e" }}
+                >
+                  REMATCH
+                </button>
+              ) : (
+                <span className="font-pixel-display text-[10px] text-bone/70 blink">WAITING FOR THE HOST</span>
+              )}
             </>
-          ) : (
+          ) : onNext ? (
             <button
               onClick={onNext}
               autoFocus
@@ -94,6 +102,9 @@ const RoundResults = ({ round, results, players, faceFor, matchWinner = null, on
             >
               NEXT ROUND
             </button>
+          ) : (
+            // Online: the server deals the next round itself.
+            <span className="font-pixel-display text-[10px] text-bone/70 blink">NEXT ROUND STARTING...</span>
           )}
         </div>
       </div>
