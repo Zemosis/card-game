@@ -1,6 +1,7 @@
 // ACCOUNTS — email/password sign-up, JWT sessions, and profile reads/writes.
 // Replaces Supabase Auth. Tokens are HS256 JWTs signed with JWT_SECRET; the
 // same token authenticates both these HTTP routes and the socket handshake.
+// Google and Discord sign-in (oauth.js) end in the same kind of token.
 
 import express from "express";
 import bcrypt from "bcryptjs";
@@ -23,7 +24,7 @@ const EDITABLE_PROFILE_FIELDS = ["username", "tag", "avatar", "custom_avatar", "
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function signToken(user) {
+export function signToken(user) {
   return jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, { expiresIn: TOKEN_TTL });
 }
 
@@ -111,7 +112,8 @@ authRouter.post("/login", async (req, res) => {
     "select id, email, password_hash from users where lower(email) = lower($1)",
     [email],
   );
-  if (!row || !(await bcrypt.compare(password, row.password_hash))) {
+  // Accounts made with Google or Discord have no password.
+  if (!row?.password_hash || !(await bcrypt.compare(password, row.password_hash))) {
     return res.status(401).json({ error: "Invalid email or password" });
   }
 

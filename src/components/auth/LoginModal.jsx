@@ -1,15 +1,16 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { PixelButton } from "../PixelCard";
 import { useAuth } from "../../hooks/useAuth";
+import { api } from "../../lib/api";
 import AvatarPicker from "./AvatarPicker";
 import PixelIcon from "../PixelIcon";
 
 const TABS = ["SIGN IN", "SIGN UP"];
 
+// Shown only when the server has the provider set up (GET /oauth/providers).
 const OAUTH_PROVIDERS = [
   { id: "google", label: "GOOGLE", icon: "G", color: "#ea4335", border: "#b8291e" },
   { id: "discord", label: "DISCORD", icon: "D", color: "#5865f2", border: "#3a45c4" },
-  { id: "facebook", label: "FACEBOOK", icon: "F", color: "#1877f2", border: "#1058b5" },
 ];
 
 export default function LoginModal({ onClose, initialSetup = false }) {
@@ -27,16 +28,20 @@ export default function LoginModal({ onClose, initialSetup = false }) {
   const [setupName, setSetupName] = useState("");
   const [setupTag, setSetupTag] = useState("");
   const [setupAvatar, setSetupAvatar] = useState(1);
+  const [providers, setProviders] = useState([]);
 
-  async function handleOAuth(provider) {
+  useEffect(() => {
+    api("/oauth/providers")
+      .then((data) => setProviders(data.providers || []))
+      .catch(() => setProviders([]));
+  }, []);
+  const oauthButtons = OAUTH_PROVIDERS.filter((p) => providers.includes(p.id));
+
+  // Leaves the page; busy keeps the buttons from being pressed twice.
+  function handleOAuth(provider) {
     setError("");
     setBusy(true);
-    try {
-      await signInWithOAuth(provider);
-    } catch (err) {
-      setError(err.message || `${provider} sign in failed`);
-      setBusy(false);
-    }
+    signInWithOAuth(provider);
   }
 
   async function handleSignIn(e) {
@@ -363,36 +368,41 @@ export default function LoginModal({ onClose, initialSetup = false }) {
                     : "CREATE ACCOUNT"}
               </PixelButton>
 
-              {/* Divider */}
-              <div className="flex items-center gap-3 my-1">
-                <div className="flex-1 h-px" style={{ backgroundColor: "#1f1a3d" }} />
-                <span className="font-pixel-display text-[8px] text-bone/40">
-                  OR
-                </span>
-                <div className="flex-1 h-px" style={{ backgroundColor: "#1f1a3d" }} />
-              </div>
-
-              {/* OAuth buttons */}
-              <div className="flex gap-2">
-                {OAUTH_PROVIDERS.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleOAuth(p.id)}
-                    disabled={busy}
-                    className="flex-1 pixel-btn font-pixel-display text-[9px] py-2.5 flex items-center justify-center gap-1.5"
-                    style={{
-                      backgroundColor: p.color,
-                      borderColor: p.border,
-                      color: "#fff",
-                    }}
-                  >
-                    <span style={{ fontSize: 12, fontWeight: "bold" }}>
-                      {p.icon}
+              {oauthButtons.length > 0 && (
+                <>
+                  {/* Divider */}
+                  <div className="flex items-center gap-3 my-1">
+                    <div className="flex-1 h-px" style={{ backgroundColor: "#1f1a3d" }} />
+                    <span className="font-pixel-display text-[8px] text-bone/40">
+                      OR
                     </span>
-                    {p.label}
-                  </button>
-                ))}
-              </div>
+                    <div className="flex-1 h-px" style={{ backgroundColor: "#1f1a3d" }} />
+                  </div>
+
+                  {/* OAuth buttons */}
+                  <div className="flex gap-2">
+                    {oauthButtons.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleOAuth(p.id)}
+                        disabled={busy}
+                        className="flex-1 pixel-btn font-pixel-display text-[9px] py-2.5 flex items-center justify-center gap-1.5"
+                        style={{
+                          backgroundColor: p.color,
+                          borderColor: p.border,
+                          color: "#fff",
+                        }}
+                      >
+                        <span style={{ fontSize: 12, fontWeight: "bold" }}>
+                          {p.icon}
+                        </span>
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
 
               <div className="font-pixel-body text-sm text-bone/50 text-center mt-1">
                 {tab === 0

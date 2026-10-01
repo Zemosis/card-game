@@ -48,3 +48,12 @@ export async function api(path, { method = "GET", body } = {}) {
   }
   return data;
 }
+
+/**
+ * Where a Google / Discord button sends the browser: the game server runs the
+ * sign-in (server/oauth.js) and comes back to /auth/callback, then to
+ * `returnTo` (a path on this site).
+ */
+export function oauthStartUrl(provider, returnTo = "/") {
+  return `${SERVER_URL}/api/auth/oauth/${encodeURIComponent(provider)}?${new URLSearchParams({ returnTo })}`;
+}

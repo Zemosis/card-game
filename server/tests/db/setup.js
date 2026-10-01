@@ -18,8 +18,9 @@ export async function loadDb() {
   const db = await import("../../db/index.js");
   const persistence = await import("../../persistence.js");
   const auth = await import("../../auth.js");
+  const oauth = await import("../../oauth.js");
   await db.migrate();
-  return { ...db, ...persistence, ...auth };
+  return { ...db, ...persistence, ...auth, ...oauth };
 }
 
 export async function truncateAll(pool) {

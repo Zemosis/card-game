@@ -13,6 +13,7 @@ import { MuushigGame, muushigView, DEFAULT_MUUSHIG_DELAYS } from "./game/muushig
 import { BOT_NAMES } from "./game/constants.js";
 import { createSession, finishSession, closeOrphanedSessions } from "./persistence.js";
 import { authRouter, verifyToken } from "./auth.js";
+import { oauthRouter } from "./oauth.js";
 import { migrate, pool } from "./db/index.js";
 
 const PORT = process.env.PORT || 3001;
@@ -62,6 +63,8 @@ const gameTypeOf = (type) => (Object.hasOwn(GAMES, type) ? type : "thirteen");
 const app = express();
 app.use(cors({ origin: CORS_ORIGINS }));
 app.get("/", (_req, res) => res.json({ ok: true, service: "card-game-server" }));
+// Before the accounts router, which answers JSON errors for its whole path.
+app.use("/api/auth/oauth", oauthRouter);
 app.use("/api/auth", authRouter);
 
 const server = http.createServer(app);

@@ -29,6 +29,18 @@ services:
         generateValue: true
       - key: CORS_ORIGIN
         value: https://khuzur.onrender.com
+      # Google / Discord sign in (server/oauth.js); a button shows only when
+      # both its id and secret are set. Players come back to
+      # RENDER_EXTERNAL_URL/api/auth/oauth/<provider>/callback and land on the
+      # first CORS_ORIGIN.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
 
   # The React app, served from Render's CDN.
   - type: web

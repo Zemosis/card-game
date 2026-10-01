@@ -12,6 +12,7 @@ const LobbyMuushig = lazy(() => import("./pages/muushig/LobbyMuushig"));
 const AvatarPaint = lazy(() => import("./pages/AvatarPaint"));
 const Profile = lazy(() => import("./pages/Profile"));
 const JoinTable = lazy(() => import("./pages/JoinTable"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
               <Route path="/avatar-paint" element={<AvatarPaint />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/join/:code" element={<JoinTable />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
             </Routes>
           </Suspense>
         </div>

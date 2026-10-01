@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { api, getToken, setToken } from "../lib/api";
+import { api, getToken, setToken, oauthStartUrl } from "../lib/api";
 import { getGuestIdentity, clearGuestIdentity } from "../lib/guestIdentity";
 import { deserializeAvatar } from "../utils/avatarConstants";
 
@@ -55,8 +55,24 @@ export function AuthProvider({ children }) {
     return data;
   }
 
-  async function signInWithOAuth(provider) {
-    throw new Error(`${provider} sign in is not available yet — use email`);
+  // Leaves the site for the provider; the server brings the player back to
+  // /auth/callback (pages/AuthCallback.jsx), which calls completeOAuth.
+  function signInWithOAuth(provider, returnTo = window.location.pathname) {
+    window.location.assign(oauthStartUrl(provider, returnTo));
+  }
+
+  /** Takes the session token from an OAuth sign-in. Returns the profile. */
+  async function completeOAuth(token) {
+    setToken(token);
+    try {
+      const { user, profile } = await api("/me");
+      setSession({ token, user });
+      setProfile(profile);
+      return profile;
+    } catch (err) {
+      setToken(null);
+      throw err;
+    }
   }
 
   async function signOut() {
@@ -112,6 +128,7 @@ export function AuthProvider({ children }) {
         signIn,
         signUp,
         signInWithOAuth,
+        completeOAuth,
         signOut,
         updateProfile,
         createProfile,

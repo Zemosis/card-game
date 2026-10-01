@@ -36,7 +36,7 @@ Honest status, as of the first deploy (2026-10-01).
 | Area | State |
 |---|---|
 | Main menu, settings, avatar painter | Built |
-| Auth (email + password) in the Node server | Built. OAuth buttons are shown but not wired up yet |
+| Auth in the Node server | Built: email + password, and Google / Discord sign-in (each button shows once its credentials are set, §9). No password reset or email confirmation yet |
 | Database schema, views | Built; applied automatically on server start |
 | **Thirteen** | **Playable.** Server-authoritative, reconnect handling, match recording |
 | **Muushig** | **Playable online and in practice.** Online: server-authoritative, up to 5 humans with CPUs in the empty seats, reconnect handling, match recording. Practice: 4 CPUs (Easy/Medium/Hard) in the browser |
@@ -110,6 +110,7 @@ server/
                   muushigGame.js (MuushigGame, muushigView), muushigStats.js
                   muushig/ (copies of src/utils/muushig — see §2)
   auth.js         sign-up/login, JWTs, profile routes (/api/auth/*)
+  oauth.js        Google / Discord sign-in (/api/auth/oauth/*)
   persistence.js  match recording
   db/             pg pool, migration runner, migrations/ — the schema
 docs/             this file, STYLEGUIDE.md, the two rulebooks
@@ -134,6 +135,24 @@ Account routes: `POST /signup`, `POST /login`, `GET /me`, `PATCH /profile`,
 `GET /stats` (everything the profile's Stats panel shows, for each game filter
 — overall, Thirteen, Muushig — in one round trip; see `server/stats.js`) and
 `POST /matches`.
+
+**Google / Discord sign-in** (`server/oauth.js`, under `/api/auth/oauth`) is
+the OAuth authorization-code flow run by this server; no auth service is
+involved. `GET /providers` lists the configured ones; the sign-in button
+navigates to `GET /:provider?returnTo=/path`, which stores a random `state`
+and a PKCE verifier in a 10-minute `HttpOnly` cookie and redirects to the
+provider. The provider returns to `GET /:provider/callback`; the state must
+match the cookie (no signing someone into your account with a link), the code
+is traded for the player's provider id and verified email, and the server
+redirects to the site's `/auth/callback#token=…&returnTo=…`
+(`src/pages/AuthCallback.jsx`), or `#error=cancelled|no_email|unavailable|failed`.
+The token is the same JWT email sign-in issues; the page wipes it from the
+address bar. A new player goes to the main menu's name-and-tag setup first.
+
+Which account a sign-in reaches: a provider identity always signs into the
+account it first reached (`oauth_identities`). A new identity joins the
+account with the same verified email, else a new account is made. A provider
+without a verified email is refused.
 
 **Solo matches** — games against CPUs run in the browser (Thirteen practice,
 all of Muushig), so the browser reports each finished one to `POST /matches`
@@ -236,15 +255,23 @@ security hardening described in §7; any new table must enable RLS the same way
 
 ### `users`
 
-`id`, `email` (unique case-insensitively), `password_hash` (bcrypt). Only
-`server/auth.js` reads it.
+`id`, `email` (unique case-insensitively), `password_hash` (bcrypt; NULL for
+accounts made with Google or Discord), `email_verified` (true once a provider
+vouched for the address — email sign-up never does). Only `server/auth.js`
+and `server/oauth.js` read it.
+
+### `oauth_identities`
+
+`(provider, provider_user_id)` → `user_id`. Keyed by the provider's id, not
+the email, since an address can change at the provider. An account can have
+one row per provider.
 
 ### `profiles`
 
 One row per `users` entry, inserted in the same transaction as the user at
 sign-up. `username` is NULL until the player completes
-setup, and the client treats that as its "needs setup" signal — which is what
-will make OAuth work later, since an OAuth redirect skips the signup form.
+setup, and the client treats that as its "needs setup" signal — which is how
+a Google or Discord sign-in, which skips the signup form, reaches setup.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -402,6 +429,14 @@ signed with `JWT_SECRET`, valid 30 days, stored in `localStorage` and sent as
 Tokens are stateless, so signing out only forgets the token client-side;
 rotating `JWT_SECRET` signs everyone out.
 
+**Joining a provider to an email account.** Email sign-up doesn't prove the
+address, so someone could register a victim's email first and wait for them
+to arrive with Google. When a verified provider email joins an account whose
+email was never verified, its password is therefore dropped: the address's
+real owner gets the account, and whoever set that password loses it. The
+cost: a player who signed up with email and later uses Google signs in with
+Google from then on (until password reset exists).
+
 **Column-level anti-tamper.** `PATCH /api/auth/profile` writes only the
 whitelisted identity fields (`username`, `tag`, `avatar`, `custom_avatar`,
 `custom_colors`). `coins`, `exp`, `level`, `wins`, `games_played` and `rating`
@@ -494,6 +529,9 @@ Router serves `/game-13`, `/profile` and invite links like `/join/CODE`.
 | `JWT_SECRET` | server (Render generated it) | Random. Rotating it signs every player out |
 | `DATABASE_URL` | server (secret, set in the Render dashboard) | Supabase **session pooler** URI ending in `?sslmode=require&uselibpqcompat=true` |
 | `PORT` | server (Render sets it) | `10000` on Render; the server reads it |
+| `GOOGLE_CLIENT_ID` / `_SECRET` | server (secret, Render dashboard) | From Google Cloud Console → Credentials. Redirect URI: `https://khuzur-server.onrender.com/api/auth/oauth/google/callback` |
+| `DISCORD_CLIENT_ID` / `_SECRET` | server (secret, Render dashboard) | From the Discord Developer Portal → OAuth2. Redirect: `https://khuzur-server.onrender.com/api/auth/oauth/discord/callback` |
+| `PUBLIC_URL`, `SITE_URL` | server (optional) | Where providers send players back, and the site they land on. Default to Render's `RENDER_EXTERNAL_URL` and the first `CORS_ORIGIN` |
 
 Secrets are never in git: `DATABASE_URL` is `sync: false` in the Blueprint, and
 `JWT_SECRET` is `generateValue: true`. Change them under **khuzur-server →
@@ -552,8 +590,8 @@ Roughly in dependency order:
 
 1. **Keep production awake** — Render Starter for the game server, and a
    database plan that doesn't pause (§9), once real players arrive.
-2. **OAuth** — Google/Discord sign-in in `server/auth.js`; the profile setup
-   flow already handles a user with no username.
+2. **Password reset and email confirmation** — needs an email-sending
+   service; would also let a Google-linked account set a password again.
 3. **Shop and economy** — `coins` already accrues; nothing spends it.
 4. **Progression** — the third menu slot is gated behind "Rank V" in the UI with
    no rank system behind it yet.
