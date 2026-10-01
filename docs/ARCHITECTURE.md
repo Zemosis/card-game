@@ -31,7 +31,7 @@ Two design commitments follow from that and explain most of what is below:
 
 ## 2. Current build state
 
-Honest status, as of the move off Supabase to self-hosted Postgres.
+Honest status, as of the first deploy (2026-10-01).
 
 | Area | State |
 |---|---|
@@ -41,7 +41,7 @@ Honest status, as of the move off Supabase to self-hosted Postgres.
 | **Thirteen** | **Playable.** Server-authoritative, reconnect handling, match recording |
 | **Muushig** | **Playable offline** against 4 CPUs (Easy/Medium/Hard). No online play yet — see below |
 | Shop / economy | Not started; `coins` accrues in the DB |
-| Deployment | Not deployed. Everything runs locally |
+| Deployment | **Live** at https://khuzur.onrender.com — Render (site + game server) and Supabase (Postgres). See §9 |
 
 **Muushig runs in the browser only.** The rules are pure functions in
 `src/utils/muushig/engine.js` (state in, new state out, no React or sockets) and
@@ -72,16 +72,20 @@ each difficulty. See the README's Testing section.
 `bcryptjs` + `jsonwebtoken` for accounts. ES modules throughout.
 
 **Postgres 17** — persistence. Locally it runs in a container; in production
-any managed Postgres works, because nothing in the schema is vendor-specific.
+it is Supabase's Postgres (§9), used as a plain database. Nothing in the schema
+is vendor-specific, so any managed Postgres works.
 
 > **One source of realtime truth.** All transient in-game communication —
 > matchmaking, lobbies, moves, chat — goes through the Socket.IO server.
 > Postgres is storage only.
 
-The project previously used Supabase for Postgres and Auth. It moved off it
+The project previously used Supabase for Postgres *and* Auth, and moved off it
 because a paused free-tier project took the whole site down with it. The old
 migrations are in git history; `server/db/migrations/001_initial.sql` is their
-consolidated plain-Postgres equivalent.
+consolidated plain-Postgres equivalent. Production is back on Supabase, but
+only as a Postgres host: accounts live in our own `users` table, Supabase Auth
+and its Data API are unused (and locked out, §7). The pause risk is back with
+the free plan — see §9.
 
 ## 4. Repository layout
 
@@ -101,6 +105,7 @@ server/
   persistence.js  match recording
   db/             pg pool, migration runner, migrations/ — the schema
 docs/             this file, STYLEGUIDE.md, the two rulebooks
+render.yaml       Render Blueprint: the site and the game server (§9)
 ```
 
 Note that `src/utils/gameLogic.js`, `handEvaluator.js` etc. are mirrored in
@@ -197,7 +202,10 @@ Invite links are `/join/{code}`, handled by `src/pages/JoinTable.jsx`.
 
 **Source of truth is `server/db/migrations/`.** The server applies any
 unapplied file at startup, in filename order, and records it in
-`schema_migrations`. Never edit an applied file — add `002_….sql` instead.
+`schema_migrations`. Never edit an applied file — add the next numbered file
+instead. `003_lock_down.sql` and `004_pin_function_search_path.sql` are the
+security hardening described in §7; any new table must enable RLS the same way
+(`server/tests/db/lockdown.test.js` fails otherwise).
 
 ### `users`
 
@@ -328,9 +336,30 @@ wins, and `last_played_at`.
 
 ## 7. Security model
 
-**The database is not exposed.** Postgres listens only for the Node server;
-the browser has no connection string and no key. There is no RLS because there
-is no untrusted database client.
+**Only the Node server touches the database.** The browser has no connection
+string and no key; every read and write goes through the server's routes and
+sockets. Supabase, however, publishes the `public` schema through its Data API
+to anyone holding the project's public keys — and `users` holds emails and
+password hashes. So the schema shuts that door itself:
+
+* **RLS is on for every table, with no policies** (`003_lock_down.sql`). The
+  API roles see zero rows; the server's role (`postgres` on Supabase, the table
+  owner locally) bypasses RLS and is unaffected. Supabase's advisor reports
+  "RLS enabled, no policy" as INFO — that is the intent.
+* **`anon` and `authenticated` hold no grants** on tables, views, sequences or
+  functions, now or for objects created later (default privileges). On plain
+  Postgres those roles don't exist and the step is skipped.
+* **No function is executable by `PUBLIC`**, and each pins its `search_path`
+  (`004_pin_function_search_path.sql`).
+
+`server/tests/db/lockdown.test.js` checks all three against the test database.
+
+**Randomness.** Every deal — Thirteen solo and online, and Muushig — shuffles
+with Fisher–Yates driven by `crypto.getRandomValues`. The server never exposes
+`Math.random` output: table codes use `crypto.randomInt` and chat ids
+`crypto.randomUUID`, because V8's `Math.random` state can be recovered from a
+few outputs and would let a player predict the next shuffle. Tests pass a
+seeded `rng` instead (`shuffleDeck(deck, rng)`, `new ThirteenGame({ rng })`).
 
 **Accounts.** Passwords are bcrypt-hashed (cost 10). Sessions are HS256 JWTs
 signed with `JWT_SECRET`, valid 30 days, stored in `localStorage` and sent as
@@ -378,7 +407,111 @@ intentional, but easy to mistake for a bug.
 
 Inspect data with `podman exec -it khuzur-db psql -U khuzur`.
 
-## 9. What's next
+**Production database from your machine.** `server/.env.supabase` (gitignored,
+not in the template) holds the production `DATABASE_URL`. Load it with Node's
+`--env-file` — the `&` in the URL breaks shell `source`:
+
+```bash
+cd server
+node --env-file=.env.supabase --input-type=module \
+  -e 'const db = await import("./db/index.js"); await db.migrate(); await db.pool.end();'
+```
+
+Your normal `server/.env` keeps pointing at the local container, so local
+development and `npm test` never touch production.
+
+## 9. Deployment
+
+```
+           https://khuzur.onrender.com                 Supabase (us-east-2, Ohio)
+Browser ──► Render static site "khuzur"               ┌──────────────────────────┐
+   │        (global CDN, the built React app)          │ Postgres 17              │
+   │                                                    │ via the session pooler   │
+   └──HTTP + Socket.IO──► Render web service ──────────►│ aws-0-us-east-2.pooler.  │
+        https://khuzur-server.onrender.com   TLS, IPv4  │ supabase.com:5432        │
+        (Node 22, Ohio, one instance)                   └──────────────────────────┘
+```
+
+Everything is defined in **`render.yaml`** (a Render Blueprint named `khuzur`,
+synced from `main`). Both services redeploy on every push to `main`, each only
+when its own files change (`buildFilter`): `server/**` rebuilds the game
+server; anything except `server/`, `docs/` and `tests/` rebuilds the site.
+
+| | Site — `khuzur` | Game server — `khuzur-server` | Database |
+|---|---|---|---|
+| Host | Render static site | Render web service | Supabase project `kkypojddoqtfzpxiwvme` |
+| Plan | Free | Free | Free |
+| Region | Global CDN | Ohio | us-east-2 (Ohio) |
+| Build | `npm ci && npm run build` → `dist/` | `npm ci` in `server/` | — |
+| Start | — | `node index.js` (runs migrations first) | — |
+| Health | — | `GET /` → `{"ok":true}` | — |
+
+The site has one routing rule: every path rewrites to `/index.html`, so React
+Router serves `/game-13`, `/profile` and invite links like `/join/CODE`.
+
+### Environment variables
+
+| Variable | Where | Value |
+|---|---|---|
+| `VITE_WEBSOCKET_URL` | site (`render.yaml`) | `https://khuzur-server.onrender.com`. Baked in **at build time** — changing it needs a site redeploy |
+| `NODE_VERSION` | both (`render.yaml`) | `22` |
+| `CORS_ORIGIN` | server (`render.yaml`) | `https://khuzur.onrender.com`. Comma-separate to allow more (e.g. a custom domain) |
+| `JWT_SECRET` | server (Render generated it) | Random. Rotating it signs every player out |
+| `DATABASE_URL` | server (secret, set in the Render dashboard) | Supabase **session pooler** URI ending in `?sslmode=require&uselibpqcompat=true` |
+| `PORT` | server (Render sets it) | `10000` on Render; the server reads it |
+
+Secrets are never in git: `DATABASE_URL` is `sync: false` in the Blueprint, and
+`JWT_SECRET` is `generateValue: true`. Change them under **khuzur-server →
+Environment** in the Render dashboard (the service restarts).
+
+### Why the database URL looks like that
+
+* **Session pooler, not the direct connection.** Supabase's direct host is
+  IPv6-only and Render has no outbound IPv6. The session pooler is IPv4 and,
+  unlike the transaction pooler, keeps a real session per connection — right
+  for a long-running server with a `pg` pool.
+* **`sslmode=require&uselibpqcompat=true`.** The pooler also accepts
+  *unencrypted* connections, so the URL must demand TLS. Plain
+  `sslmode=require` fails: `pg` 8 treats it as `verify-full`, and Supabase's
+  certificate chain ends in its own CA. The libpq-compatible `require`
+  encrypts without verifying the chain. To verify it as well, download the CA
+  from Supabase (Database settings → SSL) and pass it as `ssl.ca`.
+* **Password characters.** If the password contains `@ : / # ?`, percent-encode
+  them in the URL.
+
+### Free-tier behaviour
+
+* **The game server sleeps** after 15 minutes without traffic; the next visitor
+  waits about a minute while it boots. It only sleeps with nobody connected, so
+  no game is lost. Render **Starter** (~$7/month) keeps it awake.
+* **Every restart or deploy ends live tables** — game state is in RAM (§5).
+  Finished matches are already saved; in-progress sessions are marked
+  `abandoned` on boot.
+* **Supabase pauses idle free projects** (about a week without activity). A
+  paused database means sign-in and stats fail while guest play still works;
+  unpause it from the Supabase dashboard. This is what drove the earlier move
+  off Supabase — upgrade, or move `DATABASE_URL` to another host, before it
+  matters.
+* **One server instance.** Tables live in that process's memory, so the server
+  cannot scale to a second instance without shared state (e.g. Redis and
+  sticky sessions). One small instance should handle roughly a few thousand
+  concurrent players (estimated, not load-tested); table-list updates already go only to players on the lobby screen.
+
+### Checking production
+
+```bash
+curl https://khuzur-server.onrender.com/              # {"ok":true,...}  (may take ~1 min if asleep)
+curl -X POST https://khuzur-server.onrender.com/api/auth/login \
+  -H 'Content-Type: application/json' -d '{"email":"x@y.z","password":"nope"}'
+# 401 "Invalid email or password" = database reachable
+# 503 "Accounts are not available"  = DATABASE_URL missing or wrong
+```
+
+Logs, deploys and metrics are in the Render dashboard (or the Render MCP
+tools); database tables, SQL and the security advisor are in the Supabase
+dashboard.
+
+## 10. What's next
 
 Roughly in dependency order:
 
@@ -386,9 +519,8 @@ Roughly in dependency order:
    `ThirteenGame`, built on `src/utils/muushig/engine.js`, then drive
    `GameMuushig.jsx` from socket state. `recordMatch` stops hardcoding
    `game_type` at that point.
-2. **Deploy** — client as static files, server on a host with persistent
-   WebSocket support, Postgres managed. Add the deployed origin to
-   `CORS_ORIGIN`.
+2. **Keep production awake** — Render Starter for the game server, and a
+   database plan that doesn't pause (§9), once real players arrive.
 3. **OAuth** — Google/Discord sign-in in `server/auth.js`; the profile setup
    flow already handles a user with no username.
 4. **Tests.** There is no frontend test runner. The rules engines in
