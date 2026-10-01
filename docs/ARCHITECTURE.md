@@ -39,29 +39,32 @@ Honest status, as of the first deploy (2026-10-01).
 | Auth (email + password) in the Node server | Built. OAuth buttons are shown but not wired up yet |
 | Database schema, views | Built; applied automatically on server start |
 | **Thirteen** | **Playable.** Server-authoritative, reconnect handling, match recording |
-| **Muushig** | **Playable offline** against 4 CPUs (Easy/Medium/Hard). No online play yet — see below |
+| **Muushig** | **Playable online and in practice.** Online: server-authoritative, up to 5 humans with CPUs in the empty seats, reconnect handling, match recording. Practice: 4 CPUs (Easy/Medium/Hard) in the browser |
 | Shop / economy | Not started; `coins` accrues in the DB |
 | Deployment | **Live** at https://khuzur.onrender.com — Render (site + game server) and Supabase (Postgres). See §9 |
 
-**Muushig runs in the browser only.** The rules are pure functions in
+**Muushig runs in both places.** The rules are pure functions in
 `src/utils/muushig/engine.js` (state in, new state out, no React or sockets) and
-the CPU players are in `src/utils/muushig/ai.js`, at the lobby's three
-difficulty levels. `src/pages/muushig/GameMuushig.jsx` renders the engine's
-state with Thirteen's seat, hand and chat components plus
-`components/muushig/`, and plays the CPU turns on timers. It opens no socket:
-every Muushig table, online or practice, is a local game against CPUs, and
-nothing is recorded, which is why `recordMatch` still hardcodes
-`game_type: 'thirteen'`. The engine has no browser dependencies, so the server
-can import it as-is for online play.
+the CPU players are in `src/utils/muushig/ai.js`, at three levels. Practice
+runs them in the browser. Online tables run byte-identical copies in
+`server/game/muushig/` (the server deploys from `server/` alone;
+`tests/unit/muushig-copies.test.js` fails if they drift — edit the browser copy,
+then copy it over) inside `MuushigGame` (`server/game/muushigGame.js`), which
+plays the CPU seats (at MEDIUM) and the automatic steps on timers paced to the
+browser's animations. `src/pages/muushig/GameMuushig.jsx` renders either: in
+practice it owns the game; online it plays the server's states through a queue,
+one at a time once the last has finished animating, so every move shows the
+same way it does in practice (§5).
 
-Thirteen is covered by a Vitest suite (`npm test`, config in `vitest.config.js`)
+Both games are covered by a Vitest suite (`npm test`, config in `vitest.config.js`)
 in three projects: `unit` (rules, CPU logic and seeded whole-match simulations,
 run against both the client and server copies of the logic), `server` (engine
 with fake timers, real-socket end-to-end against a spawned server, and
 Postgres suites that run only when `TEST_DATABASE_URL` is set) and `ui`
 (table components in jsdom). Muushig's engine and CPU players have their own
 `unit` suites (`tests/unit/muushig-*.test.js`), including whole CPU matches at
-each difficulty. See the README's Testing section.
+each difficulty; its server table has `server/tests/muushig-game.test.js` and
+real-socket games in `socket.test.js`. See the README's Testing section.
 
 ## 3. Tech stack
 
@@ -94,13 +97,16 @@ src/
   pages/          MainMenu, AvatarPaint, thirteen/, muushig/
   components/     PixelCard (design primitives), auth/, thirteen/, muushig/
   hooks/          useAuth (session + profile), useServerStats
-  lib/            api (HTTP client + session token), guestIdentity
+  lib/            api (HTTP client + session token), guestIdentity,
+                  games (each game's table route)
   utils/          socket, SoundManager, avatarConstants,
                   + a client-side copy of the Thirteen rules (display only)
                   + muushig/ (the Muushig engine and CPU players)
 server/
   index.js        Socket.IO entry, auth middleware, lobby management
-  game/           engine.js (ThirteenGame, redactState) + rules modules
+  game/           engine.js (ThirteenGame, redactState) + Thirteen rules modules
+                  muushigGame.js (MuushigGame, muushigView), muushigStats.js
+                  muushig/ (copies of src/utils/muushig — see §2)
   auth.js         sign-up/login, JWTs, profile routes (/api/auth/*)
   persistence.js  match recording
   db/             pg pool, migration runner, migrations/ — the schema
@@ -140,12 +146,15 @@ Node server, so authorization lives in its routes rather than in database
 policies.
 
 **Game state lives in RAM on the Node server**, in a `Map` of lobbies. Each
-lobby holds its members keyed by a stable `playerKey` (the user id, or
-`name#tag` for a guest) and a `ThirteenGame` instance. Socket ids are rebound to
+lobby has a `gameType` (`thirteen` | `muushig`, set at creation), holds its
+members keyed by a stable `playerKey` (the user id, or `name#tag` for a guest)
+and a `ThirteenGame` or `MuushigGame` instance. `GAMES` in `server/index.js`
+holds what differs per game: seats (4 | 5), the engine, the redaction and the
+state event. Socket ids are rebound to
 the player key on reconnect, which is what makes refresh-and-rejoin work.
 
-**Waiting tables** — a new lobby does not deal. It holds `seats` (4 slots: a
-human by player key, a CPU, or empty) and sends each member a `table_update`
+**Waiting tables** — a new lobby does not deal. It holds `seats` (4 or 5 slots:
+a human by player key, a CPU, or empty) and sends each member a `table_update`
 shaped for them (their seat, whether they are host, no player keys). The host
 adds/removes CPUs and presses START (`start_game`), which fills empty seats with
 CPUs and builds the `ThirteenGame` in seat order. A joiner takes an empty seat,
@@ -178,25 +187,41 @@ waiting seat empties, and a playing seat goes to a CPU so the match can finish.
 Leaving the game page without EXIT (browser Back) sends `leave_page`, which
 starts the same grace; the socket itself stays up in the single-page app.
 
-**Host** — each player's `game_state_update` carries `amHost`, so a player
+**Muushig online** — `muushigView(state, seat)` keeps the state's shape (so
+the browser's rule helpers work on it) but turns every card the seat can't see
+into `{ hidden: true }`, counts kept: other hands and discards, the deal pile,
+the draw pile and the dead pile. The view carries `mySeat`; the page draws that
+seat at the bottom. Moves arrive as `muushig_move { type, ...payload }`; the
+seat is the socket's, the payload is type-checked, and the engine's own errors
+come back as `move_rejected`. The page checks a move against its view first
+(instant errors), except the draw for the deal, whose pile it can't see. The
+server deals the next round itself after the results screen; only the host
+can rematch.
+
+**Host** — each player's state update carries `amHost`, so a player
 promoted when the host leaves gets the REMATCH button; the client trusts it over
 the router state it was opened with.
 
 ### Socket protocol
 
-Client emits: `create_lobby`, `join_lobby`, `leave_lobby`, `get_public_lobbies`,
-`leave_public_lobbies`, `check_game_status`, `add_cpu`, `remove_cpu`,
-`start_game`, `leave_page`, `request_move`, `request_rematch`, `send_chat`,
-`ping_check`, `get_stats`.
+Client emits: `create_lobby { gameType }`, `join_lobby`, `leave_lobby`,
+`get_public_lobbies { gameType }`, `leave_public_lobbies`, `check_game_status`,
+`add_cpu`, `remove_cpu`, `start_game`, `leave_page`, `request_move` (Thirteen),
+`muushig_move` (Muushig), `request_rematch`, `send_chat`, `ping_check`,
+`get_stats`.
 
-Server emits: `lobby_joined`, `table_update`, `game_state_update`,
-`move_rejected`, `public_lobbies_update`, `receive_chat`, `error_message`.
+Server emits: `lobby_joined { gameType }`, `table_update`, `game_state_update`
+(Thirteen), `muushig_state` (Muushig), `move_rejected`,
+`public_lobbies_update`, `receive_chat`, `error_message`.
 
-`public_lobbies_update` goes only to sockets watching the table list: asking
-for it (`get_public_lobbies`) subscribes, and `leave_public_lobbies` (sent when
-the lobby screen closes) or taking a seat at a table unsubscribes.
+`gameType` defaults to `thirteen`. `public_lobbies_update` goes only to sockets
+watching that game's table list: asking for it (`get_public_lobbies`)
+subscribes, and `leave_public_lobbies` (sent when the lobby screen closes) or
+taking a seat at a table unsubscribes.
 
-Invite links are `/join/{code}`, handled by `src/pages/JoinTable.jsx`.
+Invite links are `/join/{code}`, handled by `src/pages/JoinTable.jsx`. A code
+works in either lobby: `lobby_joined` says which game the table is, and the
+page for it opens (`src/lib/games.js`).
 
 ## 6. Database
 
@@ -297,6 +322,14 @@ The engine emits these through `onRoundEnd`. Two subtleties worth preserving:
 `cards_left_total`, `best_round_cards_left`, `eliminated_at_round`) are derived
 from these by the server. jsonb because Thirteen and Muushig have genuinely
 different concepts; promote a field to a real column once you query it.
+
+An online Muushig match is recorded the same way with Muushig's own rules
+(`server/game/muushigStats.js`): places by lowest score, ties to more piles
+eaten in the last round (as `rankSolo`); `stats` holds the same tallies a solo
+report sends (`rounds_played`, `rounds_won`, `eaten`, `gone_in`, `folded`,
+`sweeps`), read from the event log; each round's `seat_results` carry `eaten`
+and `folded`, `winner_seat` is the seat that swept all 5 piles (or null).
+Rewards are Thirteen's table; 5th place gets 4th's.
 
 ### Deriving stats
 
@@ -515,16 +548,10 @@ dashboard.
 
 Roughly in dependency order:
 
-1. **Muushig online** — a `MuushigGame` wrapper in `server/game/` mirroring
-   `ThirteenGame`, built on `src/utils/muushig/engine.js`, then drive
-   `GameMuushig.jsx` from socket state. `recordMatch` stops hardcoding
-   `game_type` at that point.
-2. **Keep production awake** — Render Starter for the game server, and a
+1. **Keep production awake** — Render Starter for the game server, and a
    database plan that doesn't pause (§9), once real players arrive.
-3. **OAuth** — Google/Discord sign-in in `server/auth.js`; the profile setup
+2. **OAuth** — Google/Discord sign-in in `server/auth.js`; the profile setup
    flow already handles a user with no username.
-4. **Tests.** There is no frontend test runner. The rules engines in
-   `server/game/` are pure functions and the obvious place to start.
-5. **Shop and economy** — `coins` already accrues; nothing spends it.
-6. **Progression** — the third menu slot is gated behind "Rank V" in the UI with
+3. **Shop and economy** — `coins` already accrues; nothing spends it.
+4. **Progression** — the third menu slot is gated behind "Rank V" in the UI with
    no rank system behind it yet.
