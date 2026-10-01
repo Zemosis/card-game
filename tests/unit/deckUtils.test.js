@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { COPIES, card, cards, ids, withSeed } from "../helpers/cards.js";
+import { describe, it, expect, vi } from "vitest";
+import { COPIES, card, cards, ids, seededRandom } from "../helpers/cards.js";
 
 describe.each(COPIES)("deckUtils (%s)", (_name, { deck: D }) => {
   describe("createDeck", () => {
@@ -16,7 +16,7 @@ describe.each(COPIES)("deckUtils (%s)", (_name, { deck: D }) => {
     it("returns a new permutation and leaves the input alone", () => {
       const deck = D.createDeck();
       const before = ids(deck);
-      const shuffled = withSeed(1, () => D.shuffleDeck(deck));
+      const shuffled = D.shuffleDeck(deck, seededRandom(1));
       expect(shuffled).not.toBe(deck);
       expect(ids(deck)).toEqual(before);
       expect([...ids(shuffled)].sort()).toEqual([...before].sort());
@@ -24,15 +24,35 @@ describe.each(COPIES)("deckUtils (%s)", (_name, { deck: D }) => {
     });
 
     it("is reproducible under the same seed", () => {
-      const a = withSeed(7, () => D.shuffleDeck(D.createDeck()));
-      const b = withSeed(7, () => D.shuffleDeck(D.createDeck()));
+      const a = D.shuffleDeck(D.createDeck(), seededRandom(7));
+      const b = D.shuffleDeck(D.createDeck(), seededRandom(7));
       expect(ids(a)).toEqual(ids(b));
+    });
+
+    it("can reach every order, each from exactly one run of draws", () => {
+      // Feed every possible pick at each step: 3 x 2 runs must give all 3! orders once.
+      const orders = new Set();
+      for (const first of [0, 1, 2])
+        for (const second of [0, 1]) {
+          const picks = [(first + 0.5) / 3, (second + 0.5) / 2];
+          orders.add(D.shuffleDeck(["a", "b", "c"], () => picks.shift()).join(""));
+        }
+      expect(orders.size).toBe(6);
+    });
+
+    it("shuffles from the secure generator, never Math.random", () => {
+      const insecure = vi.spyOn(Math, "random");
+      const secure = vi.spyOn(globalThis.crypto, "getRandomValues");
+      D.initializeGame();
+      expect(insecure).not.toHaveBeenCalled();
+      expect(secure).toHaveBeenCalled();
+      vi.restoreAllMocks();
     });
   });
 
   describe("dealCards", () => {
     it("deals 4 sorted hands of 13 with no overlap", () => {
-      const hands = withSeed(3, () => D.dealCards(D.shuffleDeck(D.createDeck())));
+      const hands = D.dealCards(D.shuffleDeck(D.createDeck(), seededRandom(3)));
       expect(hands).toHaveLength(4);
       hands.forEach((h) => {
         expect(h).toHaveLength(13);

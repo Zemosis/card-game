@@ -7,6 +7,7 @@ import express from "express";
 import http from "http";
 import cors from "cors";
 import { Server } from "socket.io";
+import { randomInt, randomUUID } from "node:crypto";
 import { ThirteenGame, redactState, DEFAULT_DELAYS } from "./game/engine.js";
 import { BOT_NAMES } from "./game/constants.js";
 import { createSession, finishSession, closeOrphanedSessions } from "./persistence.js";
@@ -108,8 +109,11 @@ async function loadAvatar(user, requested) {
   return { variant: PRESET_AVATARS.has(preset) ? preset : "1", custom: null };
 }
 
+// Codes and ids come from crypto, never Math.random: its outputs would let a
+// player work out the generator's state and predict the next shuffle.
+const CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const makeLobbyId = (isPrivate) => {
-  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const code = Array.from({ length: 6 }, () => CODE_CHARS[randomInt(CODE_CHARS.length)]).join("");
   return isPrivate ? code : `PUB-${code}`;
 };
 
@@ -659,7 +663,7 @@ io.on("connection", (socket) => {
     const text = String(message || "").slice(0, 300);
     if (!text.trim()) return;
     io.to(lobbyId).emit("receive_chat", {
-      id: `msg-${Date.now()}-${Math.random()}`,
+      id: `msg-${randomUUID()}`,
       type: "CHAT",
       sender: socket.data.displayName,
       text,

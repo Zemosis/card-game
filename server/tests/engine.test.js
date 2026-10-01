@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ThirteenGame, redactState, DEFAULT_DELAYS } from "../game/engine.js";
 import { GAME_STATES } from "../game/constants.js";
 import * as logic from "../game/gameLogic.js";
-import { ids, stateWith, withSeed } from "../../tests/helpers/cards.js";
+import { ids, stateWith, seededRandom } from "../../tests/helpers/cards.js";
 
 const humans = (n = 4) =>
   [0, 1, 2, 3].map((i) =>
@@ -58,7 +58,7 @@ describe("starting a match", () => {
 describe("CPU timing", () => {
   it("the first CPU turn waits for the deal animation, later ones wait AI_TURN_DELAY", () => {
     // Seed so a CPU holds 3♦ in a table of 4 CPUs.
-    const { game } = withSeed(11, () => newGame({ seats: [0, 1, 2, 3].map((i) => ({ type: "AI", name: `C${i}` })) }));
+    const { game } = newGame({ seats: [0, 1, 2, 3].map((i) => ({ type: "AI", name: `C${i}` })), rng: seededRandom(11) });
     const before = game.state.moveHistory.length;
     vi.advanceTimersByTime(DEFAULT_DELAYS.deal - 1);
     expect(game.state.moveHistory.length).toBe(before);
@@ -78,9 +78,11 @@ describe("CPU timing", () => {
   });
 
   it("an all-CPU table plays a whole match on its own, reporting every round", () => {
-    const { game, calls } = withSeed(5, () =>
-      newGame({ seats: [0, 1, 2, 3].map((i) => ({ type: "AI", name: `C${i}` })), delays: { aiTurn: 1, deal: 1, roundEnd: 1 } }),
-    );
+    const { game, calls } = newGame({
+      seats: [0, 1, 2, 3].map((i) => ({ type: "AI", name: `C${i}` })),
+      delays: { aiTurn: 1, deal: 1, roundEnd: 1 },
+      rng: seededRandom(5),
+    });
     for (let i = 0; i < 50000 && game.state.gameState !== GAME_STATES.GAME_OVER; i++) vi.advanceTimersByTime(1);
     const s = game.state;
     expect(s.gameState).toBe(GAME_STATES.GAME_OVER);

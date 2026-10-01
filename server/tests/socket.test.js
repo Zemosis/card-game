@@ -570,6 +570,8 @@ describe("a running match", () => {
     const msgs = await Promise.all(got);
     msgs.forEach((m) => expect(m).toMatchObject({ type: "CHAT", text: "gl hf" }));
     expect(msgs[0].sender).toMatch(/ #/);
+    // A random UUID: nothing that exposes the server's Math.random, which could predict deals.
+    expect(msgs[0].id).toMatch(/^msg-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 
   it("only the host can ask for a rematch, and only after game over", async () => {

@@ -71,14 +71,3 @@ export const seededRandom = (seed) => {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 };
-
-/** Runs fn with Math.random replaced by a seeded generator, then restores it. */
-export const withSeed = (seed, fn) => {
-  const original = Math.random;
-  Math.random = seededRandom(seed);
-  try {
-    return fn();
-  } finally {
-    Math.random = original;
-  }
-};

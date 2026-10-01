@@ -27,15 +27,27 @@ export const createDeck = () => {
 
 // SHUFFLE DECK
 /**
+ * A number in [0, 1) from the platform's cryptographic generator. Math.random
+ * is predictable once a few of its outputs are seen, so it never deals.
+ * @returns {Number}
+ */
+export const secureRandom = () => {
+  const crypto = globalThis.crypto;
+  if (!crypto?.getRandomValues) return Math.random();
+  return crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
+};
+
+/**
  * Shuffles deck using Fisher-Yates algorithm
  * @param {Array} deck - The deck to shuffle
+ * @param {Function} rng - returns [0, 1); tests pass a seeded one
  * @returns {Array} Shuffled deck
  */
-export const shuffleDeck = (deck) => {
+export const shuffleDeck = (deck, rng = secureRandom) => {
   const shuffled = [...deck]; // Create a copy
 
   for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
 
@@ -258,11 +270,12 @@ export const findPlayerWithCard = (hands, rank, suit) => {
 
 /**
  * Creates a new shuffled and dealt game
+ * @param {Function} rng - returns [0, 1); tests pass a seeded one
  * @returns {Object} Object with deck and player hands
  */
-export const initializeGame = () => {
+export const initializeGame = (rng = secureRandom) => {
   const deck = createDeck();
-  const shuffledDeck = shuffleDeck(deck);
+  const shuffledDeck = shuffleDeck(deck, rng);
   const hands = dealCards(shuffledDeck);
 
   return {
@@ -273,6 +286,7 @@ export const initializeGame = () => {
 
 export default {
   createDeck,
+  secureRandom,
   shuffleDeck,
   dealCards,
   sortHand,

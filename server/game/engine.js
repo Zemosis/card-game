@@ -2,7 +2,7 @@
 // One instance per lobby. Owns the full (secret) game state, schedules CPU turns
 // and round transitions, and reports every state change through onState.
 
-import { initializeGame, findPlayerWithCard } from "./deckUtils.js";
+import { initializeGame, findPlayerWithCard, secureRandom } from "./deckUtils.js";
 import {
   createGameState,
   playCards,
@@ -35,9 +35,11 @@ export class ThirteenGame {
    * @param {Function} opts.onRoundEnd - called once per completed round
    * @param {Function} opts.onGameOver - called once per finished match
    * @param {Object} opts.delays - override { aiTurn, roundEnd, deal } in ms (tests)
+   * @param {Function} opts.rng - shuffles every deal; secure by default, seeded in tests
    */
-  constructor({ seats, aiDifficulty = "MEDIUM", onState, onRoundEnd, onGameOver, delays }) {
+  constructor({ seats, aiDifficulty = "MEDIUM", onState, onRoundEnd, onGameOver, delays, rng = secureRandom }) {
     this.delays = { ...DEFAULT_DELAYS, ...delays };
+    this.rng = rng;
     this.onState = onState;
     this.onRoundEnd = onRoundEnd;
     this.onGameOver = onGameOver;
@@ -49,7 +51,7 @@ export class ThirteenGame {
   }
 
   startMatch(seats, matchMeta, aiDifficulty) {
-    const { hands } = initializeGame();
+    const { hands } = initializeGame(this.rng);
     const starting = findPlayerWithCard(hands, "3", "♦");
     const state = createGameState(
       hands,
@@ -201,7 +203,7 @@ export class ThirteenGame {
   }
 
   beginNextRound() {
-    const { hands } = initializeGame();
+    const { hands } = initializeGame(this.rng);
     this.state = startNextRound(this.state, hands);
     this.broadcast();
     this.scheduleAI(this.delays.deal);
