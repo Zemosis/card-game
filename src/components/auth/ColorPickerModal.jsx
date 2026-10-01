@@ -122,7 +122,9 @@ export default function ColorPickerModal({ initialColor, onSelect, onClose }) {
     >
       <div
         style={{
-          width: 460,
+          width: "min(460px, calc(100vw - 24px))",
+          maxHeight: "calc(100vh - 24px)",
+          overflowY: "auto",
           backgroundColor: "#14102a",
           border: "4px solid #c89820",
           boxShadow: "0 0 0 4px #0a0712, 0 0 40px rgba(244,196,48,0.2), inset 0 4px 0 rgba(255,255,255,0.06)",
@@ -151,8 +153,8 @@ export default function ColorPickerModal({ initialColor, onSelect, onClose }) {
         </div>
 
         <div className="p-4 flex flex-col gap-4">
-          {/* Picker area */}
-          <div className="flex gap-4">
+          {/* Picker area: on a phone the info panel moves under the picker */}
+          <div className="flex flex-wrap gap-4">
             {/* SB square */}
             <div style={{ position: "relative", cursor: "crosshair" }}>
               <canvas

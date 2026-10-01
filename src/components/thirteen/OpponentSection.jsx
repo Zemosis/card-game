@@ -6,6 +6,13 @@
 // has a wide plate. Each fan is built like the player's own hand and turned to
 // open toward the table. At most SHOWN backs are drawn; past that the last
 // back is blurred and carries the rest as "+N".
+//
+// Small screens drop the fan (`layout`):
+//   strip  phones held upright: a small upright plate sharing a strip above
+//          the felt with the other opponents. Its status chip moves to the
+//          bottom edge so it can't collide with the left tag.
+//   row    short screens (phones on their side): a slim plate, stacked in a
+//          column beside the felt.
 
 import React, { useRef, useState } from "react";
 import gsap from "gsap";
@@ -25,16 +32,21 @@ const FAN_H = CARD_H + 14;
 // built like your own hand (opening upward), then rotated.
 const TURN = { top: 180, left: 90, right: 270 };
 
+const CHIP_PLACE = { left: "absolute -top-3 left-2", right: "absolute -top-3 right-2", bottom: "absolute -bottom-3" };
+
 function StatusChip({ label, bg, fg = "#1a1024", blink, side = "right", hidden = false, innerRef }) {
-  return (
+  const chip = (
     <span
       ref={innerRef}
-      className={`absolute -top-3 ${side === "left" ? "left-2" : "right-2"} font-pixel-display text-[10px] leading-none px-1.5 py-1 ${blink ? "blink" : ""}`}
+      className={`${side === "bottom" ? "" : CHIP_PLACE[side]} font-pixel-display text-[10px] leading-none px-1.5 py-1 whitespace-nowrap ${blink ? "blink" : ""}`}
       style={{ backgroundColor: bg, color: fg, boxShadow: "0 0 0 2px #0a0712", visibility: hidden ? "hidden" : "visible" }}
     >
       {label}
     </span>
   );
+  // Centred on the edge by a wrapper, so the chip's own transform stays free
+  // for the landing bounce.
+  return side === "bottom" ? <span className="absolute -bottom-3 inset-x-0 flex justify-center pointer-events-none">{chip}</span> : chip;
 }
 
 // Card backs held as a fan facing the table. Past SHOWN cards, the last back
@@ -107,7 +119,7 @@ const SIDE_PLATE_W = 124;
 // name the seat for the deal animation (`dealSeat`, default: the position),
 // and announce a decision over the avatar (`callout`: { id, label, bg, fg };
 // each new id plays once, and the chip stays hidden until it lands).
-const OpponentSection = ({ player, isActive = false, hasPassed = false, position = "top", face, chip, tag, detail, dealSeat, callout }) => {
+const OpponentSection = ({ player, isActive = false, hasPassed = false, position = "top", face, chip, tag, detail, dealSeat, callout, layout = "full" }) => {
   const { name, hand, isEliminated } = player;
   const count = hand.length;
   const vertical = position !== "top";
@@ -123,16 +135,36 @@ const OpponentSection = ({ player, isActive = false, hasPassed = false, position
 
   // Cards always sit between the plate and the table.
   // The top hand tucks up against its plate, held just in front of it.
-  const layout = { top: "flex-col -space-y-1", left: "flex-row gap-3", right: "flex-row-reverse gap-3" }[position];
+  const compact = layout !== "full";
+  const strip = layout === "strip";
+  const arrangement = {
+    strip: "flex-col flex-1 min-w-0",
+    row: "w-full",
+    full: { top: "flex-col -space-y-1", left: "flex-row gap-3", right: "flex-row-reverse gap-3" }[position],
+  }[layout];
+  const chipSide = strip ? "bottom" : "right";
+  const cardCount = (
+    <div className="font-pixel-body text-[18px] leading-none mt-1.5 text-bone/70 whitespace-nowrap">
+      <span className="text-glow-cyan">{count}</span> {count === 1 ? "card" : "cards"}
+    </div>
+  );
 
   return (
-    <div className={`flex items-center ${layout}`} data-seat={position}>
+    <div className={`flex items-center ${arrangement}`} data-seat={position} style={strip ? { maxWidth: 132 } : undefined}>
       <div
         data-plate={dealSeat ?? position}
-        className={`relative flex items-center ${vertical ? "flex-col justify-center text-center gap-2 px-2 py-3" : "gap-2.5 px-2.5 py-2"}`}
+        className={`relative flex items-center ${
+          strip
+            ? "w-full flex-col justify-center text-center gap-1 px-1 pt-3 pb-3"
+            : compact
+            ? "w-full gap-2 px-2 pt-2.5 pb-1.5"
+            : vertical
+              ? "flex-col justify-center text-center gap-2 px-2 py-3"
+              : "gap-2.5 px-2.5 py-2"
+        }`}
         style={{
-          width: vertical ? SIDE_PLATE_W : TOP_PLATE_W,
-          minHeight: vertical ? FAN_W - 8 : undefined,
+          width: compact ? undefined : vertical ? SIDE_PLATE_W : TOP_PLATE_W,
+          minHeight: vertical && !compact ? FAN_W - 8 : undefined,
           backgroundColor: isActive ? "#241a3a" : "#14102a",
           border: `4px solid ${isActive ? "#f4c430" : "#0a0712"}`,
           boxShadow: isActive
@@ -146,31 +178,36 @@ const OpponentSection = ({ player, isActive = false, hasPassed = false, position
       >
         {announcing && <Callout key={callout.id} {...callout} targetRef={chipRef} onDone={() => land(callout.id)} />}
         {chip !== undefined ? (
-          chip && <StatusChip {...chip} innerRef={chipRef} hidden={announcing} />
+          chip && <StatusChip {...chip} side={chipSide} innerRef={chipRef} hidden={announcing} />
         ) : isEliminated ? (
-          <StatusChip label="OUT" bg="#7a1530" fg="#ead8b1" />
+          <StatusChip label="OUT" bg="#7a1530" fg="#ead8b1" side={chipSide} />
         ) : isActive ? (
-          <StatusChip label="TURN" bg="#f4c430" blink />
+          <StatusChip label="TURN" bg="#f4c430" blink side={chipSide} />
         ) : hasPassed ? (
-          <StatusChip label="PASS" bg="#463a78" fg="#ead8b1" />
+          <StatusChip label="PASS" bg="#463a78" fg="#ead8b1" side={chipSide} />
         ) : null}
         {tag && <StatusChip {...tag} side="left" />}
-        <PixelAvatar variant={face?.variant ?? ((player.id || 0) % 5) + 1} customAvatarData={face?.customAvatarData} size={vertical ? 56 : 44} active={isActive} eliminated={isEliminated && !announcing} />
-        <div className="min-w-0 max-w-full">
-          <div className="font-pixel-display text-[11px] text-parchment truncate">{name.split(" #")[0]}</div>
-          {detail ?? (
-            <div className="font-pixel-body text-[18px] leading-none mt-1.5 text-bone/70 whitespace-nowrap">
-              <span className="text-glow-cyan">{count}</span> {count === 1 ? "card" : "cards"}
-            </div>
-          )}
+        <PixelAvatar
+          variant={face?.variant ?? ((player.id || 0) % 5) + 1}
+          customAvatarData={face?.customAvatarData}
+          size={strip ? 32 : compact ? 28 : vertical ? 56 : 44}
+          active={isActive}
+          eliminated={isEliminated && !announcing}
+        />
+        <div className={`min-w-0 max-w-full ${strip ? "w-full" : compact ? "flex-1" : ""}`}>
+          <div className={`font-pixel-display text-parchment truncate ${compact ? "text-[10px]" : "text-[11px]"}`}>{name.split(" #")[0]}</div>
+          {/* Compact, the deal lands on the card count: there is no fan. */}
+          {compact ? <div data-deal-seat={dealSeat ?? position}>{detail ?? cardCount}</div> : (detail ?? cardCount)}
         </div>
       </div>
 
       {/* Always rendered (empty while dealing) so the seat keeps its shape;
           the deal animation lands cards on it. */}
-      <div data-deal-seat={dealSeat ?? position} style={{ visibility: isEliminated ? "hidden" : "visible" }}>
-        <HandPreview count={count} position={position} />
-      </div>
+      {!compact && (
+        <div data-deal-seat={dealSeat ?? position} style={{ visibility: isEliminated ? "hidden" : "visible" }}>
+          <HandPreview count={count} position={position} />
+        </div>
+      )}
     </div>
   );
 };

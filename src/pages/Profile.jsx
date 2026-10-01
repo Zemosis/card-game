@@ -64,7 +64,7 @@ function EditProfile() {
   const options = [...PRESETS, ...(identity.customAvatar ? ["custom"] : [])];
 
   return (
-    <Panel title="Edit profile" icon="pencil" deep="#c89820" className="min-h-0">
+    <Panel title="Edit profile" icon="pencil" deep="#c89820" className="max-lg:shrink-0">
       <form onSubmit={save} className="flex-1 flex flex-col p-4 overflow-y-auto min-h-0" style={{ gap: "var(--gap)" }}>
         {/* Preview: exactly how other players see you. */}
         <div className="flex items-center gap-4">
@@ -82,7 +82,7 @@ function EditProfile() {
             </div>
             <div className="flex items-center gap-2 mt-2">
               <span
-                className="font-pixel-display text-[10px] px-1.5 py-1 leading-none"
+                className="font-pixel-display text-[10px] px-1.5 py-1 leading-none whitespace-nowrap shrink-0"
                 style={{ backgroundColor: ACCENT, color: INK, boxShadow: `0 0 0 2px ${INK}` }}
               >
                 LV {identity.level}
@@ -404,7 +404,7 @@ function StatsPanel() {
   }, []);
 
   return (
-    <Panel title="Stats" icon="star" deep="#463a78" className="min-h-0 h-full">
+    <Panel title="Stats" icon="star" deep="#463a78" className="max-lg:shrink-0 lg:h-full">
       {error ? (
         <p role="alert" className="p-6 font-pixel-body text-[22px] text-rose">
           Couldn't load your stats: {error}
@@ -457,7 +457,8 @@ export default function Profile() {
           </Panel>
         </main>
       ) : (
-        <main className="flex-1 min-h-0 w-full p-4 grid gap-4 grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)] overflow-y-auto lg:overflow-hidden">
+        <main className="flex-1 min-h-0 w-full p-4 flex flex-col gap-4 lg:grid lg:grid-cols-[420px_minmax(0,1fr)] overflow-y-auto lg:overflow-hidden">
+          {/* Side by side from lg; narrower, the panels stack and the page scrolls. */}
           <EditProfile />
           <StatsPanel />
         </main>

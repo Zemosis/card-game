@@ -2,6 +2,10 @@
 // and the buttons for the current phase (GO IN / FOLD, SWAP, TAKE TRUMP,
 // THROW). The page decides which buttons show; the primary one also fires on
 // SPACE.
+//
+// One row on a wide table. On a phone the status line takes its own row and
+// the buttons share the width of the next; `dense` (a short screen) trims
+// labels and padding to stay on one row.
 
 import React, { useEffect } from "react";
 
@@ -17,7 +21,7 @@ const TONES = {
  * warning: shown in rose instead of the message (e.g. "this debuffs your K♦")
  * children: extra controls shown before the buttons (the draw's depth picker)
  */
-const MuushigControls = ({ message = "", warning = null, buttons = [], sortMode = "rank", onSortModeChange, children }) => {
+const MuushigControls = ({ message = "", warning = null, buttons = [], sortMode = "rank", onSortModeChange, dense = false, children }) => {
   const primary = buttons.find((b) => b.primary && !b.disabled);
 
   useEffect(() => {
@@ -32,8 +36,11 @@ const MuushigControls = ({ message = "", warning = null, buttons = [], sortMode 
   }, [primary]);
 
   return (
-    <div className="flex items-center justify-between gap-3 mt-1 px-2">
-      <div className="flex-1 min-w-0 flex items-center gap-3 px-3 py-2" style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d", minHeight: 46 }}>
+    <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-3 mt-1 px-2">
+      <div
+        className="basis-full sm:basis-0 sm:flex-1 min-w-0 flex items-center gap-3 px-3 py-2"
+        style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d", minHeight: dense ? 40 : 46 }}
+      >
         {/* A live region: screen readers hear each new instruction ("Your lead…"). */}
         <div role="status" className="font-pixel-body text-[20px] leading-none" style={{ color: warning ? "#e85a7a" : "rgba(200,184,144,0.85)" }}>
           {warning || message}
@@ -47,7 +54,7 @@ const MuushigControls = ({ message = "", warning = null, buttons = [], sortMode 
         aria-label="Sort hand"
         style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}
       >
-        <span className="font-pixel-display text-[10px] text-bone/60 self-center px-2">SORT</span>
+        {!dense && <span className="font-pixel-display text-[10px] text-bone/60 self-center px-2 max-md:hidden">SORT</span>}
         {[
           ["rank", "RANK"],
           ["suit", "SUIT"],
@@ -58,7 +65,7 @@ const MuushigControls = ({ message = "", warning = null, buttons = [], sortMode 
               key={mode}
               onClick={() => onSortModeChange?.(mode)}
               aria-pressed={on}
-              className="pixel-btn font-pixel-display text-[10px] px-3 py-2"
+              className="pixel-btn font-pixel-display text-[10px] px-3 max-sm:px-2 py-2"
               style={{
                 backgroundColor: on ? "#9bd14f" : "#1f1a3d",
                 borderColor: on ? "#6a9a30" : "#0a0712",
@@ -78,11 +85,11 @@ const MuushigControls = ({ message = "", warning = null, buttons = [], sortMode 
           key={b.label}
           onClick={b.onClick}
           disabled={b.disabled}
-          className={`pixel-btn font-pixel-display text-sm px-6 py-3 whitespace-nowrap ${b.primary && !b.disabled ? "pulse-gold" : ""}`}
+          className={`pixel-btn font-pixel-display text-sm py-3 whitespace-nowrap max-sm:flex-1 max-sm:px-3 max-sm:text-[12px] ${dense ? "px-4" : "px-6"} ${b.primary && !b.disabled ? "pulse-gold" : ""}`}
           style={TONES[b.tone] || TONES.green}
         >
           {b.label}
-          {b.primary && !b.disabled && <span className="text-[8px] ml-1">(SPACE)</span>}
+          {b.primary && !b.disabled && !dense && <span className="text-[8px] ml-1 max-sm:hidden">(SPACE)</span>}
         </button>
       ))}
     </div>

@@ -3,21 +3,28 @@
 // bottom); empty ones are shadow spots the host can fill with CPUs. The felt
 // holds the invite panel and the START button. The game page shows this until
 // the server's first game state.
+//
+// On a phone the other seats share a strip at the top, as at the game table;
+// on any small screen the chat slides out from the header and the table
+// scrolls if it has to.
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { PixelAvatar } from "../PixelCard";
 import PixelIcon from "../PixelIcon";
 import GameChat from "./GameChat";
 import { seatAvatar } from "../../utils/avatarConstants";
 import { positionOf } from "../../utils/seatPosition";
+import { useTableMetrics } from "../../hooks/useTableMetrics";
+import { useUnread } from "../../hooks/useUnread";
+import { TableHeader, TableSidebar } from "../TableChrome";
 
 const SIDE_SEAT_W = 224;
 
 const shortName = (name = "") => name.split(" #")[0];
 
-function SeatSlot({ seat, index, isHost, onAddCpu, onRemoveCpu, face }) {
-  const base = "relative flex flex-col items-center justify-center gap-2 px-3 py-3 text-center";
-  const size = { width: 184, minHeight: 124 };
+function SeatSlot({ seat, index, isHost, onAddCpu, onRemoveCpu, face, small = false }) {
+  const base = `relative flex flex-col items-center justify-center gap-2 py-3 text-center ${small ? "flex-1 min-w-0 px-1.5" : "px-3"}`;
+  const size = small ? { maxWidth: 132, minHeight: 112 } : { width: 184, minHeight: 124 };
 
   if (!seat) {
     return (
@@ -106,7 +113,7 @@ function InvitePanel({ table, seatedCount, hostName, onStart, errorMessage }) {
 
   return (
     <div
-      className="flex flex-col items-center gap-4 p-6 text-center"
+      className="flex flex-col items-center gap-4 p-4 sm:p-6 text-center"
       style={{ backgroundColor: "rgba(10,7,18,0.8)", border: "4px solid #0a0712", boxShadow: "0 0 0 4px #463a78", maxWidth: 520 }}
     >
       <div className="font-pixel-display text-[14px] text-glow-gold">WAITING FOR PLAYERS</div>
@@ -122,7 +129,7 @@ function InvitePanel({ table, seatedCount, hostName, onStart, errorMessage }) {
         <div className="font-pixel-display text-[22px] tracking-[0.3em] text-glow-cyan">{table.code}</div>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap justify-center gap-3">
         <button
           onClick={() => copy("code", table.code)}
           className="pixel-btn font-pixel-display text-[10px] px-3 py-2"
@@ -178,12 +185,16 @@ export default function WaitingTable({
   titleClass = "text-glow-gold",
   titleColor,
 }) {
+  const { compact, narrow } = useTableMetrics();
+  const [panelOpen, setPanelOpen] = useState(false);
+  const closePanel = useCallback(() => setPanelOpen(false), []);
+  const unread = useUnread(messages, panelOpen);
   const five = table.seats.length === 5;
   const at = {};
   table.seats.forEach((seat, i) => {
     at[positionOf(i, table.mySeat, table.seats.length)] = { seat, index: i };
   });
-  const slot = (pos) => (
+  const slot = (pos, small = false) => (
     <SeatSlot
       seat={at[pos].seat}
       index={at[pos].index}
@@ -191,68 +202,80 @@ export default function WaitingTable({
       onAddCpu={onAddCpu}
       onRemoveCpu={onRemoveCpu}
       face={pos === "bottom" ? myFace : undefined}
+      small={small}
     />
   );
   const seatedCount = table.seats.filter(Boolean).length;
   const hostName = shortName(table.seats.find((s) => s?.isHost)?.name || "the host");
+  const invite = (
+    <div className="flex flex-col items-center gap-3">
+      <InvitePanel table={table} seatedCount={seatedCount} hostName={hostName} onStart={onStart} errorMessage={errorMessage} />
+      {errorMessage && (
+        <div role="alert" className="font-pixel-body text-[20px] px-3 py-1" style={{ backgroundColor: "#7a1530", color: "#ead8b1" }}>
+          {errorMessage}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="relative w-full h-full font-pixel-body text-parchment overflow-hidden flex flex-col" style={{ position: "fixed", inset: 0 }}>
       <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, #2e0f1d 0%, #14102a 60%, #0a0712 100%)" }} />
 
-      <div
-        className="relative flex items-center justify-between px-5 py-3 z-10"
-        style={{ backgroundColor: "rgba(10,7,18,0.85)", borderBottom: "4px solid #0a0712" }}
-      >
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onExit}
-            className="pixel-btn font-pixel-display text-[10px] px-3 py-2"
-            style={{ backgroundColor: "#7a1530", borderColor: "#3a0a18", color: "#ead8b1" }}
-          >
-            <span className="flex items-center gap-2"><PixelIcon name="back" size={12} />EXIT</span>
-          </button>
-          <div className="font-pixel-display text-[10px] text-bone/60 ml-2">
+      <TableHeader
+        compact={compact}
+        narrow={narrow}
+        onExit={onExit}
+        badge={
+          <div className="font-pixel-display text-[10px] text-bone/60 whitespace-nowrap">
             {table.name.toUpperCase()} <span className="text-glow-cyan">#{table.code}</span>
           </div>
-        </div>
-        <div className={`font-pixel-display text-base ${titleClass}`} style={{ color: titleColor }}>
-          {title}
-        </div>
-        <div style={{ width: 120 }} />
-      </div>
+        }
+        title={title}
+        kicker={null}
+        titleClass={titleClass}
+        titleColor={titleColor}
+        onPanel={() => setPanelOpen(true)}
+        unread={unread}
+      />
 
-      <div className="relative flex-1 grid min-h-0" style={{ gridTemplateColumns: "minmax(0, 1fr) 300px" }}>
-        <div className="relative flex flex-col items-center justify-between min-h-0 px-4 py-4">
-          {five ? (
-            <div className="flex justify-center gap-10">
-              {slot("topLeft")}
-              {slot("topRight")}
+      <div className="relative flex-1 grid min-h-0" style={{ gridTemplateColumns: compact ? "minmax(0, 1fr)" : "minmax(0, 1fr) 300px" }}>
+        {narrow ? (
+          <div className="relative flex flex-col items-center gap-6 min-h-0 overflow-y-auto px-2 pt-5 pb-4">
+            {/* The other seats, clockwise from your left. */}
+            <div className="flex justify-center gap-2 w-full">
+              {(five ? ["bottomLeft", "topLeft", "topRight", "bottomRight"] : ["left", "top", "right"]).map((pos) => (
+                <React.Fragment key={pos}>{slot(pos, true)}</React.Fragment>
+              ))}
             </div>
-          ) : (
-            slot("top")
-          )}
-          <div
-            className="grid items-center gap-4 w-full mx-auto"
-            style={{ gridTemplateColumns: `${SIDE_SEAT_W}px minmax(0,1fr) ${SIDE_SEAT_W}px`, maxWidth: SIDE_SEAT_W * 2 + 820 + 32 }}
-          >
-            <div className="flex justify-center">{slot(five ? "bottomLeft" : "left")}</div>
-            <div className="flex flex-col items-center gap-3">
-              <InvitePanel table={table} seatedCount={seatedCount} hostName={hostName} onStart={onStart} errorMessage={errorMessage} />
-              {errorMessage && (
-                <div role="alert" className="font-pixel-body text-[20px] px-3 py-1" style={{ backgroundColor: "#7a1530", color: "#ead8b1" }}>
-                  {errorMessage}
-                </div>
-              )}
-            </div>
-            <div className="flex justify-center">{slot(five ? "bottomRight" : "right")}</div>
+            <div className="w-full">{invite}</div>
+            {slot("bottom")}
           </div>
-          {slot("bottom")}
-        </div>
+        ) : (
+          <div className="relative flex flex-col items-center justify-between min-h-0 overflow-y-auto px-4 py-4">
+            {five ? (
+              <div className="flex justify-center gap-10">
+                {slot("topLeft")}
+                {slot("topRight")}
+              </div>
+            ) : (
+              slot("top")
+            )}
+            <div
+              className="grid items-center gap-4 w-full mx-auto"
+              style={{ gridTemplateColumns: `${SIDE_SEAT_W}px minmax(0,1fr) ${SIDE_SEAT_W}px`, maxWidth: SIDE_SEAT_W * 2 + 820 + 32 }}
+            >
+              <div className="flex justify-center">{slot(five ? "bottomLeft" : "left")}</div>
+              {invite}
+              <div className="flex justify-center">{slot(five ? "bottomRight" : "right")}</div>
+            </div>
+            {slot("bottom")}
+          </div>
+        )}
 
-        <div className="flex flex-col min-h-0 border-l-4" style={{ borderColor: "#0a0712", background: "#0e0a1f" }}>
+        <TableSidebar compact={compact} open={panelOpen} onClose={closePanel}>
           <GameChat messages={messages} onSendMessage={onSendMessage} />
-        </div>
+        </TableSidebar>
       </div>
     </div>
   );

@@ -149,7 +149,7 @@ export default function RulesModal({ onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"
       style={{ backgroundColor: "rgba(10,7,18,0.82)", backdropFilter: "blur(3px)" }}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
@@ -161,12 +161,12 @@ export default function RulesModal({ onClose }) {
         style={{ backgroundColor: "#110d22", border: "4px solid #0a0712", boxShadow: "0 0 0 4px #463a78, 8px 8px 0 #0a0712" }}
       >
         {/* Header */}
-        <div className="flex items-center gap-4 px-5 shrink-0" style={{ height: 64, backgroundColor: "#1a1024", borderBottom: "4px solid #0a0712" }}>
-          <span className="text-glow-gold">
+        <div className="flex items-center gap-3 sm:gap-4 px-3 sm:px-5 py-2 shrink-0" style={{ minHeight: 64, backgroundColor: "#1a1024", borderBottom: "4px solid #0a0712" }}>
+          <span className="text-glow-gold max-sm:hidden">
             <PixelIcon name="book" size={24} />
           </span>
           <div className="flex-1 min-w-0">
-            <h1 id="rules-title" className="font-pixel-display text-[16px] text-glow-gold tracking-wider">
+            <h1 id="rules-title" className="font-pixel-display text-[12px] sm:text-[16px] leading-snug text-glow-gold tracking-wider">
               HOW TO PLAY THIRTEEN
             </h1>
             <div className="font-pixel-body text-[18px] text-bone/60 leading-none mt-1">Shed every card before anyone else · 4 players</div>
@@ -177,10 +177,10 @@ export default function RulesModal({ onClose }) {
           <button
             ref={closeRef}
             onClick={onClose}
-            className="pixel-btn font-pixel-display text-[10px] px-3 py-2 flex items-center gap-2"
+            className="pixel-btn font-pixel-display text-[10px] px-3 py-2 flex items-center gap-2 shrink-0"
             style={{ backgroundColor: "#7a1530", borderColor: "#3a0a18", color: "#ead8b1" }}
           >
-            <PixelIcon name="close" size={12} /> CLOSE
+            <PixelIcon name="close" size={12} /> <span className="max-sm:sr-only">CLOSE</span>
           </button>
         </div>
 
@@ -209,7 +209,7 @@ export default function RulesModal({ onClose }) {
           </nav>
 
           {/* Content */}
-          <div ref={scrollRef} className="relative flex-1 min-w-0 overflow-y-auto px-6 md:px-10 py-8">
+          <div ref={scrollRef} className="relative flex-1 min-w-0 overflow-y-auto px-4 sm:px-6 md:px-10 py-6 sm:py-8">
             <Section id="goal" n={1} title="The goal">
               <p>
                 Be the <Key>first to play every card</Key> in your hand. Each round, everyone else scores points for the

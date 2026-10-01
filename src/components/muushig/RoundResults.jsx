@@ -46,11 +46,11 @@ const RoundResults = ({ round, results, players, faceFor, matchWinner = null, on
   // eaten this round, then seat, so a tie at match end puts the winner first.
   const ranked = [...results].sort((a, b) => a.score - b.score || b.eaten - a.eaten || a.seat - b.seat);
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(10,7,18,0.8)", backdropFilter: "blur(3px)" }}>
+    <div className="absolute inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(10,7,18,0.8)", backdropFilter: "blur(3px)" }}>
       <div
         role="dialog"
         aria-modal="true"
-        className="flex flex-col gap-4 p-6 w-[480px] max-w-[92vw]"
+        className="flex flex-col gap-4 p-4 sm:p-6 w-[480px] max-w-full max-h-full overflow-y-auto"
         style={{ backgroundColor: "#1f1a3d", border: "4px solid #0a0712", boxShadow: "0 0 0 4px #463a78, 8px 8px 0 #0a0712" }}
       >
         <div className="text-center">

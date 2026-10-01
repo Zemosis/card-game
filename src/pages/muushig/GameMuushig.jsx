@@ -34,7 +34,8 @@ import MuushigScoreBoard from "../../components/muushig/MuushigScoreBoard";
 import MuushigControls from "../../components/muushig/MuushigControls";
 import MuushigRules from "../../components/muushig/MuushigRules";
 import PixelIcon from "../../components/PixelIcon";
-import { SignalBars } from "../../components/PixelUI";
+import { TableHeader, TableSidebar, ConnectionSignal } from "../../components/TableChrome";
+import { useUnread } from "../../hooks/useUnread";
 import {
   MAX_FOLDS_IN_A_ROW,
   PHASES,
@@ -367,8 +368,11 @@ function OnlineMuushig({ lobbyId, playerName }) {
 function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, messages, setMessages }) {
   const navigate = useNavigate();
   const { identity } = useAuth();
-  const { handW, deckW } = useTableMetrics();
+  const { handW, deckW, compact, narrow, seats } = useTableMetrics();
   const { connected, ping } = useServerStats({ enabled: !!online });
+  const [panelOpen, setPanelOpen] = useState(false);
+  const closePanel = useCallback(() => setPanelOpen(false), []);
+  const unread = useUnread(messages, panelOpen);
 
   const [game, setGame] = useState(initial);
   const isOnline = !!online;
@@ -831,7 +835,8 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
                 : null
         }
         tag={index === game.dealer && !introducing && !drawing ? { label: "DEAL", bg: "#5fd4d6", fg: "#0a3a3a" } : null}
-        detail={<SeatDetail eaten={p.eaten} folded={folded} />}
+        detail={<SeatDetail eaten={p.eaten} folded={folded} layout={seats} />}
+        layout={seats}
         callout={
           debuffs[index]
             ? { id: `${roundKey}-debuff-${debuffs[index].id}`, ...DEBUFF_CALLOUT }
@@ -872,25 +877,14 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
       <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, #123526 0%, #14102a 60%, #0a0712 100%)" }} />
       <div className="absolute inset-0 dither-shadow opacity-40 pointer-events-none" />
 
-      {/* HEADER BAR */}
-      <div
-        className="relative flex items-center justify-between px-5 py-3 z-10"
-        style={{ backgroundColor: "rgba(10,7,18,0.85)", borderBottom: "4px solid #0a0712", backdropFilter: "blur(2px)" }}
-      >
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onExit}
-            className="pixel-btn font-pixel-display text-[10px] px-3 py-2"
-            style={{ backgroundColor: "#7a1530", borderColor: "#3a0a18", color: "#ead8b1" }}
-          >
-            <span className="flex items-center gap-2">
-              <PixelIcon name="back" size={12} />
-              EXIT
-            </span>
-          </button>
-          {online ? (
+      <TableHeader
+        compact={compact}
+        narrow={narrow}
+        onExit={onExit}
+        badge={
+          online ? (
             <span
-              className="font-pixel-display text-[10px] leading-none px-1.5 py-1 ml-2"
+              className="font-pixel-display text-[10px] leading-none px-1.5 py-1 whitespace-nowrap"
               style={{ backgroundColor: "#5fd4d6", color: "#0a2a2c", boxShadow: "0 0 0 2px #0a0712" }}
               title="An online table"
             >
@@ -898,73 +892,26 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
             </span>
           ) : (
             <span
-              className="font-pixel-display text-[10px] leading-none px-1.5 py-1 ml-2"
+              className="font-pixel-display text-[10px] leading-none px-1.5 py-1 whitespace-nowrap"
               style={{ backgroundColor: LEVEL_COLOR[aiDifficulty] || "#f4c430", color: "#1a1024", boxShadow: "0 0 0 2px #0a0712" }}
               title="Practice against CPU players"
             >
               PRACTICE · {aiDifficulty}
             </span>
-          )}
-        </div>
-
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-6">
-          <div className="flex flex-col items-center px-3 py-1" style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}>
-            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">MATCH</div>
-            <div className="font-pixel-display text-sm text-glow-gold">{game.matchNumber}</div>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">NOW PLAYING</div>
-            <div className="font-pixel-display text-base text-glow-rose" style={{ color: "#e85a7a" }}>
-              MUUSHIG
-            </div>
-          </div>
-          <div className="flex flex-col items-center px-3 py-1" style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}>
-            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">ROUND</div>
-            <div className="font-pixel-display text-sm text-glow-gold">{game.roundNumber || "–"}</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 font-pixel-body text-sm">
-            {!online ? (
-              <>
-                <SignalBars level={3} color="#9bd14f" />
-                <span className="text-bone/70">LOCAL</span>
-              </>
-            ) : !connected ? (
-              <>
-                <SignalBars level={1} color="#e85a7a" />
-                <span style={{ color: "#e85a7a" }}>OFFLINE</span>
-              </>
-            ) : (
-              <>
-                <SignalBars
-                  level={ping == null || ping < 80 ? 3 : ping < 160 ? 2 : 1}
-                  color={ping == null || ping < 80 ? "#9bd14f" : ping < 160 ? "#f4c430" : "#e85a7a"}
-                />
-                <span className="text-bone/70">{ping != null ? `${ping}ms` : "..."}</span>
-              </>
-            )}
-          </div>
-          <button
-            onClick={() => setShowRules(true)}
-            className="pixel-btn font-pixel-display text-[10px] px-3 flex items-center gap-2"
-            style={{ backgroundColor: "#e85a7a", borderColor: "#a83a5a", color: "#3a0e1a", height: 36 }}
-            title="How to play"
-          >
-            <PixelIcon name="book" size={14} />
-            RULES
-          </button>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="pixel-btn font-pixel-display"
-            style={{ backgroundColor: "#463a78", borderColor: "#2a234d", color: "#ead8b1", width: 36, height: 36, padding: 0, fontSize: 12 }}
-            title="Settings"
-          >
-            <PixelIcon name="gear" size={16} className="mx-auto" />
-          </button>
-        </div>
-      </div>
+          )
+        }
+        title="MUUSHIG"
+        titleClass="text-glow-rose"
+        titleColor="#e85a7a"
+        match={game.matchNumber}
+        round={game.roundNumber || "–"}
+        signal={<ConnectionSignal local={!online} connected={connected} ping={ping} />}
+        rulesTone={{ bg: "#e85a7a", deep: "#a83a5a", ink: "#3a0e1a" }}
+        onRules={() => setShowRules(true)}
+        onSettings={() => setShowSettings(!showSettings)}
+        onPanel={() => setPanelOpen(true)}
+        unread={unread}
+      />
 
       {showRules && <MuushigRules onClose={closeRules} />}
 
@@ -1014,10 +961,11 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
       )}
 
       {/* GAME REGION */}
-      <div className="relative flex-1 grid min-h-0" style={{ gridTemplateColumns: "minmax(0, 1fr) 300px" }}>
+      <div className="relative flex-1 grid min-h-0" style={{ gridTemplateColumns: compact ? "minmax(0, 1fr)" : "minmax(0, 1fr) 300px" }}>
         {/* TABLE */}
-        <div className="relative flex flex-col min-h-0 px-4 py-2">
+        <div className={`relative flex flex-col min-h-0 ${narrow ? "px-2 pt-4 pb-2" : seats === "row" ? "px-3 py-1" : "px-4 py-2"}`}>
           <RoundTable
+            layout={seats}
             seats={{
               bottomLeft: seat((mySeat + 1) % 5, "left"),
               topLeft: seat((mySeat + 2) % 5, "left"),
@@ -1074,8 +1022,9 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
             }
           />
 
-          {/* My hand, with the draw and dead piles in the corner beside it */}
-          <div ref={handAreaRef} className="relative">
+          {/* My hand, with the draw and dead piles in the corner beside it.
+              On a phone the hand fans out in the space right of the piles. */}
+          <div ref={handAreaRef} className="relative" style={narrow ? { paddingLeft: pileW * 2 + 24 } : undefined}>
             {!isDealing && (
               <div className="absolute left-2 bottom-2 z-10">
                 <SidePiles
@@ -1118,13 +1067,20 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
               }
             />
           </div>
-          <MuushigControls message={message} warning={warning} buttons={buttons} sortMode={sortMode} onSortModeChange={changeSortMode}>
+          <MuushigControls
+            message={message}
+            warning={warning}
+            buttons={buttons}
+            sortMode={sortMode}
+            onSortModeChange={changeSortMode}
+            dense={seats === "row"}
+          >
             {myDraw && <DepthPicker depth={pickDepth} max={drawMax} onChange={setDepth} />}
           </MuushigControls>
         </div>
 
         {/* SIDEBAR */}
-        <div className="flex flex-col min-h-0 border-l-4" style={{ borderColor: "#0a0712", background: "#0e0a1f" }}>
+        <TableSidebar compact={compact} open={panelOpen} onClose={closePanel}>
           <MuushigScoreBoard
             players={players.map((p) => ({ ...p, folded: p.status === "fold" }))}
             currentPlayerIndex={phase === PHASES.DRAW || (!isDealing && ACTION_PHASES.has(phase)) ? game.turn : -1}
@@ -1134,7 +1090,7 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
             faceFor={faceFor}
           />
           <GameChat messages={messages} onSendMessage={handleSendMessage} avatarFor={avatarFor} colorFor={colorFor} />
-        </div>
+        </TableSidebar>
       </div>
 
       {flight && (
@@ -1176,7 +1132,7 @@ function DepthPicker({ depth, max, onChange }) {
   const step = { backgroundColor: "#463a78", borderColor: "#2a234d", color: "#ead8b1" };
   return (
     <div className="flex items-stretch gap-1 p-1" role="group" aria-label="How deep to draw" style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}>
-      <span className="font-pixel-display text-[10px] text-bone/60 self-center px-2">DEPTH</span>
+      <span className="font-pixel-display text-[10px] text-bone/60 self-center px-2 max-md:hidden">DEPTH</span>
       <button
         onClick={() => onChange(Math.max(1, depth - 1))}
         disabled={depth <= 1}
@@ -1203,25 +1159,31 @@ function DepthPicker({ depth, max, onChange }) {
 }
 
 // Piles eaten this round: one box per trick (5 a round); all 5 wins the
-// round. Scores live on the scoreboard.
-function SeatDetail({ eaten, folded }) {
+// round. Scores live on the scoreboard. On small plates (`layout` strip or
+// row, see OpponentSection) the EATEN label goes and the boxes shrink.
+function SeatDetail({ eaten, folded, layout = "full" }) {
+  const compact = layout !== "full";
   const sweep = eaten >= 5;
+  const label = folded ? "FOLDED" : sweep ? (compact ? "WON" : "ROUND WON") : compact ? null : "EATEN";
+  const pip = compact ? 9 : 12;
   return (
-    <div className="mt-2 flex flex-col items-center gap-1.5">
-      <div
-        className={`font-pixel-display text-[10px] leading-none ${sweep ? "text-glow-gold" : ""}`}
-        style={{ color: folded ? "#8a7fb0" : sweep ? undefined : "rgba(234,216,177,0.7)" }}
-      >
-        {folded ? "FOLDED" : sweep ? "ROUND WON" : "EATEN"}
-      </div>
+    <div className={`flex flex-col gap-1.5 ${compact ? "mt-1.5" : "mt-2"} ${layout === "row" ? "items-start" : "items-center"}`}>
+      {label && (
+        <div
+          className={`font-pixel-display text-[10px] leading-none ${sweep ? "text-glow-gold" : ""}`}
+          style={{ color: folded ? "#8a7fb0" : sweep ? undefined : "rgba(234,216,177,0.7)" }}
+        >
+          {label}
+        </div>
+      )}
       {!folded && (
         <div className="flex gap-1" title={`${eaten} eaten this round`} aria-label={`${eaten} of 5 piles eaten`}>
           {Array.from({ length: 5 }, (_, i) => (
             <span
               key={i}
               style={{
-                width: 12,
-                height: 12,
+                width: pip,
+                height: pip,
                 backgroundColor: i < eaten ? "#f4c430" : "#0a0712",
                 boxShadow:
                   i < eaten

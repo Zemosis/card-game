@@ -36,12 +36,12 @@ export default function RulebookPicker() {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="pixel-btn font-pixel-display text-xs px-4 py-2.5 uppercase flex items-center gap-2"
+        className="pixel-btn font-pixel-display text-xs px-4 py-2.5 uppercase flex items-center gap-2 max-sm:px-3 max-sm:self-stretch"
         style={{ backgroundColor: "#463a78", borderColor: "#2a234d", color: "#ead8b1" }}
         title="Read a game's rules"
       >
         <PixelIcon name="book" size={14} />
-        Rules
+        <span className="max-sm:sr-only">Rules</span>
       </button>
 
       {open && (

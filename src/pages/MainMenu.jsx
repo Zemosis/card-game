@@ -28,7 +28,7 @@ const MainMenu = () => {
   }, [identity.name, identity.tag]);
 
   return (
-    <div className="relative w-full h-screen starfield font-pixel-body text-parchment overflow-hidden flex flex-col">
+    <div className="relative w-full min-h-dvh starfield font-pixel-body text-parchment overflow-x-hidden flex flex-col">
       {/* Distant pixel mountains silhouette */}
       <div
         style={{
@@ -44,8 +44,8 @@ const MainMenu = () => {
       <Mountains />
 
       {/* TOP BAR */}
-      <div className="relative flex items-center justify-between px-8 py-3">
-        <div className="flex items-center gap-3">
+      <div className="relative flex flex-wrap items-center justify-between gap-3 px-4 sm:px-8 py-3">
+        <div className="flex items-center gap-3 mr-auto">
           <div
             style={{
               width: 36,
@@ -70,26 +70,28 @@ const MainMenu = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <PlayerMenu
-            identity={identity}
-            isGuest={isGuest}
-            onSelectAvatar={(v) => updateProfile({ avatar: v }).catch(console.error)}
-            onPaint={() => navigate("/avatar-paint")}
-            onViewProfile={() => navigate("/profile")}
-          />
+        {/* On phones the badge stays beside the logo and the buttons take
+            their own row. */}
+        <PlayerMenu
+          identity={identity}
+          isGuest={isGuest}
+          onSelectAvatar={(v) => updateProfile({ avatar: v }).catch(console.error)}
+          onPaint={() => navigate("/avatar-paint")}
+          onViewProfile={() => navigate("/profile")}
+        />
+        <div className="flex items-center gap-2 sm:gap-3 max-sm:w-full max-sm:justify-between">
           {isGuest ? (
-            <PixelButton color="gold" size="md" onClick={() => setShowLogin(true)}>
+            <PixelButton color="gold" size="md" className="max-sm:px-3 whitespace-nowrap" onClick={() => setShowLogin(true)}>
               <span>Sign In</span>
             </PixelButton>
           ) : (
-            <PixelButton color="dusk" size="md" onClick={signOut}>
+            <PixelButton color="dusk" size="md" className="max-sm:px-3 whitespace-nowrap" onClick={signOut}>
               <span>Sign Out</span>
             </PixelButton>
           )}
           <RulebookPicker />
           <button
-            className="pixel-btn font-pixel-display text-xs px-4 py-2.5 uppercase relative"
+            className="pixel-btn font-pixel-display text-xs px-4 py-2.5 uppercase relative max-sm:px-3 max-[359px]:hidden"
             style={{
               backgroundColor: "#463a78",
               borderColor: "#2a234d",
@@ -135,12 +137,12 @@ const MainMenu = () => {
       </div>
 
       {/* HERO */}
-      <div className="relative flex flex-col items-center pt-4 pb-2">
+      <div className="relative flex flex-col items-center text-center px-4 pt-4 pb-2">
         <div className="font-pixel-body text-bone text-sm tracking-[0.4em] uppercase mb-1">
           Card Hall
         </div>
         <h1
-          className="font-pixel-display text-[36px] leading-tight mb-1"
+          className="font-pixel-display text-[22px] sm:text-[30px] md:text-[36px] leading-tight mb-1"
           style={{
             color: "#fff7d8",
             textShadow:
@@ -149,13 +151,13 @@ const MainMenu = () => {
         >
           CHOOSE YOUR GAME
         </h1>
-        <div className="font-pixel-body text-xl text-parchment/70">
+        <div className="font-pixel-body text-lg sm:text-xl text-parchment/70">
           The dungeon-master deals tonight. Pick a table, summon your wits.
         </div>
       </div>
 
       {/* GAME CARDS */}
-      <div className="relative flex-1 flex items-start justify-center gap-10 px-8 pt-2 min-h-0">
+      <div className="relative flex-1 flex flex-col items-center sm:flex-row sm:flex-wrap sm:items-start sm:justify-center gap-8 sm:gap-6 lg:gap-10 px-4 lg:px-8 pt-2 pb-8">
         <GameTile
           id="13"
           title="THIRTEEN"
@@ -213,7 +215,7 @@ const MainMenu = () => {
       {/* FOOTER */}
       <div className="relative">
         <div className="checker-strip h-2" />
-        <div className="flex items-center justify-between px-8 py-2 bg-void">
+        <div className="flex flex-wrap items-center justify-center sm:justify-between gap-x-4 gap-y-1 px-4 sm:px-8 py-2 bg-void">
           <div className="font-pixel-body text-bone/60 text-sm">
             v1.0.0 — patch{" "}
             <span className="text-parchment">"CUTE RAY"</span>
@@ -290,9 +292,8 @@ function GameTile({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onClick={!locked ? onClick : undefined}
-      className="cursor-pointer transition-transform"
+      className="cursor-pointer transition-transform w-full max-w-[340px] sm:w-auto sm:max-w-[320px] sm:flex-[1_1_280px]"
       style={{
-        width: 320,
         transform: hovered && !locked ? "translateY(-8px)" : "translateY(0)",
         transition: "transform 120ms ease",
       }}

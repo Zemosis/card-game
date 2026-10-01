@@ -10,7 +10,10 @@
 // internal structure — a header and two control rows — so the column reads as
 // a symmetric stack at any viewport height. Control heights scale with the
 // viewport (--ctl) so the whole screen fits without scrolling from 1366x657
-// laptops up to 1080p.
+// laptops up to 1080p. Narrower than lg (phones, split screens) the panels
+// stack at their natural height and the screen scrolls; on a wide but short
+// window each row keeps at least its content's height and the screen scrolls
+// rather than squeezing panels into each other.
 
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -243,6 +246,7 @@ function SeatPips({ current, max, color }) {
       {Array.from({ length: max }).map((_, j) => (
         <div
           key={j}
+          className="max-sm:hidden"
           style={{
             width: 10,
             height: 14,
@@ -251,7 +255,7 @@ function SeatPips({ current, max, color }) {
           }}
         />
       ))}
-      <span className="ml-1.5 font-pixel-body text-[20px] text-bone">
+      <span className="sm:ml-1.5 font-pixel-body text-[20px] text-bone">
         {current}/{max}
       </span>
     </div>
@@ -259,7 +263,8 @@ function SeatPips({ current, max, color }) {
 }
 
 function TablesPanel({ game, lobbies, onJoin, onRefresh }) {
-  const cols = "minmax(0,2fr) minmax(0,1.3fr) 120px 110px";
+  // On phones the host moves under the table name.
+  const cols = "grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_120px_110px]";
   return (
     <Panel
       title="Open tables"
@@ -274,11 +279,11 @@ function TablesPanel({ game, lobbies, onJoin, onRefresh }) {
       }
     >
       <div
-        className="grid items-center px-4 shrink-0 font-pixel-display text-[10px] uppercase text-bone/70"
-        style={{ gridTemplateColumns: cols, height: 36, backgroundColor: INK }}
+        className={`grid ${cols} items-center gap-3 px-3 sm:px-4 shrink-0 font-pixel-display text-[10px] uppercase text-bone/70`}
+        style={{ height: 36, backgroundColor: INK }}
       >
         <div>Table</div>
-        <div>Host</div>
+        <div className="max-sm:hidden">Host</div>
         <div>Seats</div>
         <div />
       </div>
@@ -299,9 +304,8 @@ function TablesPanel({ game, lobbies, onJoin, onRefresh }) {
               <div
                 key={lobby.id}
                 data-table={lobby.id}
-                className="grid items-center px-4 gap-3"
+                className={`grid ${cols} items-center px-3 sm:px-4 gap-3`}
                 style={{
-                  gridTemplateColumns: cols,
                   minHeight: 60,
                   backgroundColor: i % 2 ? "#181432" : "transparent",
                   borderBottom: "2px solid #1f1a3d",
@@ -321,9 +325,12 @@ function TablesPanel({ game, lobbies, onJoin, onRefresh }) {
                       {lobby.inProgress ? "PLAYING" : "WAITING"}
                     </span>
                   </div>
-                  <div className="font-pixel-body text-[18px] text-bone/60 leading-none mt-1">{lobby.id}</div>
+                  <div className="font-pixel-body text-[18px] text-bone/60 leading-none mt-1 truncate">
+                    {lobby.id}
+                    <span className="sm:hidden"> · {lobby.host}</span>
+                  </div>
                 </div>
-                <div className="font-pixel-body text-[22px] text-bone truncate">{lobby.host}</div>
+                <div className="max-sm:hidden font-pixel-body text-[22px] text-bone truncate">{lobby.host}</div>
                 <SeatPips current={lobby.current} max={lobby.max} color={game.accent.main} />
                 <div className="flex justify-end">
                   <Btn
@@ -432,16 +439,16 @@ export default function GameLobby({ game }) {
       )}
 
       <main
-        className="flex-1 min-h-0 w-full grid grid-cols-1 lg:grid-cols-[clamp(380px,24vw,480px)_minmax(0,1fr)] overflow-y-auto lg:overflow-hidden"
+        className="flex-1 min-h-0 w-full flex flex-col lg:grid lg:grid-cols-[clamp(380px,24vw,480px)_minmax(0,1fr)] overflow-y-auto"
         style={{ padding: "var(--gap)", gap: "var(--gap)" }}
       >
-        <div className="grid min-h-0 lg:grid-rows-[auto_repeat(3,minmax(0,1fr))]" style={{ gap: "var(--gap)" }}>
+        <div className="grid shrink-0 lg:grid-rows-[auto_repeat(3,minmax(min-content,1fr))]" style={{ gap: "var(--gap)" }}>
           <AdventurerCard game={game} onSignIn={() => setShowLogin(true)} />
           <HostPanel game={game} onCreate={createTable} />
           <JoinPanel onJoin={joinTable} />
           <PracticePanel onStart={startPractice} />
         </div>
-        <div className="min-h-[420px] lg:min-h-0">
+        <div className="shrink-0 h-[420px] lg:h-auto lg:min-h-0">
           <TablesPanel
             game={game}
             lobbies={lobbies}

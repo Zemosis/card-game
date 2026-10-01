@@ -15,17 +15,23 @@ import PixelIcon from "../components/PixelIcon";
 const MAX_CUSTOM_COLORS = 8;
 const SIDE_LEFT = 320;
 const SIDE_RIGHT = 260;
+// A side column: fixed width beside the canvas, full width (capped) stacked.
+const STACKED_COL = "w-full max-w-[440px] shrink-0 lg:w-[var(--col-w)] lg:max-w-none";
+
+const STACK_W = 1024; // narrower than this, the columns stack (Tailwind's lg)
 
 /**
  * Canvas size that fills the space between the side columns: a whole number
  * of device pixels per cell, so the grid stays sharp at any display scaling.
- * Returns the backing size (device px) and the CSS size.
+ * Stacked (phones, split screens), it fills the width instead and the page
+ * scrolls. Returns the backing size (device px) and the CSS size.
  */
 function fitCanvas() {
   const dpr = window.devicePixelRatio || 1;
-  const byHeight = window.innerHeight - 64 - 32 - 60;
-  const byWidth = window.innerWidth - SIDE_LEFT - SIDE_RIGHT - 96;
-  const css = Math.max(320, Math.min(byHeight, byWidth, 768));
+  const stacked = window.innerWidth < STACK_W;
+  const byHeight = stacked ? Infinity : window.innerHeight - 64 - 32 - 60;
+  const byWidth = stacked ? window.innerWidth - 32 - 40 : window.innerWidth - SIDE_LEFT - SIDE_RIGHT - 96;
+  const css = Math.max(stacked ? 200 : 320, Math.min(byHeight, byWidth, stacked ? 560 : 768));
   const cell = Math.max(1, Math.floor((css * dpr) / GRID_SIZE));
   return { backing: cell * GRID_SIZE, css: (cell * GRID_SIZE) / dpr, cell };
 }
@@ -244,7 +250,7 @@ const AvatarPaint = () => {
     <div className="relative w-full h-screen starfield font-pixel-body text-parchment overflow-hidden flex flex-col">
       {/* TOP BAR */}
       <div
-        className="flex items-center justify-between px-6 py-3 border-b-4"
+        className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 border-b-4"
         style={{ borderColor: "#0a0712", background: "#14102a" }}
       >
         <div className="flex items-center gap-4">
@@ -252,12 +258,12 @@ const AvatarPaint = () => {
             <span className="flex items-center gap-2"><PixelIcon name="back" size={12} />BACK</span>
           </PixelButton>
           <div className="flex items-center gap-2 font-pixel-display text-[12px] tracking-wider">
-            <span className="text-bone/60">PROFILE /</span>
+            <span className="text-bone/60 max-sm:hidden">PROFILE /</span>
             <span className="text-glow-gold">AVATAR PAINT</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className="font-pixel-body text-[22px] text-bone">
+          <span className="font-pixel-body text-[22px] text-bone max-sm:hidden">
             {identity.name}{" "}
             <span className="text-bone/60">#{identity.tag}</span>
           </span>
@@ -265,9 +271,9 @@ const AvatarPaint = () => {
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 flex items-start justify-center gap-5 p-4 min-h-0 overflow-auto">
-        {/* LEFT — Colors & Tools */}
-        <div className="flex flex-col gap-4" style={{ width: SIDE_LEFT }}>
+      <div className="flex-1 flex flex-col items-center lg:flex-row lg:items-start lg:justify-center gap-5 p-4 min-h-0 overflow-auto">
+        {/* LEFT — Colors & Tools (under the canvas when stacked) */}
+        <div className={`flex flex-col gap-4 ${STACKED_COL}`} style={{ "--col-w": `${SIDE_LEFT}px` }}>
           {/* Basic Colors */}
           <PixelPanel accent="gold" title="BASIC COLORS">
             <div className="p-3">
@@ -349,8 +355,8 @@ const AvatarPaint = () => {
           </PixelPanel>
         </div>
 
-        {/* CENTER — Canvas */}
-        <div>
+        {/* CENTER — Canvas (first when stacked) */}
+        <div className="max-lg:order-first">
           <PixelPanel accent="gold" title="CANVAS">
             <div className="p-3">
               <canvas
@@ -374,7 +380,7 @@ const AvatarPaint = () => {
         </div>
 
         {/* RIGHT — Storage, Preview & Actions */}
-        <div className="flex flex-col gap-4" style={{ width: SIDE_RIGHT }}>
+        <div className={`flex flex-col gap-4 ${STACKED_COL}`} style={{ "--col-w": `${SIDE_RIGHT}px` }}>
           {/* Avatar Storage */}
           <PixelPanel accent="cyan" title="AVATAR STORAGE">
             <div className="p-3">

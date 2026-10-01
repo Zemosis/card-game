@@ -35,12 +35,14 @@ import { makeAIDecision } from "../../utils/aiPlayer";
 
 import { soundManager } from "../../utils/SoundManager";
 import PixelIcon from "../../components/PixelIcon";
-import { SignalBars } from "../../components/PixelUI";
+import { TableHeader, TableSidebar, ConnectionSignal } from "../../components/TableChrome";
+import { useUnread } from "../../hooks/useUnread";
 
 const AVATAR_COLOR = { 1: "#f4c430", 2: "#5fd4d6", 3: "#e85a7a", 4: "#9bd14f", 5: "#c5a8ff", custom: "#ead8b1" };
 
 // Side seat = tall name plate (124) + gap (12) + sideways card fan (88).
 const SIDE_SEAT_W = 224;
+const ROW_SEAT_W = 150; // slim seats on a short screen
 
 const GameThirteen = () => {
   const navigate = useNavigate();
@@ -89,7 +91,10 @@ const GameThirteen = () => {
 
   const [volumes, setVolumes] = useState({ master: 50, sfx: 50 });
 
-  const { handW, deckW } = useTableMetrics();
+  const { handW, deckW, compact, narrow, seats } = useTableMetrics();
+  const [panelOpen, setPanelOpen] = useState(false);
+  const closePanel = useCallback(() => setPanelOpen(false), []);
+  const unread = useUnread(messages, panelOpen);
   const tableCenterRef = useRef(null);
   const lastHistoryLengthRef = useRef(0);
   const gameStateRef = useRef(gameState);
@@ -644,6 +649,43 @@ const GameThirteen = () => {
       ? playersList[gameState.lastPlayedBy].name
       : null;
 
+  const opponent = (player, position) => (
+    <OpponentSection
+      player={player}
+      isActive={!isDealing && gameState.currentPlayerIndex === player.id}
+      hasPassed={player.hasPassed}
+      position={position}
+      face={faceFor(player.id)}
+      layout={seats}
+    />
+  );
+
+  // The felt: the round's plays, and the deck while dealing.
+  const felt = (className) => (
+    <div ref={tableCenterRef} className={`${className} min-w-0 flex items-center justify-center relative`}>
+      <PlayArea
+        pile={pile}
+        trickOpen={!isDealing && gameState.currentPlay != null}
+        leaderName={playersList[gameState.currentPlayerIndex]?.name.split(" #")[0]}
+        lastPlayerName={isDealing ? null : currentPlayerName?.split(" #")[0]}
+        roundNumber={gameState.roundNumber}
+        isDealing={isDealing}
+        cardWidth={deckW}
+        showRound={!compact}
+      />
+      {isDealing && gameState && (
+        <DealAnimation
+          dealerIndex={gameState.dealerIndex}
+          viewIndex={viewIndex}
+          deckWidth={deckW}
+          seatsIn={playersList.map((p) => !p.isEliminated)}
+          onDealProgress={handleDealProgress}
+          onComplete={handleDealComplete}
+        />
+      )}
+    </div>
+  );
+
   return (
     <div
       className="relative w-full h-full font-pixel-body text-parchment overflow-hidden flex flex-col"
@@ -659,116 +701,25 @@ const GameThirteen = () => {
       />
       <div className="absolute inset-0 dither-shadow opacity-40 pointer-events-none" />
 
-      {/* HEADER BAR */}
-      <div
-        className="relative flex items-center justify-between px-5 py-3 z-10"
-        style={{
-          backgroundColor: "rgba(10,7,18,0.85)",
-          borderBottom: "4px solid #0a0712",
-          backdropFilter: "blur(2px)",
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleExit}
-            className="pixel-btn font-pixel-display text-[10px] px-3 py-2"
-            style={{
-              backgroundColor: "#7a1530",
-              borderColor: "#3a0a18",
-              color: "#ead8b1",
-            }}
-          >
-            <span className="flex items-center gap-2"><PixelIcon name="back" size={12} />EXIT</span>
-          </button>
-          <div className="font-pixel-display text-[10px] text-bone/60 ml-2">
+      <TableHeader
+        compact={compact}
+        narrow={narrow}
+        onExit={handleExit}
+        badge={
+          <div className="font-pixel-display text-[10px] text-bone/60">
             LOBBY <span className="text-glow-cyan">#{lobbyId}</span>
           </div>
-        </div>
-
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-6">
-          <div
-            className="flex flex-col items-center px-3 py-1"
-            style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}
-          >
-            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">
-              MATCH
-            </div>
-            <div className="font-pixel-display text-sm text-glow-gold">
-              {gameState.matchNumber || 1}
-            </div>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">
-              NOW PLAYING
-            </div>
-            <div className="font-pixel-display text-base text-glow-gold">
-              THIRTEEN
-            </div>
-          </div>
-          <div
-            className="flex flex-col items-center px-3 py-1"
-            style={{ backgroundColor: "#0a0712", border: "3px solid #1f1a3d" }}
-          >
-            <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">
-              ROUND
-            </div>
-            <div className="font-pixel-display text-sm text-glow-gold">
-              {gameState.roundNumber}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 font-pixel-body text-sm">
-            {isSoloGame ? (
-              <>
-                <SignalBars level={3} color="#9bd14f" />
-                <span className="text-bone/70">LOCAL</span>
-              </>
-            ) : !connected ? (
-              <>
-                <SignalBars level={1} color="#e85a7a" />
-                <span style={{ color: "#e85a7a" }}>OFFLINE</span>
-              </>
-            ) : (
-              <>
-                <SignalBars
-                  level={ping == null || ping < 80 ? 3 : ping < 160 ? 2 : 1}
-                  color={ping == null || ping < 80 ? "#9bd14f" : ping < 160 ? "#f4c430" : "#e85a7a"}
-                />
-                <span className="text-bone/70">
-                  {ping != null ? `${ping}ms` : "..."}
-                </span>
-              </>
-            )}
-          </div>
-          <button
-            onClick={() => setShowRules(true)}
-            className="pixel-btn font-pixel-display text-[10px] px-3 flex items-center gap-2"
-            style={{ backgroundColor: "#f4c430", borderColor: "#c89820", color: "#1a1024", height: 36 }}
-            title="How to play"
-          >
-            <PixelIcon name="book" size={14} />
-            RULES
-          </button>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="pixel-btn font-pixel-display"
-            style={{
-              backgroundColor: "#463a78",
-              borderColor: "#2a234d",
-              color: "#ead8b1",
-              width: 36,
-              height: 36,
-              padding: 0,
-              fontSize: 12,
-            }}
-            title="Settings"
-          >
-            <PixelIcon name="gear" size={16} className="mx-auto" />
-          </button>
-        </div>
-      </div>
+        }
+        title="THIRTEEN"
+        match={gameState.matchNumber || 1}
+        round={gameState.roundNumber}
+        signal={<ConnectionSignal local={isSoloGame} connected={connected} ping={ping} />}
+        rulesTone={{ bg: "#f4c430", deep: "#c89820", ink: "#1a1024" }}
+        onRules={() => setShowRules(true)}
+        onSettings={() => setShowSettings(!showSettings)}
+        onPanel={() => setPanelOpen(true)}
+        unread={unread}
+      />
 
       {showRules && <RulesModal onClose={closeRules} />}
 
@@ -838,64 +789,52 @@ const GameThirteen = () => {
       {/* GAME REGION */}
       <div
         className="relative flex-1 grid min-h-0"
-        style={{ gridTemplateColumns: "minmax(0, 1fr) 300px" }}
+        style={{ gridTemplateColumns: compact ? "minmax(0, 1fr)" : "minmax(0, 1fr) 300px" }}
       >
         {/* TABLE */}
-        <div className="relative flex flex-col min-h-0 px-4 py-2">
-          {/* Top opponent */}
-          <div className="flex justify-center relative z-10">
-            <OpponentSection
-              player={topPlayer}
-              isActive={!isDealing && gameState.currentPlayerIndex === topPlayer.id}
-              hasPassed={topPlayer.hasPassed}
-              position="top"
-              face={faceFor(topPlayer.id)}
-            />
-          </div>
-
-          {/* Middle row: left seat + felt + right seat. Equal side columns
-              keep the felt centered under the top seat; the row is capped so
-              seats stay close to the felt on wide screens. */}
-          <div
-            className="flex-1 grid items-center gap-4 my-2 min-h-0 w-full mx-auto"
-            style={{ gridTemplateColumns: `${SIDE_SEAT_W}px minmax(0,1fr) ${SIDE_SEAT_W}px`, maxWidth: SIDE_SEAT_W * 2 + 820 + 32 }}
-          >
-            <OpponentSection
-              player={leftPlayer}
-              isActive={!isDealing && gameState.currentPlayerIndex === leftPlayer.id}
-              hasPassed={leftPlayer.hasPassed}
-              position="left"
-              face={faceFor(leftPlayer.id)}
-            />
-            <div ref={tableCenterRef} className="h-full min-w-0 flex items-center justify-center relative">
-              <PlayArea
-                pile={pile}
-                trickOpen={!isDealing && gameState.currentPlay != null}
-                leaderName={playersList[gameState.currentPlayerIndex]?.name.split(" #")[0]}
-                lastPlayerName={isDealing ? null : currentPlayerName?.split(" #")[0]}
-                roundNumber={gameState.roundNumber}
-                isDealing={isDealing}
-                cardWidth={deckW}
-              />
-              {isDealing && gameState && (
-                <DealAnimation
-                  dealerIndex={gameState.dealerIndex}
-                  viewIndex={viewIndex}
-                  deckWidth={deckW}
-                  seatsIn={playersList.map((p) => !p.isEliminated)}
-                  onDealProgress={handleDealProgress}
-                  onComplete={handleDealComplete}
-                />
-              )}
+        <div className={`relative flex flex-col min-h-0 ${narrow ? "px-2 pt-4 pb-2" : seats === "row" ? "px-3 py-1" : "px-4 py-2"}`}>
+          {seats === "row" ? (
+            // Short screen: slim plates beside the felt. The top seat sits
+            // above the left one, so the table still reads clockwise.
+            <div className="flex-1 min-h-0 flex items-center gap-3 my-1">
+              <div className="flex flex-col justify-center gap-3 shrink-0" style={{ width: ROW_SEAT_W }}>
+                {opponent(topPlayer, "top")}
+                {opponent(leftPlayer, "left")}
+              </div>
+              {felt("self-stretch flex-1")}
+              <div className="flex flex-col justify-center shrink-0" style={{ width: ROW_SEAT_W }}>
+                {opponent(rightPlayer, "right")}
+              </div>
             </div>
-            <OpponentSection
-              player={rightPlayer}
-              isActive={!isDealing && gameState.currentPlayerIndex === rightPlayer.id}
-              hasPassed={rightPlayer.hasPassed}
-              position="right"
-              face={faceFor(rightPlayer.id)}
-            />
-          </div>
+          ) : seats === "strip" ? (
+            <>
+              {/* Phone: the three opponents share a strip above the felt,
+                  clockwise from your left. */}
+              <div className="flex justify-center gap-2 relative z-10">
+                {opponent(leftPlayer, "left")}
+                {opponent(topPlayer, "top")}
+                {opponent(rightPlayer, "right")}
+              </div>
+              {felt("flex-1 min-h-0 mt-4 mb-1")}
+            </>
+          ) : (
+            <>
+              {/* Top opponent */}
+              <div className="flex justify-center relative z-10">{opponent(topPlayer, "top")}</div>
+
+              {/* Middle row: left seat + felt + right seat. Equal side columns
+                  keep the felt centered under the top seat; the row is capped so
+                  seats stay close to the felt on wide screens. */}
+              <div
+                className="flex-1 grid items-center gap-4 my-2 min-h-0 w-full mx-auto"
+                style={{ gridTemplateColumns: `${SIDE_SEAT_W}px minmax(0,1fr) ${SIDE_SEAT_W}px`, maxWidth: SIDE_SEAT_W * 2 + 820 + 32 }}
+              >
+                {opponent(leftPlayer, "left")}
+                {felt("h-full")}
+                {opponent(rightPlayer, "right")}
+              </div>
+            </>
+          )}
 
           {/* My hand area */}
           <PlayerHand
@@ -934,14 +873,12 @@ const GameThirteen = () => {
             onSelectAll={() => setSelectedCards([...bottomPlayer.hand])}
             sortMode={sortMode}
             onSortModeChange={changeSortMode}
+            dense={seats === "row"}
           />
         </div>
 
         {/* SIDEBAR */}
-        <div
-          className="flex flex-col min-h-0 border-l-4"
-          style={{ borderColor: "#0a0712", background: "#0e0a1f" }}
-        >
+        <TableSidebar compact={compact} open={panelOpen} onClose={closePanel}>
           <ScoreBoard
             players={gameState.players}
             currentPlayerIndex={isDealing ? -1 : gameState.currentPlayerIndex}
@@ -956,25 +893,25 @@ const GameThirteen = () => {
             avatarFor={avatarFor}
             colorFor={colorFor}
           />
-        </div>
+        </TableSidebar>
       </div>
 
       {/* ROUND END / GAME OVER OVERLAY */}
       {showRoundEnd && roundEndData && (
         <div
-          className="absolute inset-0 z-50 flex items-center justify-center"
+          className="absolute inset-0 z-50 flex items-center justify-center p-4"
           style={{
             backgroundColor: "rgba(10, 7, 18, 0.85)",
             backdropFilter: "blur(4px)",
           }}
         >
           <div
-            className="flex flex-col items-center gap-4 p-8"
+            className="flex flex-col items-center gap-4 p-5 sm:p-8 max-h-full overflow-y-auto"
             style={{
               backgroundColor: "#1f1a3d",
               border: "4px solid #0a0712",
               boxShadow: "0 0 0 4px #463a78, 8px 8px 0 #0a0712",
-              minWidth: 400,
+              width: "min(400px, 100%)",
             }}
           >
             {roundEndData.isGameOver ? (
@@ -1020,9 +957,9 @@ const GameThirteen = () => {
                       border: "2px solid #1f1a3d",
                     }}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span
-                        className="font-pixel-display text-[10px]"
+                        className="font-pixel-display text-[10px] shrink-0"
                         style={{
                           color: i === 0 ? "#f4c430" : "#ead8b1",
                           width: 20,
@@ -1030,7 +967,7 @@ const GameThirteen = () => {
                       >
                         #{i + 1}
                       </span>
-                      <span className="font-pixel-display text-[9px] text-parchment">
+                      <span className="font-pixel-display text-[9px] text-parchment truncate">
                         {p.name}
                       </span>
                       {p.isEliminated && (
@@ -1045,8 +982,8 @@ const GameThirteen = () => {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span className="font-pixel-display text-[10px] text-glow-gold">
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="font-pixel-display text-[10px] text-glow-gold whitespace-nowrap">
                         {p.score} pts
                       </span>
                       {p.matchWins > 0 && (

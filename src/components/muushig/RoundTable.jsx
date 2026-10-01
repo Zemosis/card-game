@@ -12,7 +12,10 @@
 // The draw and dead piles sit beside your hand (see SidePiles).
 //
 // The felt is sized from the space it gets, so the same layout works on a
-// laptop and on a big screen.
+// laptop and on a big screen. `layout` follows the opponents' seats (see
+// OpponentSection): "full" seats in columns either side; "row" slim plates in
+// narrower columns (short screens); "strip" all four in a row above the felt,
+// clockwise from your left (phones held upright).
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
@@ -22,9 +25,11 @@ import { SUIT_NAME, suitColor } from "./suits";
 
 const SEAT_W = 224; // side seat: plate + gap + sideways fan, as in Thirteen
 const SEAT_H = 168; // tallest side seat (fan box)
+const ROW_SEAT_W = 150; // slim plate on a short screen
 const GAP = 20;
 const RIM = 18; // wood rim + outline drawn outside the felt
 const MAX_D = 560;
+const MIN_D = 150;
 
 // Where a played card flies in from, as a fraction of the table diameter.
 const ENTRY = {
@@ -276,6 +281,7 @@ function Felt({ D, stack, trump, trumpTakenBy, trickNumber, tricksPerRound, phas
 
 /**
  * seats: { topLeft, topRight, bottomLeft, bottomRight } — rendered seat nodes.
+ * layout: "full" | "row" | "strip" — where the seats go (see above).
  * stack: the trick in stack order, bottom first: { key, card, seat, name }.
  * trumpTakenBy: the dealer's name once they've taken the trump card.
  * phaseLabel: shown instead of the trick counter before tricks start;
@@ -287,31 +293,52 @@ function Felt({ D, stack, trump, trumpTakenBy, trickNumber, tricksPerRound, phas
  * dealerSeat: seat name (bottom, bottomLeft, …) the DEALER marker faces.
  * trumpRef: ref to the face-up trump card while it lies on the felt.
  */
-const RoundTable = ({ seats, maxCardWidth = 100, ...felt }) => {
+const RoundTable = ({ seats, layout = "full", maxCardWidth = 100, ...felt }) => {
   const boxRef = useRef(null);
   const [box, setBox] = useState(null);
 
+  // Re-attached when the layout swaps the measured box.
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => setBox({ w: entry.contentRect.width, h: entry.contentRect.height }));
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [layout]);
 
-  const D = box ? Math.max(240, Math.min(MAX_D, box.h - RIM * 2, box.w - 2 * (SEAT_W + GAP) - RIM * 2)) : 0;
-  const colH = Math.max(D, SEAT_H * 2 + 8);
+  if (layout === "strip") {
+    const D = box ? Math.max(MIN_D, Math.min(MAX_D, box.h - RIM * 2, box.w - RIM * 2)) : 0;
+    return (
+      <div className="flex-1 min-h-0 w-full flex flex-col">
+        <div className="flex justify-center gap-1.5 relative z-10">
+          {seats.bottomLeft}
+          {seats.topLeft}
+          {seats.topRight}
+          {seats.bottomRight}
+        </div>
+        {/* The seats' DEAL tag marks the dealer; on a felt this small the
+            marker would sit on the trump. */}
+        <div ref={boxRef} className="flex-1 min-h-0 flex items-center justify-center mt-3">
+          {box && <Felt D={D} maxCardWidth={maxCardWidth} {...felt} dealerSeat={null} />}
+        </div>
+      </div>
+    );
+  }
+
+  const seatW = layout === "row" ? ROW_SEAT_W : SEAT_W;
+  const D = box ? Math.max(MIN_D, Math.min(MAX_D, box.h - RIM * 2, box.w - 2 * (seatW + GAP) - RIM * 2)) : 0;
+  const colH = layout === "row" ? D : Math.max(D, SEAT_H * 2 + 8);
 
   return (
     <div ref={boxRef} className="flex-1 min-h-0 w-full flex items-center justify-center" style={{ gap: GAP + RIM }}>
       {box && (
         <>
-          <div className="flex flex-col justify-around items-end shrink-0" style={{ width: SEAT_W, height: colH }}>
+          <div className="flex flex-col justify-around items-end shrink-0" style={{ width: seatW, height: colH }}>
             {seats.topLeft}
             {seats.bottomLeft}
           </div>
           <Felt D={D} maxCardWidth={maxCardWidth} {...felt} />
-          <div className="flex flex-col justify-around items-start shrink-0" style={{ width: SEAT_W, height: colH }}>
+          <div className="flex flex-col justify-around items-start shrink-0" style={{ width: seatW, height: colH }}>
             {seats.topRight}
             {seats.bottomRight}
           </div>

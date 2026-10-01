@@ -190,6 +190,32 @@ Defined in `index.css` via `@theme`:
   `--gap`, `--hdr` and `--pad` variables in `index.css`, which scale with
   viewport height. Check any change at 1366×657 (a laptop at 100% zoom) and
   1920×969: no page scroll, no clipped panels.
+- **Game tables:** `components/TableChrome.jsx` holds the header and the
+  scoreboard/chat sidebar every table shares (`TableHeader`, `TableSidebar`).
+  Don't build a table header by hand.
+
+## Small screens
+
+Every screen works on a phone held either way and in a split-screen window.
+Check changes at 375×667, 844×390 and 942×909 as well as the laptop sizes.
+
+- **Menu-style screens** (main menu, lobby, profile, avatar painter): below
+  Tailwind's `lg` the panels stack at their natural height and the page
+  scrolls. Never let a fixed-height grid squeeze panels: give rows
+  `minmax(min-content, 1fr)` or let them flow.
+- **Game tables** switch layout in JS (`useTableMetrics`), not CSS, because
+  card sizes and seat positions are computed:
+  - `compact` (under 1200px wide): the sidebar slides out from a header
+    button that counts unread chat, and the header keeps to one row.
+  - `seats` (opponent plates, see `OpponentSection`): `strip` on phones held
+    upright (under 640px wide), a row of small plates above the felt;
+    `row` on short screens (under 560px tall), slim plates beside the felt;
+    `full` otherwise.
+  - Controls wrap into rows on phones (status line, then buttons at full
+    width) and stay on one row from `sm` up; `dense` trims them on short
+    screens.
+- **Icon-only buttons** keep their name for screen readers (`aria-label`,
+  or the label in `max-sm:sr-only`).
 
 ## Spacing & Layout Conventions
 

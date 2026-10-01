@@ -95,8 +95,10 @@ the free plan — see §9.
 ```
 src/
   pages/          MainMenu, AvatarPaint, thirteen/, muushig/
-  components/     PixelCard (design primitives), auth/, thirteen/, muushig/
-  hooks/          useAuth (session + profile), useServerStats
+  components/     PixelCard (design primitives), TableChrome (every table's
+                  header and sidebar), auth/, thirteen/, muushig/
+  hooks/          useAuth (session + profile), useServerStats,
+                  useTableMetrics (card sizes and small-screen layouts)
   lib/            api (HTTP client + session token), guestIdentity,
                   games (each game's table route)
   utils/          socket, SoundManager, avatarConstants,

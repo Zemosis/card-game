@@ -65,6 +65,7 @@ const PlayArea = ({
   roundNumber = 1,
   isDealing = false,
   cardWidth = 80,
+  showRound = true, // the compact header shows the round instead
 }) => {
   const topRef = useRef(null);
   const prevTopKeyRef = useRef(null);
@@ -99,18 +100,20 @@ const PlayArea = ({
               "0 0 0 4px #0a0712, inset 0 0 0 2px #7a1530, inset 0 0 60px rgba(0,0,0,0.5), 0 0 32px rgba(232,90,122,0.15)",
           }}
         >
-          <div
-            className="absolute -top-3 -left-3 font-pixel-display text-[10px] px-3 py-1.5"
-            style={{
-              backgroundColor: "#f4c430",
-              color: "#1a1024",
-              border: "3px solid #0a0712",
-              boxShadow: "2px 2px 0 #0a0712",
-              zIndex: 20,
-            }}
-          >
-            ROUND {roundNumber}
-          </div>
+          {showRound && (
+            <div
+              className="absolute -top-3 -left-3 font-pixel-display text-[10px] px-3 py-1.5"
+              style={{
+                backgroundColor: "#f4c430",
+                color: "#1a1024",
+                border: "3px solid #0a0712",
+                boxShadow: "2px 2px 0 #0a0712",
+                zIndex: 20,
+              }}
+            >
+              ROUND {roundNumber}
+            </div>
+          )}
 
           {!top && !isDealing && (
             <div className="absolute inset-0 flex items-center justify-center font-pixel-display text-[10px] text-bone/50 tracking-wider">

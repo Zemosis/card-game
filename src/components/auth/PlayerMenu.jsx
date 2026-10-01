@@ -74,6 +74,8 @@ export default function PlayerMenu({ identity, isGuest, onSelectAvatar, onPaint,
           className="absolute right-0 flex flex-col gap-2"
           style={{
             top: "calc(100% + 8px)",
+            width: "max-content",
+            maxWidth: "calc(100vw - 32px)",
             zIndex: 100,
             backgroundColor: "#14102a",
             border: "3px solid #c89820",
