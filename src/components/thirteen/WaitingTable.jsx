@@ -22,6 +22,11 @@ const SIDE_SEAT_W = 224;
 
 const shortName = (name = "") => name.split(" #")[0];
 
+/** The avatar a seat shows: a CPU's by seat number, a player's own. */
+function seatFace(seat, index) {
+  return seat.kind === "cpu" ? { variant: (index % 5) + 1, customAvatarData: null } : seatAvatar(seat, index);
+}
+
 function SeatSlot({ seat, index, isHost, onAddCpu, onRemoveCpu, face, small = false }) {
   const base = `relative flex flex-col items-center justify-center gap-2 py-3 text-center ${small ? "flex-1 min-w-0 px-1.5" : "px-3"}`;
   const size = small ? { maxWidth: 132, minHeight: 112 } : { width: 184, minHeight: 124 };
@@ -49,7 +54,7 @@ function SeatSlot({ seat, index, isHost, onAddCpu, onRemoveCpu, face, small = fa
   }
 
   const isCpu = seat.kind === "cpu";
-  const avatar = face || (isCpu ? { variant: (index % 5) + 1, customAvatarData: null } : seatAvatar(seat, index));
+  const avatar = face || seatFace(seat, index);
   return (
     <div
       className={base}
@@ -206,6 +211,13 @@ export default function WaitingTable({
     />
   );
   const seatedCount = table.seats.filter(Boolean).length;
+  // Chat shows each sender with their seat's avatar; yours is your own.
+  const avatarFor = (msg) => {
+    if (msg.isMe) return myFace;
+    const index = table.seats.findIndex((s) => s && shortName(s.name) === shortName(msg.sender));
+    if (index < 0) return undefined;
+    return index === table.mySeat ? myFace : seatFace(table.seats[index], index);
+  };
   const hostName = shortName(table.seats.find((s) => s?.isHost)?.name || "the host");
   const invite = (
     <div className="flex flex-col items-center gap-3">
@@ -274,7 +286,7 @@ export default function WaitingTable({
         )}
 
         <TableSidebar compact={compact} open={panelOpen} onClose={closePanel}>
-          <GameChat messages={messages} onSendMessage={onSendMessage} />
+          <GameChat messages={messages} onSendMessage={onSendMessage} avatarFor={avatarFor} />
         </TableSidebar>
       </div>
     </div>
