@@ -35,3 +35,4 @@ CLAUDE.md
 # Agent skills (installed via `npx skills add`)
 .agents/
 coverage
+server/.env.supabase
