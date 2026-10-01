@@ -38,7 +38,9 @@ function Row({ place, r, player, face }) {
 
 const RoundResults = ({ round, results, players, faceFor, matchWinner = null, onNext, onRematch, onExit }) => {
   const over = matchWinner !== null;
-  const ranked = [...results].sort((a, b) => a.score - b.score || a.seat - b.seat);
+  // The match's own order (engine endRound): lowest score, then more piles
+  // eaten this round, then seat, so a tie at match end puts the winner first.
+  const ranked = [...results].sort((a, b) => a.score - b.score || b.eaten - a.eaten || a.seat - b.seat);
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(10,7,18,0.8)", backdropFilter: "blur(3px)" }}>
       <div

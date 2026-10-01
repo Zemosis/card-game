@@ -29,7 +29,8 @@ const roundDelta = (p) => (p.folded ? 0 : p.eaten > 0 ? -p.eaten : 5);
 const MuushigScoreBoard = ({ players = [], currentPlayerIndex = -1, dealerIndex = -1, startScore = 15, myIndex = -1, faceFor }) => {
   const ranked = players
     .map((p, i) => ({ ...p, originalIndex: i }))
-    .sort((a, b) => a.score - b.score || a.originalIndex - b.originalIndex);
+    // Same order as the match result: lowest score, then more piles eaten this round.
+    .sort((a, b) => a.score - b.score || (b.eaten || 0) - (a.eaten || 0) || a.originalIndex - b.originalIndex);
 
   return (
     <section className="flex flex-col" style={{ borderBottom: "4px solid #0a0712" }} aria-label="Scoreboard">
