@@ -36,7 +36,7 @@ const MuushigScoreBoard = ({ players = [], currentPlayerIndex = -1, dealerIndex 
     <section className="flex flex-col" style={{ borderBottom: "4px solid #0a0712" }} aria-label="Scoreboard">
       <div
         className="px-3 flex items-center justify-between font-pixel-display text-[12px] tracking-wider"
-        style={{ height: 40, backgroundColor: "#1a1024", color: "#9bd14f" }}
+        style={{ height: 40, backgroundColor: "#1a1024", color: "#e85a7a" }}
       >
         <span>SCOREBOARD</span>
         <span className="text-[10px] text-bone/70">FIRST TO 0</span>

@@ -10,7 +10,7 @@ const MUUSHIG = {
   title: "Muushig",
   route: "/game-muushig",
   defaultTableName: "Ger of the Steppe",
-  accent: { main: "#9bd14f", deep: "#6a9a30" },
+  accent: { main: "#e85a7a", deep: "#a83a5a" },
   events: {
     list: "get_public_lobbies_muushig",
     listUpdate: "public_lobbies_muushig_update",

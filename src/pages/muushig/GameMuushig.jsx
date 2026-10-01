@@ -688,7 +688,7 @@ const GameMuushig = () => {
           </div>
           <div className="flex flex-col items-center">
             <div className="font-pixel-display text-[8px] text-bone/60 tracking-wider">NOW PLAYING</div>
-            <div className="font-pixel-display text-base" style={{ color: "#9bd14f", textShadow: "2px 2px 0 #000, 0 0 8px rgba(155,209,79,0.4)" }}>
+            <div className="font-pixel-display text-base text-glow-rose" style={{ color: "#e85a7a" }}>
               MUUSHIG
             </div>
           </div>
@@ -706,7 +706,7 @@ const GameMuushig = () => {
           <button
             onClick={() => setShowRules(true)}
             className="pixel-btn font-pixel-display text-[10px] px-3 flex items-center gap-2"
-            style={{ backgroundColor: "#9bd14f", borderColor: "#6a9a30", color: "#1a3a0e", height: 36 }}
+            style={{ backgroundColor: "#e85a7a", borderColor: "#a83a5a", color: "#3a0e1a", height: 36 }}
             title="How to play"
           >
             <PixelIcon name="book" size={14} />
