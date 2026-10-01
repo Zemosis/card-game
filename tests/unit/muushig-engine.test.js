@@ -494,3 +494,92 @@ describe("a whole match", () => {
     expect(s.players[s.matchWinner].score).toBeLessThanOrEqual(0);
   });
 });
+
+describe("rulebook edge cases", () => {
+  // §9: the lowest score wins; a tie goes to whoever ate more piles that round.
+  it("a tie on the lowest score goes to whoever ate more piles in the last round", () => {
+    // Seat 1 eats the last pile: seat 0 ends on 0 with 2 piles, seat 1 on 0 with 3.
+    let s = playState({ hands: ["7♣", "A♦", null, null, null], turn: 0, trickNumber: 5, eaten: [2, 2, 0, 0, 0], scores: [2, 3, 9, 9, 9] });
+    s = collectTrick(playCard(playCard(s, 0, "7♣"), 1, "A♦"));
+    expect(s.players[0].score).toBe(0);
+    expect(s.players[1].score).toBe(0);
+    expect(s.phase).toBe(PHASES.MATCH_OVER);
+    expect(s.matchWinner).toBe(1);
+  });
+
+  it("past 0, the lowest score wins even with fewer piles", () => {
+    // Seat 0: 1 − 2 piles = −1. Seat 1: 3 − 3 piles = 0.
+    let s = playState({ hands: ["A♦", "7♣", null, null, null], turn: 0, trickNumber: 5, eaten: [1, 3, 0, 0, 0], scores: [1, 3, 9, 9, 9] });
+    s = collectTrick(playCard(playCard(s, 0, "A♦"), 1, "7♣"));
+    expect(s.players.slice(0, 2).map((p) => p.score)).toEqual([-1, 0]);
+    expect(s.matchWinner).toBe(0);
+  });
+
+  it("nobody at 0 or less: the match goes on", () => {
+    let s = playState({ hands: ["A♦", "7♣", null, null, null], turn: 0, trickNumber: 5, eaten: [0, 0, 0, 0, 0], scores: [2, 9, 9, 9, 9] });
+    s = collectTrick(playCard(playCard(s, 0, "A♦"), 1, "7♣"));
+    expect(s.players[0].score).toBe(1);
+    expect(s.phase).toBe(PHASES.ROUND_END);
+    expect(s.matchWinner).toBeNull();
+  });
+
+  // §5 and §6: with the seat left of the dealer folded, the next player in starts.
+  it("swapping and the first trick start with the first player in, left of the dealer", () => {
+    let s = newMatch(5);
+    const [, left, second, third, fourth] = around(s.dealer);
+    expect(s.turn).toBe(left);
+    s = decide(s, left, false); // the seat left of the dealer folds
+    s = decide(s, second, true);
+    s = decide(s, third, false);
+    s = decide(s, fourth, true);
+    s = decide(s, s.dealer, false);
+    expect(s.phase).toBe(PHASES.SWAP);
+    expect(s.turn).toBe(second);
+    s = swap(s, second, []);
+    expect(s.turn).toBe(fourth); // the folded seat in between is skipped
+    s = swap(s, fourth, []);
+    // The dealer folded: no trump option, play starts with the first player in.
+    expect(s.phase).toBe(PHASES.PLAY);
+    expect(s.turn).toBe(second);
+    s = playCard(s, second, allowedPlays(s, second)[0].id);
+    expect(s.turn).toBe(fourth);
+    s = playCard(s, fourth, allowedPlays(s, fourth)[0].id);
+    expect(s.phase).toBe(PHASES.TRICK_END); // only the two players in play the trick
+  });
+
+  // §5: the dealer's trump option doesn't depend on the draw pile.
+  it("the dealer may still take the trump once the draw pile is empty", () => {
+    let s = newMatch(7);
+    for (let i = 0; i < 5; i++) s = decide(s, s.turn, true);
+    const [, left, second] = around(s.dealer);
+    s = swap(s, left, idsOf(s.players[left].hand)); // 5 of the 6 cards
+    s = swap(s, second, [s.players[second].hand[0].id]); // the last one
+    expect(s.drawPile).toHaveLength(0);
+    // Everyone after that is skipped, and the dealer gets the trump option.
+    expect(s.phase).toBe(PHASES.TRUMP);
+    expect(s.turn).toBe(s.dealer);
+    const give = s.players[s.dealer].hand[0];
+    const trump = s.trumpCard;
+    s = takeTrump(s, s.dealer, give.id);
+    expect(idsOf(s.players[s.dealer].hand)).toContain(trump.id);
+    expect(idsOf(s.deadPile)).toContain(give.id);
+    expect(s.phase).toBe(PHASES.PLAY);
+  });
+
+  // §7: a debuff earned on trick 4 is paid on trick 5 and never reaches the next round.
+  it("a debuffed card is forced on the last trick and doesn't carry into the next round", () => {
+    let s = playState({ hands: ["8♦ 9♠", "J♦ 7♣", null, null, null], turn: 0, trickNumber: 4 });
+    s = playCard(s, 0, "8♦"); // trump led
+    s = playCard(s, 1, "7♣"); // holds the higher J♦ back: it's debuffed
+    expect(s.players[1].hand.find((x) => x.id === "J♦").debuffed).toBe(true);
+    s = collectTrick(s);
+    s = playCard(s, 0, "9♠");
+    expect(idsOf(allowedPlays(s, 1))).toEqual(["J♦"]);
+    s = playCard(s, 1, "J♦");
+    expect(s.trickWinner).toBe(0); // a debuffed card never eats, even a trump
+    s = collectTrick(s);
+    expect(s.phase).toBe(PHASES.ROUND_END);
+    const next = startNextRound(s, seededRandom(9));
+    expect(next.players.every((p) => p.hand.every((x) => !x.debuffed))).toBe(true);
+  });
+});
