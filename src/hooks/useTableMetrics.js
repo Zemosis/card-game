@@ -10,10 +10,6 @@ export const CARD_RATIO = 1.4375; // height / width of every card
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-export function prefersReducedMotion() {
-  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-}
-
 // Below COMPACT_W the table's sidebar (scoreboard, chat) becomes a slide-out
 // panel: a table needs ~900px beside the 300px sidebar, so tablets and small
 // laptops get the whole width. Below NARROW_W (phones held upright; Tailwind's

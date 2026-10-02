@@ -5,7 +5,7 @@
 
 import React, { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
-import { prefersReducedMotion } from "../hooks/useTableMetrics";
+import { reducedMotion } from "../utils/motion";
 
 const CALLOUT_HOLD = 0.45; // seconds the callout rests before it shrinks away
 
@@ -16,7 +16,7 @@ function Callout({ label, bg, fg = "#1a1024", targetRef, onDone }) {
   useLayoutEffect(() => {
     const el = bubbleRef.current;
     if (!el) return;
-    if (prefersReducedMotion()) {
+    if (reducedMotion()) {
       const timer = setTimeout(onDone, 900);
       return () => clearTimeout(timer);
     }

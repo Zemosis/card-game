@@ -5,7 +5,7 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 import { PixelAvatar, PixelCard } from "../PixelCard";
-import { prefersReducedMotion } from "../../hooks/useTableMetrics";
+import { reducedMotion } from "../../utils/motion";
 
 const SHOW_MS = 1700;
 
@@ -13,13 +13,13 @@ const DealerIntro = ({ round, dealerName, face, isMe = false, drawnCard = null, 
   const boxRef = useRef(null);
 
   useLayoutEffect(() => {
-    if (!boxRef.current || prefersReducedMotion()) return;
+    if (!boxRef.current || reducedMotion()) return;
     gsap.fromTo(boxRef.current, { scale: 0.6, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.3, ease: "back.out(1.8)" });
   }, []);
 
   // onDone only changes with the round, and the banner remounts each round.
   useEffect(() => {
-    const timer = setTimeout(() => onDone?.(), prefersReducedMotion() ? 900 : SHOW_MS);
+    const timer = setTimeout(() => onDone?.(), reducedMotion() ? 900 : SHOW_MS);
     return () => clearTimeout(timer);
   }, [onDone]);
 

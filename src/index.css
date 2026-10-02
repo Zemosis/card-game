@@ -175,12 +175,13 @@ html, body, #root { height: 100%; }
   outline-offset: 2px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .pixel-btn, .pixel-hbtn, .pixel-pick { transition: none; }
+/* REDUCED animations in Settings (see utils/motion.js) */
+[data-motion="reduced"] :is(.pixel-btn, .pixel-hbtn, .pixel-pick) { transition: none; }
+[data-motion="reduced"] :is(
   .pixel-btn:hover:not(:disabled), .pixel-btn:focus-visible,
   .pixel-hbtn:hover, .pixel-hbtn:focus-visible,
-  .pixel-pick:hover, .pixel-pick:focus-visible { transform: none; }
-}
+  .pixel-pick:hover, .pixel-pick:focus-visible
+) { transform: none; }
 
 /* ============ FELT TEXTURE ============ */
 .felt-bg {
@@ -352,10 +353,7 @@ html, body, #root { height: 100%; }
   from { transform: translate(-50%, -50%) rotate(-16deg) scale(2.4); opacity: 0; }
   to { transform: translate(-50%, -50%) rotate(-16deg) scale(1); opacity: 1; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .pixel-card .debuff-slash,
-  .pixel-card .debuff-tag { animation: none; }
-}
+[data-motion="reduced"] .pixel-card :is(.debuff-slash, .debuff-tag) { animation: none; }
 
 .pixel-card-back {
   background: repeating-linear-gradient(45deg, #2a1a4d 0 4px, #1a0e3a 4px 8px),

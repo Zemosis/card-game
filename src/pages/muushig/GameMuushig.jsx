@@ -16,7 +16,8 @@ import { useServerStats } from "../../hooks/useServerStats";
 import { socket, connectSocket } from "../../utils/socket";
 import { seatAvatar } from "../../utils/avatarConstants";
 import WaitingTable from "../../components/thirteen/WaitingTable";
-import { prefersReducedMotion, useTableMetrics } from "../../hooks/useTableMetrics";
+import { useTableMetrics } from "../../hooks/useTableMetrics";
+import { reducedMotion } from "../../utils/motion";
 import PlayerHand from "../../components/thirteen/PlayerHand";
 import OpponentSection from "../../components/thirteen/OpponentSection";
 import GameChat from "../../components/thirteen/GameChat";
@@ -34,6 +35,7 @@ import MuushigScoreBoard from "../../components/muushig/MuushigScoreBoard";
 import MuushigControls from "../../components/muushig/MuushigControls";
 import MuushigRules from "../../components/muushig/MuushigRules";
 import PixelIcon from "../../components/PixelIcon";
+import { MotionToggle } from "../../components/SettingsModal";
 import { TableHeader, TableSidebar, ConnectionSignal } from "../../components/TableChrome";
 import { useUnread } from "../../hooks/useUnread";
 import {
@@ -164,7 +166,7 @@ function flightFor(prev, next, me) {
   const e = next.events
     .slice(prev.events.length)
     .find((ev) => (ev.type === "swap" && ev.count > 0) || ["fold", "takeTrump", "eat"].includes(ev.type));
-  if (!e || prefersReducedMotion()) return null;
+  if (!e || reducedMotion()) return null;
   const id = `${next.matchNumber}-${next.roundNumber}-${e.type}-${e.seat}-${e.trick ?? 0}`;
   if (e.type === "eat") {
     // The trick sweeps off the felt, bottom card first, top card on top.
@@ -938,6 +940,7 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
                 {isMuted ? "SOUND OFF" : "SOUND ON"}
               </span>
             </button>
+            <MotionToggle className="text-[9px] px-3 py-2" />
             {[
               ["master", "MASTER"],
               ["sfx", "SFX"],

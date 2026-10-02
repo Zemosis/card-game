@@ -14,7 +14,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import gsap from "gsap";
 import { PixelCard } from "../PixelCard";
 import { sortHand, sortHandBySuit } from "../../utils/deckUtils";
-import { CARD_RATIO, DEAL_FLY, prefersReducedMotion } from "../../hooks/useTableMetrics";
+import { CARD_RATIO, DEAL_FLY } from "../../hooks/useTableMetrics";
+import { reducedMotion } from "../../utils/motion";
 
 const HAND_SIZE = 13;
 const SORT_HOLD = 0.5;
@@ -98,7 +99,7 @@ const PlayerHand = ({
 
     const n = isDealing ? Math.max(handSize, displayHand.length) : displayHand.length;
     const slots = displayHand.map((_, i) => handSlot(i, n, cardWidth, w, spread));
-    const reduce = prefersReducedMotion();
+    const reduce = reducedMotion();
     const dealEnded = wasDealing && !isDealing;
     const startSort = (dealEnded || (resorted && !isDealing)) && displayHand.length > 1 && !reduce;
 

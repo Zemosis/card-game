@@ -35,6 +35,7 @@ import { makeAIDecision } from "../../utils/aiPlayer";
 
 import { soundManager } from "../../utils/SoundManager";
 import PixelIcon from "../../components/PixelIcon";
+import { MotionToggle } from "../../components/SettingsModal";
 import { TableHeader, TableSidebar, ConnectionSignal } from "../../components/TableChrome";
 import { useUnread } from "../../hooks/useUnread";
 
@@ -756,6 +757,7 @@ const GameThirteen = () => {
             >
               <span className="flex items-center justify-center gap-2"><PixelIcon name={isMuted ? "mute" : "speaker"} size={12} />{isMuted ? "SOUND OFF" : "SOUND ON"}</span>
             </button>
+            <MotionToggle className="text-[9px] px-3 py-2" />
             <div>
               <label className="font-pixel-display text-[9px] text-bone/60">
                 MASTER: {volumes.master}%

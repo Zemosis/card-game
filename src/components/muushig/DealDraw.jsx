@@ -11,7 +11,8 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { PixelCard } from "../PixelCard";
-import { CARD_RATIO, prefersReducedMotion } from "../../hooks/useTableMetrics";
+import { CARD_RATIO } from "../../hooks/useTableMetrics";
+import { reducedMotion } from "../../utils/motion";
 import { DRAW_FLY, DRAW_LAND_MS, DRAW_SLIDE, DRAW_TURN } from "./flightTiming";
 
 // Where each seat's drawn card lies, as a fraction of the felt's diameter.
@@ -86,7 +87,7 @@ function DrawnCard({ card, depth, w, from, tone, pop }) {
   // Mounted once per draw (keyed by it). Explicit from-values: StrictMode
   // runs this effect twice.
   useLayoutEffect(() => {
-    if (prefersReducedMotion()) {
+    if (reducedMotion()) {
       gsap.set(backRef.current, { autoAlpha: 0 });
       return;
     }
@@ -102,7 +103,7 @@ function DrawnCard({ card, depth, w, from, tone, pop }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
-    if (!pop || prefersReducedMotion()) return;
+    if (!pop || reducedMotion()) return;
     gsap.fromTo(popRef.current, { scale: 1 }, { scale: 1.25, duration: 0.18, ease: "power2.out", yoyo: true, repeat: 1 });
   }, [pop]);
 
@@ -156,7 +157,7 @@ function DrawnCard({ card, depth, w, from, tone, pop }) {
  */
 const DealDraw = ({ D, cw, count, draws, latest, preview = 0, label, contenders, winner, onDone }) => {
   const w = Math.round(cw * 0.75);
-  const reduce = prefersReducedMotion();
+  const reduce = reducedMotion();
 
   // The pile shows the newest draw's cut while its card slides out.
   const [settled, setSettled] = useState(null);

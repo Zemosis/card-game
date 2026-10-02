@@ -18,7 +18,7 @@ import React, { useRef, useState } from "react";
 import gsap from "gsap";
 import { PixelAvatar, PixelCard } from "../PixelCard";
 import Callout from "../Callout";
-import { prefersReducedMotion } from "../../hooks/useTableMetrics";
+import { reducedMotion } from "../../utils/motion";
 
 const CARD_W = 44;
 const CARD_H = 64;
@@ -128,7 +128,7 @@ const OpponentSection = ({ player, isActive = false, hasPassed = false, position
   const announcing = callout && callout.id !== landedId;
   const land = (id) => {
     setLandedId(id);
-    if (chipRef.current && !prefersReducedMotion()) {
+    if (chipRef.current && !reducedMotion()) {
       gsap.fromTo(chipRef.current, { scale: 1.6 }, { scale: 1, duration: 0.25, ease: "back.out(2)" });
     }
   };

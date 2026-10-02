@@ -1,8 +1,34 @@
-﻿// SETTINGS MODAL - shared sound settings popup (pixel style)
+﻿// SETTINGS MODAL - shared sound and animation settings popup (pixel style)
 
 import React, { useState } from "react";
 import { soundManager } from "../utils/SoundManager";
+import { reducedMotion, setReducedMotion } from "../utils/motion";
 import PixelIcon from "./PixelIcon";
+
+/** FULL / REDUCED animations (see utils/motion.js); the game tables use it too. */
+export const MotionToggle = ({ className = "text-[10px] px-3 py-2.5" }) => {
+  const [reduced, setReduced] = useState(reducedMotion);
+  const toggle = () => {
+    setReducedMotion(!reduced);
+    setReduced(!reduced);
+  };
+  return (
+    <button
+      onClick={toggle}
+      className={`pixel-btn font-pixel-display ${className}`}
+      style={{
+        backgroundColor: reduced ? "#2a234d" : "#463a78",
+        borderColor: reduced ? "#1a1530" : "#2a234d",
+        color: "#ead8b1",
+      }}
+    >
+      <span className="flex items-center justify-center gap-2">
+        <PixelIcon name="cards" size={12} />
+        {reduced ? "ANIMATIONS: REDUCED" : "ANIMATIONS: FULL"}
+      </span>
+    </button>
+  );
+};
 
 const SettingsModal = ({ onClose }) => {
   const [isMuted, setIsMuted] = useState(soundManager.isMuted);
@@ -65,6 +91,7 @@ const SettingsModal = ({ onClose }) => {
           >
             <span className="flex items-center justify-center gap-2"><PixelIcon name={isMuted ? "mute" : "speaker"} size={12} />{isMuted ? "SOUND OFF" : "SOUND ON"}</span>
           </button>
+          <MotionToggle />
 
           <div>
             <label className="font-pixel-display text-[9px] text-bone/60">

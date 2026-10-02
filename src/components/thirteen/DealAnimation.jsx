@@ -12,7 +12,8 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { PixelCard } from "../PixelCard";
 import { soundManager } from "../../utils/SoundManager";
-import { CARD_RATIO, DEAL_FLY, DEAL_STAGGER, prefersReducedMotion } from "../../hooks/useTableMetrics";
+import { CARD_RATIO, DEAL_FLY, DEAL_STAGGER } from "../../hooks/useTableMetrics";
+import { reducedMotion } from "../../utils/motion";
 import gsap from "gsap";
 
 const safeSound = (method) => {
@@ -70,7 +71,7 @@ const DealAnimation = ({
     const pool = poolRefs.current.filter(Boolean);
     if (!container || layers.length < DECK_LAYERS) return;
 
-    const reduce = prefersReducedMotion();
+    const reduce = reducedMotion();
     const fly = reduce ? 0.12 : DEAL_FLY;
     const stagger = reduce ? 0.02 : DEAL_STAGGER;
 

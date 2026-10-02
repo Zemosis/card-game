@@ -1,11 +1,15 @@
 // jsdom has no layout, audio or observers: stub what the table components use.
-// Reduced motion is on so GSAP work collapses to (near) instant.
+// Reduced animations are on so GSAP work collapses to (near) instant. The OS
+// preference below says "reduce" too, though the game ignores it (see
+// utils/motion.js).
 
 import "@testing-library/jest-dom/vitest";
 import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
+import { setReducedMotion } from "../../src/utils/motion";
 
 afterEach(() => cleanup());
+setReducedMotion(true);
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
