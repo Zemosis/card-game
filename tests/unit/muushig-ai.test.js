@@ -91,13 +91,6 @@ describe.each(["EASY", "MEDIUM", "HARD"])("%s", (level) => {
 });
 
 describe("MEDIUM and HARD", () => {
-  it.each(["MEDIUM", "HARD"])("%s never debuffs itself when it has a clean card", (level) => {
-    // Trump led; holding K♦ and a club. Playing the club would debuff the K♦.
-    const s = stateFor({ hand: "K♦ 7♣", trick: [[3, "Q♦"]], level });
-    s.turn = 0;
-    expect(aiAction(s, seededRandom(1)).cardId).toBe("K♦");
-  });
-
   it("MEDIUM eats with the cheapest winning card", () => {
     const s = stateFor({ hand: "A♠ K♠ 7♥", trick: [[3, "Q♠"]], level: "MEDIUM" });
     expect(aiAction(s, seededRandom(1)).cardId).toBe("K♠");
@@ -114,11 +107,6 @@ describe("HARD", () => {
     // A♦ and K♦ are gone, so the Q♦ is the top trump left.
     const s = stateFor({ hand: "Q♦ 8♣ 7♥", played: "A♦ K♦", trickNumber: 3 });
     expect(aiAction(s, seededRandom(1)).cardId).toBe("Q♦");
-  });
-
-  it("plays the trump ace when holding it back would debuff it", () => {
-    const s = stateFor({ hand: "A♦ 10♦ 7♣", trick: [[1, "8♠"], [2, "9♠"], [3, "10♠"], [4, "J♠"]], eaten: 1 });
-    expect(aiAction(s, seededRandom(1)).cardId).toBe("A♦");
   });
 
   it("fights for its first pile with its strongest winner", () => {

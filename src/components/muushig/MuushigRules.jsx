@@ -5,7 +5,6 @@
 // all three. Examples are drawn with real PixelCards.
 
 import React from "react";
-import { PixelCard } from "../PixelCard";
 import Rulebook, { Callout, CardRow, Cards, Hi, Kbd, Key, Section, Steps, Versus } from "../Rulebook";
 import { MAX_DRAW_DEPTH, MAX_FOLDS_IN_A_ROW, MIN_PLAYING, START_SCORE, TRICKS_PER_ROUND, ZERO_PILES_PENALTY } from "../../utils/muushig/engine";
 
@@ -16,7 +15,6 @@ const SECTIONS = [
   ["join", "Go in or fold"],
   ["swap", "Swapping cards"],
   ["tricks", "Playing tricks"],
-  ["debuff", "Debuffed cards"],
   ["scoring", "Scoring"],
   ["controls", "Controls"],
 ];
@@ -150,18 +148,21 @@ export default function MuushigRules({ onClose }) {
         </p>
         <div className="flex flex-col gap-2">
           <CardRow
-            name="OTHER SUIT LED"
+            name="FOLLOW THE LED SUIT"
             spec="9♠"
-            text="If you hold a higher card of that suit, you must play one. Otherwise play anything, a trump included."
-            extra="Once someone has trumped in, the trump rule below applies to you too."
+            text="If you hold the led suit, you must play it: a higher one than any on the table if you have it."
+            extra="Holding the led suit, you can't trump in, even if someone else already has."
           />
           <CardRow
-            name="TRUMP LED OR TRUMPED IN"
+            name="NONE OF IT? TRUMP"
             spec="Q♦"
-            text="You should play a higher trump; with no higher one, any trump; with no trump at all, anything."
-            extra="Breaking this is allowed, but it debuffs a card (see Debuffed cards)."
+            text="Without the led suit, you must play a trump: a higher one than any trump on the table if you have it."
+            extra="With neither the led suit nor a trump, play any card."
           />
         </div>
+        <p>
+          The table only lets you pick cards you may play: the rest of your hand is <Key>dimmed</Key>.
+        </p>
         <p>
           The <Key>highest trump</Key> eats the pile. With no trump played, the <Key>highest card of the led suit</Key>{" "}
           does. A card of any other suit never wins.
@@ -173,41 +174,7 @@ export default function MuushigRules({ onClose }) {
         </Callout>
       </Section>
 
-      <Section id="debuff" n={7} title="Debuffed cards">
-        <p>You get a debuffed card for holding back a trump you were supposed to play:</p>
-        <Steps
-          items={[
-            <>
-              <Key>Trump rule.</Key> A trump was on the table (led, or played on top of another suit) and you didn't play
-              a higher trump (or any trump, when you had no higher one). Your <Key>highest trump left</Key> is debuffed.
-              If you must follow the led suit with a higher card, you do that instead.
-            </>,
-            <>
-              <Key>Ace rule.</Key> You hold the <Key>Ace of trumps</Key> and, on a trick where you're allowed to play it,
-              you play something else. The Ace is debuffed. When you lead you're always allowed to play it, so lead with
-              it.
-            </>,
-          ]}
-        />
-        <div className="flex items-center gap-5 flex-wrap mt-1">
-          <PixelCard rank="A" suit="♦" width={56} debuffed />
-          <ul className="flex flex-col gap-1.5">
-            <li>
-              It's the <Hi color="#e85a7a">weakest card</Hi> in the game: it can never eat a pile.
-            </li>
-            <li>
-              It's <Key>the only card you may play on the next trick</Key>, so you give that pile away.
-            </li>
-            <li>If it's led, the next card played sets the suit.</li>
-          </ul>
-        </div>
-        <Callout tone="warn" title="EXAMPLE">
-          Trumps are ♦. The leader plays K♦. You hold A♦ but play 10♦: your A♦ is debuffed, and next trick you must throw
-          it. Nothing warns you first: the card is slashed and stamped the moment you misplay.
-        </Callout>
-      </Section>
-
-      <Section id="scoring" n={8} title="Scoring">
+      <Section id="scoring" n={7} title="Scoring">
         <p>
           Every round is exactly <Key>{TRICKS_PER_ROUND} tricks</Key>. When they're done:
         </p>
@@ -247,13 +214,13 @@ export default function MuushigRules({ onClose }) {
         </p>
       </Section>
 
-      <Section id="controls" n={9} title="Controls">
+      <Section id="controls" n={8} title="Controls">
         <div className="grid gap-2" style={{ gridTemplateColumns: "minmax(140px,auto) 1fr" }}>
           {[
             [<>DEPTH − / +</>, "Drawing for the deal: how deep into the pile to take your card (or ← →)"],
             [<>GO IN / FOLD</>, "Join the round or sit it out"],
             [<>Click cards</>, "Swapping: pick the cards to discard. Dealer: pick the card to give up for the trump"],
-            [<>Click a card</>, "Tricks: pick the card to throw (dimmed cards aren't allowed right now)"],
+            [<>Click a card</>, "Tricks: pick the card to throw (dimmed cards can't be played right now)"],
             [<Kbd>SPACE</Kbd>, "The highlighted button: TAKE, GO IN, SWAP, TAKE TRUMP or THROW"],
             [<>SORT</>, "Arrange your hand by rank or by suit"],
           ].map(([k, v], i) => (

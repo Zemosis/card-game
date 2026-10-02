@@ -38,7 +38,7 @@ function cardsInRound(s) {
 function playMatch(seed, level) {
   const rng = seededRandom(seed);
   let s = createMatch({ players: players(level), rng });
-  const stats = { rounds: 0, folds: 0, debuffs: 0, sweeps: 0 };
+  const stats = { rounds: 0, folds: 0, sweeps: 0 };
   const foldRuns = Array(PLAYER_COUNT).fill(0); // rounds folded in a row, per seat
   let lastDealer = null;
   let roundEats = 0;
@@ -61,13 +61,12 @@ function playMatch(seed, level) {
     expect(new Set(all.map((c) => c.id)).size, where).toBe(DECK_SIZE);
 
     if (s.phase === PHASES.DECIDE && s.events.at(-1).type === "round") {
-      // A fresh deal: 5 cards each, 6 to draw, the deal passed clockwise, no debuffs.
+      // A fresh deal: 5 cards each, 6 to draw, the deal passed clockwise.
       stats.rounds += 1;
       expect(s.players.every((p) => p.hand.length === HAND_SIZE), where).toBe(true);
       expect(s.drawPile, where).toHaveLength(DECK_SIZE - HAND_SIZE * PLAYER_COUNT - 1);
       if (lastDealer != null) expect(s.dealer, where).toBe(leftOf(lastDealer));
       lastDealer = s.dealer;
-      expect(s.players.some((p) => p.hand.some((c) => c.debuffed)), where).toBe(false);
       expect(s.turn, `${where}: left of the dealer decides first`).toBe(leftOf(s.dealer));
       roundEats = 0;
       scoresBefore = s.players.map((p) => p.score);
@@ -76,13 +75,16 @@ function playMatch(seed, level) {
     if (s.phase === PHASES.PLAY) {
       const seat = s.turn;
       expect(s.players[seat].status, `${where}: only players who went in play`).toBe("play");
-      const debuffed = s.players[seat].hand.find((c) => c.debuffed);
       const allowed = allowedPlays(s, seat).map((c) => c.id);
-      if (debuffed) expect(allowed, `${where}: a debuffed card must be played`).toEqual([debuffed.id]);
       const action = aiAction(s, rng);
       expect(allowed, `${where}: the CPU played an allowed card`).toContain(action.cardId);
+      // §6, checked on its own: follow the led suit, else trump, else anything.
+      const hand = s.players[seat].hand;
+      const card = hand.find((c) => c.id === action.cardId);
+      const led = s.trick[0]?.card.suit;
+      if (led && hand.some((c) => c.suit === led)) expect(card.suit, `${where}: must follow the led suit`).toBe(led);
+      else if (led && hand.some((c) => c.suit === s.trumpSuit)) expect(card.suit, `${where}: must trump`).toBe(s.trumpSuit);
       s = applyAction(s, action, rng);
-      if (s.events.at(-1).type === "debuff") stats.debuffs += 1;
       continue;
     }
 
@@ -91,8 +93,7 @@ function playMatch(seed, level) {
       const playing = s.players.filter((p) => p.status === "play").length;
       expect(trick, `${where}: everyone in plays one card`).toHaveLength(playing);
       const winner = trick.find((p) => p.seat === s.trickWinner);
-      expect(winner.card.debuffed, `${where}: a debuffed card never eats`).toBeFalsy();
-      const trumps = trick.filter((p) => p.card.suit === s.trumpSuit && !p.card.debuffed);
+      const trumps = trick.filter((p) => p.card.suit === s.trumpSuit);
       if (trumps.length) {
         // The highest trump eats.
         expect(winner.card.suit, where).toBe(s.trumpSuit);
@@ -116,7 +117,7 @@ function playMatch(seed, level) {
 
   const where = `seed ${seed} (${level}), final round`;
   checkRoundEnd(s, where, roundEats, scoresBefore, foldRuns, stats);
-  // §9: the match ends once someone is at 0 or less; the lowest score wins.
+  // §8: the match ends once someone is at 0 or less; the lowest score wins.
   const scores = s.players.map((p) => p.score);
   expect(Math.min(...scores), where).toBeLessThanOrEqual(0);
   expect(scores[s.matchWinner], where).toBe(Math.min(...scores));
@@ -124,7 +125,7 @@ function playMatch(seed, level) {
   return { state: s, stats };
 }
 
-/** §4 and §8, checked at every round's end. */
+/** §4 and §7, checked at every round's end. */
 function checkRoundEnd(s, where, roundEats, scoresBefore, foldRuns, stats) {
   expect(roundEats, `${where}: a round has exactly 5 tricks`).toBe(TRICKS_PER_ROUND);
   const { results, roundWinner } = s.roundResults;
@@ -151,7 +152,7 @@ function checkRoundEnd(s, where, roundEats, scoresBefore, foldRuns, stats) {
 
 describe.each(["EASY", "MEDIUM", "HARD"])("whole Muushig matches, CPUs at %s", (level) => {
   it(`${MATCHES_PER_LEVEL} seeded matches keep every rule after every move`, () => {
-    const totals = { rounds: 0, folds: 0, debuffs: 0, sweeps: 0 };
+    const totals = { rounds: 0, folds: 0, sweeps: 0 };
     for (let seed = 1; seed <= MATCHES_PER_LEVEL; seed++) {
       const { stats } = playMatch(seed * 7919 + level.length, level);
       for (const k of Object.keys(totals)) totals[k] += stats[k];

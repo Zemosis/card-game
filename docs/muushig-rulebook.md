@@ -109,21 +109,22 @@ table; only its suit remains trump.
 
 ### What you must play
 
-**Other suit led (not trump):**
+Whoever leads may play **any card**. Everyone after them:
 
-- If you hold a card of the led suit that is **higher** than the highest card of
-  that suit on the table, you **must** play one of them.
-- Otherwise you may play **any card** — including a trump, to eat the pile.
-- But if someone has already **trumped in** (played a trump on it), the trump
-  rules below apply to you too.
+1. **Hold the led suit?** You **must** play it. If you hold one **higher**
+   than every card of that suit on the table, you must play a higher one. You
+   can't trump in while you hold the led suit, even if someone else already
+   has.
+2. **None of the led suit, but a trump?** You **must** play a trump. If you
+   hold one **higher** than every trump on the table, you must play a higher
+   one.
+3. **Neither?** Play **any card**.
 
-**Trump led, or trumped in:**
+When trump is led, rule 1 covers it: play a higher trump if you can, else any
+trump.
 
-- You should play a **higher trump** if you have one.
-- If you have no higher trump, you should play **any trump**.
-- If you have no trump at all, play any card.
-
-Breaking a trump rule is allowed, but punished: see **Debuffed cards**.
+The game only lets you pick cards you may play; the rest of your hand is
+dimmed.
 
 ### Who eats the pile
 
@@ -136,32 +137,7 @@ card is on top eats the pile**.
 
 ---
 
-## 7. Debuffed cards
-
-You get a **debuffed card** when you hold back a trump you were supposed to
-play:
-
-1. **Trump rule.** A trump was on the table — led, or played on top of another
-   suit — and you didn't play a higher trump (or any trump, when you had no
-   higher one). Your **highest trump left in hand** is debuffed. (If you must
-   follow the led suit with a higher card, you do that instead: no debuff.)
-2. **The Ace rule.** You hold the **Ace of trumps** and, on any trick where you
-   are allowed to play it, you play something else. The Ace is debuffed. (If
-   you're leading, you're always allowed to play it — so lead with it.)
-
-A debuffed card:
-
-- is shown greyed out and blurred, with a red slash and a **DEBUFFED** stamp.
-  Nothing warns you beforehand: the stamp lands the moment you misplay,
-- is the **weakest card** in the game — it can never eat a pile,
-- **must be played on the next trick**; it's the only card you may play. You
-  have forfeited that trick.
-
-If a debuffed card is led, the led suit is set by the next card played.
-
----
-
-## 8. Scoring
+## 7. Scoring
 
 A round has exactly **5 tricks**. When they're done:
 
@@ -174,7 +150,7 @@ A round has exactly **5 tricks**. When they're done:
 Eating **all 5 piles** **wins the round**: you drop 5, and everyone else who
 went in ate nothing, so they each take +5.
 
-## 9. Winning the match
+## 8. Winning the match
 
 The match ends after the first round in which someone reaches **0 or less**.
 The **lowest score** wins; if that's a tie, the player who ate more piles in

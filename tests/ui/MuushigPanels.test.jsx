@@ -9,7 +9,7 @@ import RoundResults from "../../src/components/muushig/RoundResults";
 import MuushigScoreBoard from "../../src/components/muushig/MuushigScoreBoard";
 import { MAX_DRAW_DEPTH, MAX_FOLDS_IN_A_ROW, MIN_PLAYING, START_SCORE, ZERO_PILES_PENALTY } from "../../src/utils/muushig/engine";
 
-const SECTIONS = ["The goal", "Cards", "Dealer, deal, trump", "Go in or fold", "Swapping cards", "Playing tricks", "Debuffed cards", "Scoring", "Controls"];
+const SECTIONS = ["The goal", "Cards", "Dealer, deal, trump", "Go in or fold", "Swapping cards", "Playing tricks", "Scoring", "Controls"];
 const NAMES = ["You", "Bot Saturn", "Bot Venus", "Bot Mars", "Bot Jupiter"];
 const players = (over = []) => NAMES.map((name, id) => ({ id, name, score: 15, eaten: 0, ...over[id] }));
 const face = () => ({ variant: 1, customAvatarData: null });
@@ -117,7 +117,7 @@ describe("RoundResults", () => {
   });
 
   it("on a tie for the lowest score, ranks the match winner (more piles that round) first", () => {
-    // Rulebook §9: You and Bot Saturn both finish on 0; Bot Saturn ate more piles, so wins.
+    // Rulebook §8: You and Bot Saturn both finish on 0; Bot Saturn ate more piles, so wins.
     render(
       <RoundResults
         round={7}

@@ -266,7 +266,6 @@ const PlayerHand = ({
                 selected={selectedCards.some((c) => c.id === card.id)}
                 selectable={canSelect && isPlayable?.(card) !== false}
                 dim={!isDealing && isPlayable?.(card) === false}
-                debuffed={card.debuffed}
                 onClick={(e) => toggleCardSelection(card, e)}
                 style={liftVars}
               />

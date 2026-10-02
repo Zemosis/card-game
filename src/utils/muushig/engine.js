@@ -225,12 +225,11 @@ export function rematch(prev, rng = secureRandom) {
 
 // ---- Helpers shared by actions and queries ---------------------------------
 
-// Copies everything an action may change. Cards are copied too, since a
-// debuff marks a card in hand.
+// Copies everything an action may change.
 function clone(state) {
   return {
     ...state,
-    players: state.players.map((p) => ({ ...p, hand: p.hand.map((c) => ({ ...c })), discarded: [...p.discarded] })),
+    players: state.players.map((p) => ({ ...p, hand: [...p.hand], discarded: [...p.discarded] })),
     drawPile: [...state.drawPile],
     deadPile: [...state.deadPile],
     played: [...state.played],
@@ -362,14 +361,13 @@ function startPlay(state) {
   return state;
 }
 
-/** Suit of the first card in the trick that isn't debuffed (null if none). */
+/** Suit of the trick's first card (null before anyone plays). */
 export function ledSuit(trick) {
-  return trick.find((p) => !p.card.debuffed)?.card.suit ?? null;
+  return trick[0]?.card.suit ?? null;
 }
 
-/** How strong a card is in this trick: debuffed < off-suit < led suit < trump. */
+/** How strong a card is in this trick: off-suit < led suit < trump. */
 export function cardPower(card, led, trumpSuit) {
-  if (card.debuffed) return -2;
   if (card.suit === trumpSuit) return 100 + card.rankValue;
   if (card.suit === led) return card.rankValue;
   return -1;
@@ -401,53 +399,29 @@ export function stackOrder(trick, trumpSuit) {
   return stack;
 }
 
+/** The highest rank of `suit` in the trick so far (-1 if none). */
+const topOf = (trick, suit) => Math.max(-1, ...trick.filter((p) => p.card.suit === suit).map((p) => p.card.rankValue));
+
 /**
- * Cards a player may put down (the hard rules). A debuffed card must go
- * first. With another suit led, a higher card of that suit must be played if
- * held. Trump rules are soft: breaking them is allowed but debuffs a card
- * (see penaltyFor).
+ * Cards a player may put down. Leading, any card. Following:
+ *   1. Hold the led suit: play it, and a higher one than any of it on the
+ *      table if you can (even when someone has trumped in).
+ *   2. Else hold a trump: play one, and a higher one than any trump on the
+ *      table if you can.
+ *   3. Else any card.
  */
 export function allowedPlays(state, seat) {
   const hand = state.players[seat].hand;
-  const debuffed = hand.find((c) => c.debuffed);
-  if (debuffed) return [debuffed];
   const led = ledSuit(state.trick);
-  if (!led || led === state.trumpSuit) return hand;
-  const onTable = state.trick.filter((p) => p.card.suit === led && !p.card.debuffed).map((p) => p.card.rankValue);
-  const top = Math.max(-1, ...onTable);
-  const higher = hand.filter((c) => c.suit === led && c.rankValue > top);
-  return higher.length ? higher : hand;
-}
-
-/**
- * The card that playing `card` would debuff, or null. Two rules:
- *   Ace rule   holding the trump ace and playing something else when the ace
- *              was allowed debuffs the ace.
- *   Trump rule when a trump is on the table (led, or played on top of
- *              another suit) and you're free to play one, not playing a
- *              higher trump (or any trump, with no higher one) debuffs your
- *              highest trump left.
- */
-export function penaltyFor(state, seat, card) {
-  const hand = state.players[seat].hand;
-  if (hand.some((c) => c.debuffed)) return null; // a forced play is never punished
-  const allowed = allowedPlays(state, seat);
-  const trump = state.trumpSuit;
-
-  const ace = hand.find((c) => c.suit === trump && c.rank === "A");
-  if (ace && card.id !== ace.id && allowed.some((c) => c.id === ace.id)) return ace;
-
-  const onTable = state.trick.filter((p) => p.card.suit === trump && !p.card.debuffed);
-  if (!onTable.length) return null;
-  // Following a higher card of the led suit comes first: then trumps aren't allowed.
-  const trumps = allowed.filter((c) => c.suit === trump);
-  if (!trumps.length) return null;
-  const best = Math.max(...onTable.map((p) => p.card.rankValue));
-  const higher = trumps.filter((c) => c.rankValue > best);
-  const required = higher.length ? higher : trumps;
-  if (required.some((c) => c.id === card.id)) return null;
-  const kept = trumps.filter((c) => c.id !== card.id);
-  return kept.reduce((a, c) => (c.rankValue > a.rankValue ? c : a), kept[0]) ?? null;
+  if (!led) return hand;
+  for (const suit of [led, state.trumpSuit]) {
+    const held = hand.filter((c) => c.suit === suit);
+    if (!held.length) continue;
+    const top = topOf(state.trick, suit);
+    const higher = held.filter((c) => c.rankValue > top);
+    return higher.length ? higher : held;
+  }
+  return hand;
 }
 
 export function playCard(prev, seat, cardId) {
@@ -455,7 +429,6 @@ export function playCard(prev, seat, cardId) {
   const allowed = allowedPlays(prev, seat);
   const chosen = allowed.find((c) => c.id === cardId);
   if (!chosen) throw new Error(`${cardId} can't be played now`);
-  const penalty = penaltyFor(prev, seat, chosen);
 
   const state = clone(prev);
   const player = state.players[seat];
@@ -463,16 +436,6 @@ export function playCard(prev, seat, cardId) {
   state.trick.push({ seat, card });
   state.played.push(card);
   state.events.push({ type: "play", seat, card, trick: state.trickNumber });
-  if (penalty) {
-    const hit = player.hand.find((c) => c.id === penalty.id);
-    hit.debuffed = true;
-    state.events.push({
-      type: "debuff",
-      seat,
-      card: { ...hit },
-      reason: penalty.rank === "A" && penalty.suit === state.trumpSuit ? "ace" : "trump",
-    });
-  }
 
   if (state.trick.length === playingCount(state)) {
     state.phase = PHASES.TRICK_END;

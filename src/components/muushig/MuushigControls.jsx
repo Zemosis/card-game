@@ -18,7 +18,7 @@ const TONES = {
 
 /**
  * buttons: [{ label, onClick, disabled, tone, primary }]
- * warning: shown in rose instead of the message (e.g. "this debuffs your K♦")
+ * warning: shown in rose instead of the message (e.g. a rejected move)
  * children: extra controls shown before the buttons (the draw's depth picker)
  */
 const MuushigControls = ({ message = "", warning = null, buttons = [], sortMode = "rank", onSortModeChange, dense = false, children }) => {

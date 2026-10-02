@@ -179,19 +179,37 @@ describe("GameMuushig", () => {
     expect(cardEl(card.id)).toBeNull();
   }, 20_000);
 
-  it("a debuffed card: the line says so and it's the only card you can throw", async () => {
-    const user = userEvent.setup();
+  /** Your turn after seat 4 led `ledId`, holding `handIds` (L = led suit, T = trump, O = another suit). */
+  function following(handIds, ledId) {
     const s = upTo(PHASES.PLAY, 4);
-    const bad = s.players[0].hand[2];
-    s.players = s.players.map((p, i) => (i === 0 ? { ...p, hand: p.hand.map((c) => (c.id === bad.id ? { ...c, debuffed: true } : c)) } : p));
+    const [L, O] = E.SUITS.filter((x) => x !== s.trumpSuit);
+    const card = (id) => E.makeCard(id.slice(0, -1), { L, T: s.trumpSuit, O }[id.slice(-1)]);
+    s.players = s.players.map((p, i) => (i === 0 ? { ...p, hand: handIds.map(card) } : p));
+    return { ...s, trick: [{ seat: 4, card: card(ledId) }], turn: 0, cards: handIds.map(card) };
+  }
+  const isDim = (id) => cardEl(id).querySelector(".pixel-card").classList.contains("dim");
+
+  it("following: you must play the led suit, higher if you can; the rest is dimmed and locked", async () => {
+    const user = userEvent.setup();
+    const s = following(["7L", "AL", "KT", "9O"], "10L");
+    const [low, high, trump, other] = s.cards;
     openTable(s);
     const thrw = await button("THROW");
-    expect(status()).toHaveTextContent(`Your ${bad.rank}`);
-    expect(status()).toHaveTextContent("is debuffed. You must throw it and lose this pile.");
-    await pickCard(user, s.players[0].hand[0].id); // not allowed: stays unpicked
+    expect(status()).toHaveTextContent("is eating. Follow");
+    expect([low, high, trump, other].map((c) => isDim(c.id))).toEqual([true, false, true, true]);
+    await pickCard(user, trump.id); // a trump isn't allowed while you hold the led suit
     expect(thrw).toBeDisabled();
-    await pickCard(user, bad.id);
+    await pickCard(user, high.id);
     expect(thrw).toBeEnabled();
+  }, 20_000);
+
+  it("following without the led suit: you must trump", async () => {
+    const s = following(["KT", "8T", "9O"], "10L");
+    const [k, eight, other] = s.cards;
+    openTable(s);
+    await button("THROW");
+    expect(status()).toHaveTextContent("you must trump");
+    expect([k, eight, other].map((c) => isDim(c.id))).toEqual([false, false, true]);
   }, 20_000);
 
   it("RULES opens the Muushig rulebook", async () => {

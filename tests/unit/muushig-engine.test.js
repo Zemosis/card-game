@@ -15,7 +15,6 @@ import {
   makeCard,
   maxDiscard,
   maxDrawDepth,
-  penaltyFor,
   playCard,
   rematch,
   stackOrder,
@@ -307,94 +306,64 @@ describe("swapping", () => {
 });
 
 describe("what you must play", () => {
+  it("leading: any card", () => {
+    const s = playState({ hands: ["A♦ Q♣ 7♠", "", "", "", ""], turn: 0 });
+    expect(idsOf(allowedPlays(s, 0))).toEqual(["A♦", "Q♣", "7♠"]);
+  });
+
   it("other suit led: a higher card of that suit must be played", () => {
-    const s = playState({ hands: ["10♠ A♠ J♦ 7♥", "", "", "", ""], trick: [[2, "9♠"], [4, "8♦"]], turn: 0 });
+    const s = playState({ hands: ["10♠ A♠ J♦ 7♥", "", "", "", ""], trick: [[2, "9♠"], [4, "8♥"]], turn: 0 });
     expect(idsOf(allowedPlays(s, 0))).toEqual(["10♠", "A♠"]);
   });
 
-  it("other suit led, none higher: anything goes", () => {
+  it("other suit led, none higher: still that suit, never a trump or another suit", () => {
     const s = playState({ hands: ["8♠ J♦ 7♥", "", "", "", ""], trick: [[2, "9♠"]], turn: 0 });
-    expect(idsOf(allowedPlays(s, 0))).toEqual(["8♠", "J♦", "7♥"]);
+    expect(idsOf(allowedPlays(s, 0))).toEqual(["8♠"]);
   });
 
-  it("a debuffed card is the only card you may play", () => {
-    const s = playState({ hands: ["10♠ A♠ 7♥", "", "", "", ""], trick: [[2, "9♠"]], turn: 0 });
-    s.players[0].hand.push({ ...c("A♦"), debuffed: true });
-    expect(idsOf(allowedPlays(s, 0))).toEqual(["A♦"]);
-    expect(penaltyFor(s, 0, s.players[0].hand[3])).toBeNull();
-  });
-});
-
-describe("debuffs", () => {
-  it("trump led: not playing a higher trump debuffs your highest trump", () => {
-    let s = playState({ hands: ["K♦ 8♦ 7♣", "7♠", "9♠", "7♥", "8♥"], trick: [[2, "Q♦"]], turn: 0 });
-    expect(penaltyFor(s, 0, c("8♦")).id).toBe("K♦");
-    expect(penaltyFor(s, 0, c("K♦"))).toBeNull();
-    s = playCard(s, 0, "8♦");
-    expect(s.players[0].hand.find((x) => x.id === "K♦").debuffed).toBe(true);
-    expect(s.events.at(-1)).toMatchObject({ type: "debuff", seat: 0, reason: "trump" });
-  });
-
-  it("trump led, no higher trump: any trump is fine, a non-trump debuffs", () => {
-    const s = playState({ hands: ["8♦ 7♣", "", "", "", ""], trick: [[2, "Q♦"]], turn: 0 });
-    expect(penaltyFor(s, 0, c("8♦"))).toBeNull();
-    expect(penaltyFor(s, 0, c("7♣")).id).toBe("8♦");
-  });
-
-  it("trumped in, no higher trump: holding your trumps back debuffs the highest", () => {
-    // ♠ led, K♦ trumped on top; you have no ♠ and only lower trumps.
-    let s = playState({ hands: ["7♣ 9♣ 10♦ J♦", "", "", "", ""], trick: [[2, "7♠"], [3, "K♦"]], turn: 0 });
-    expect(penaltyFor(s, 0, c("10♦"))).toBeNull();
-    expect(penaltyFor(s, 0, c("J♦"))).toBeNull();
-    expect(penaltyFor(s, 0, c("9♣")).id).toBe("J♦");
-    s = playCard(s, 0, "9♣");
-    expect(s.players[0].hand.find((x) => x.id === "J♦").debuffed).toBe(true);
-    expect(s.events.at(-1)).toMatchObject({ type: "debuff", seat: 0, reason: "trump" });
-  });
-
-  it("trumped in, higher trump held: anything but a higher trump debuffs it", () => {
-    const s = playState({ hands: ["K♦ 8♦ 7♣", "", "", "", ""], trick: [[2, "9♠"], [3, "10♦"]], turn: 0 });
-    expect(penaltyFor(s, 0, c("K♦"))).toBeNull();
-    expect(penaltyFor(s, 0, c("8♦")).id).toBe("K♦");
-    expect(penaltyFor(s, 0, c("7♣")).id).toBe("K♦");
-  });
-
-  it("trumped in, but you must follow the led suit: no trump debuff", () => {
-    const s = playState({ hands: ["10♠ K♦ 7♣", "", "", "", ""], trick: [[2, "9♠"], [3, "10♦"]], turn: 0 });
+  it("other suit led, trumped in: you still follow the led suit", () => {
+    const s = playState({ hands: ["10♠ 7♠ K♦ 7♣", "", "", "", ""], trick: [[2, "9♠"], [3, "10♦"]], turn: 0 });
     expect(idsOf(allowedPlays(s, 0))).toEqual(["10♠"]);
-    expect(penaltyFor(s, 0, c("10♠"))).toBeNull();
   });
 
-  it("no trump on the table: you don't have to trump in", () => {
-    const s = playState({ hands: ["8♦ 7♣", "", "", "", ""], trick: [[2, "9♠"]], turn: 0 });
-    expect(penaltyFor(s, 0, c("7♣"))).toBeNull();
+  it("other suit led, none of it held: you must trump", () => {
+    const s = playState({ hands: ["8♦ K♦ 7♣ A♥", "", "", "", ""], trick: [[2, "9♠"]], turn: 0 });
+    expect(idsOf(allowedPlays(s, 0))).toEqual(["8♦", "K♦"]);
   });
 
-  it("a debuffed trump on the table doesn't count as trumping in", () => {
-    const s = playState({ hands: ["8♦ 7♣", "", "", "", ""], trick: [[2, "9♠"]], turn: 0 });
-    s.trick.push({ seat: 3, card: { ...c("K♦"), debuffed: true } });
-    expect(penaltyFor(s, 0, c("7♣"))).toBeNull();
+  it("trumped in and none of the led suit: a higher trump if you have one", () => {
+    const s = playState({ hands: ["K♦ 8♦ 7♣", "", "", "", ""], trick: [[2, "9♠"], [3, "10♦"]], turn: 0 });
+    expect(idsOf(allowedPlays(s, 0))).toEqual(["K♦"]);
   });
 
-  it("Ace rule: leading with the trump ace in hand, anything else debuffs it", () => {
-    const s = playState({ hands: ["A♦ Q♣", "", "", "", ""], turn: 0 });
-    expect(penaltyFor(s, 0, c("Q♣")).id).toBe("A♦");
-    expect(penaltyFor(s, 0, c("A♦"))).toBeNull();
+  it("trumped in and none of the led suit, no higher trump: any trump", () => {
+    const s = playState({ hands: ["7♣ 9♣ 8♦ J♦", "", "", "", ""], trick: [[2, "7♠"], [3, "K♦"]], turn: 0 });
+    expect(idsOf(allowedPlays(s, 0))).toEqual(["8♦", "J♦"]);
   });
 
-  it("Ace rule doesn't apply when you must follow another suit", () => {
-    const s = playState({ hands: ["A♦ K♣", "", "", "", ""], trick: [[2, "Q♣"]], turn: 0 });
-    expect(idsOf(allowedPlays(s, 0))).toEqual(["K♣"]);
-    expect(penaltyFor(s, 0, c("K♣"))).toBeNull();
+  it("trump led: a higher trump if you have one, else any trump", () => {
+    let s = playState({ hands: ["K♦ 8♦ 7♣", "", "", "", ""], trick: [[2, "Q♦"]], turn: 0 });
+    expect(idsOf(allowedPlays(s, 0))).toEqual(["K♦"]);
+    s = playState({ hands: ["8♦ 9♦ 7♣", "", "", "", ""], trick: [[2, "Q♦"]], turn: 0 });
+    expect(idsOf(allowedPlays(s, 0))).toEqual(["8♦", "9♦"]);
   });
 
-  it("a debuffed card never wins, and doesn't set the led suit", () => {
-    const trick = [
-      { seat: 0, card: { ...c("A♦"), debuffed: true } },
-      { seat: 1, card: c("7♣") },
-      { seat: 2, card: c("9♣") },
-    ];
-    expect(trickWinner(trick, "♦")).toBe(2);
+  it("neither the led suit nor a trump: anything goes", () => {
+    const s = playState({ hands: ["7♣ Q♥ A♣", "", "", "", ""], trick: [[2, "9♠"], [3, "10♦"]], turn: 0 });
+    expect(idsOf(allowedPlays(s, 0))).toEqual(["7♣", "Q♥", "A♣"]);
+  });
+
+  it("the trump ace is just the highest trump: no need to play it", () => {
+    const s = playState({ hands: ["A♦ K♦ Q♣", "", "", "", ""], trick: [[2, "Q♦"]], turn: 0 });
+    expect(idsOf(allowedPlays(s, 0))).toEqual(["A♦", "K♦"]);
+  });
+
+  it("a card that isn't allowed is rejected, and a legal play leaves the hand as it was", () => {
+    const s = playState({ hands: ["8♠ J♦ 7♥", "9♣", null, null, null], trick: [[1, "9♠"]], turn: 0 });
+    expect(() => playCard(s, 0, "J♦")).toThrow(/can't be played/);
+    const next = playCard(s, 0, "8♠");
+    expect(idsOf(next.players[0].hand)).toEqual(["J♦", "7♥"]);
+    expect(next.events.filter((e) => e.type !== "play")).toEqual([]);
   });
 });
 
@@ -496,7 +465,7 @@ describe("a whole match", () => {
 });
 
 describe("rulebook edge cases", () => {
-  // §9: the lowest score wins; a tie goes to whoever ate more piles that round.
+  // §8: the lowest score wins; a tie goes to whoever ate more piles that round.
   it("a tie on the lowest score goes to whoever ate more piles in the last round", () => {
     // Seat 1 eats the last pile: seat 0 ends on 0 with 2 piles, seat 1 on 0 with 3.
     let s = playState({ hands: ["7♣", "A♦", null, null, null], turn: 0, trickNumber: 5, eaten: [2, 2, 0, 0, 0], scores: [2, 3, 9, 9, 9] });
@@ -564,22 +533,5 @@ describe("rulebook edge cases", () => {
     expect(idsOf(s.players[s.dealer].hand)).toContain(trump.id);
     expect(idsOf(s.deadPile)).toContain(give.id);
     expect(s.phase).toBe(PHASES.PLAY);
-  });
-
-  // §7: a debuff earned on trick 4 is paid on trick 5 and never reaches the next round.
-  it("a debuffed card is forced on the last trick and doesn't carry into the next round", () => {
-    let s = playState({ hands: ["8♦ 9♠", "J♦ 7♣", null, null, null], turn: 0, trickNumber: 4 });
-    s = playCard(s, 0, "8♦"); // trump led
-    s = playCard(s, 1, "7♣"); // holds the higher J♦ back: it's debuffed
-    expect(s.players[1].hand.find((x) => x.id === "J♦").debuffed).toBe(true);
-    s = collectTrick(s);
-    s = playCard(s, 0, "9♠");
-    expect(idsOf(allowedPlays(s, 1))).toEqual(["J♦"]);
-    s = playCard(s, 1, "J♦");
-    expect(s.trickWinner).toBe(0); // a debuffed card never eats, even a trump
-    s = collectTrick(s);
-    expect(s.phase).toBe(PHASES.ROUND_END);
-    const next = startNextRound(s, seededRandom(9));
-    expect(next.players.every((p) => p.hand.every((x) => !x.debuffed))).toBe(true);
   });
 });

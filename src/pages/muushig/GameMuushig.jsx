@@ -132,8 +132,6 @@ function logEntry(e, game) {
       return at({ kind: "pass", verb: "left the trump card" });
     case "play":
       return at({ kind: "play", cards: [e.card] });
-    case "debuff":
-      return at({ kind: "pass", verb: `${e.reason === "ace" ? "held back the trump ace" : "held back a trump"}: ${cardText(e.card)} is debuffed` });
     case "eat":
       return at({ kind: "trick", verb: "EATS THE PILE" });
     case "roundEnd":
@@ -152,9 +150,6 @@ const DECISION = {
   play: { label: "IN!", bg: "#9bd14f", fg: "#1a3a0e" },
   fold: { label: "FOLD", bg: "#463a78", fg: "#ead8b1" },
 };
-
-// A debuffed card, announced over an opponent's seat (yours shows in your hand).
-const DEBUFF_CALLOUT = { label: "DEBUFFED", bg: "#c0203a", fg: "#fff7d8" };
 
 /**
  * The cards `next` moved on top of `prev`, as a flight across the table (see
@@ -762,26 +757,22 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
       { label: "TAKE TRUMP", tone: "gold", primary: true, disabled: !pick, onClick: () => onTakeTrump(pick.id) },
     ];
   } else if (phase === PHASES.PLAY) {
-    const debuffed = me.hand.find((c) => c.debuffed);
-    const led = game.trick.find((p) => !p.card.debuffed)?.card.suit;
-    const followSuit = led && led !== trumpSuit;
-    const trumpedIn = followSuit && game.trick.some((p) => p.card.suit === trumpSuit && !p.card.debuffed);
-    message = debuffed ? (
-      <>
-        Your {debuffed.rank}
-        <Suit suit={debuffed.suit} size={18} /> is debuffed. You must throw it and lose this pile.
-      </>
-    ) : !game.trick.length ? (
+    // The same rule as allowedPlays, in words: the cards it rules out are dimmed.
+    const led = game.trick[0]?.card.suit;
+    const holds = (suit) => me.hand.some((c) => c.suit === suit);
+    message = !led ? (
       "Your lead. Throw any card."
-    ) : trumpedIn ? (
+    ) : holds(led) ? (
       <>
-        {eater} trumped in. Play a higher <Suit suit={led} size={18} /> if you have one, else a trump
-        <Suit suit={trumpSuit} size={18} />.
+        {eater} is eating. Follow <Suit suit={led} size={18} />: a higher one if you have it.
+      </>
+    ) : holds(trumpSuit) ? (
+      <>
+        No <Suit suit={led} size={18} />: you must trump <Suit suit={trumpSuit} size={18} />, higher than any trump down if you can.
       </>
     ) : (
       <>
-        {eater} is eating. Play a higher {followSuit ? "" : "trump "}
-        <Suit suit={followSuit ? led : trumpSuit} size={18} /> if you have one.
+        No <Suit suit={led} size={18} /> and no trump: throw any card.
       </>
     );
     buttons = [{ label: "THROW", tone: "green", primary: true, disabled: !pick, onClick: onThrow }];
@@ -800,13 +791,6 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
     }
     safePlay("playClick");
   };
-
-  // Each seat's latest debuff this round (the card), to announce it.
-  const debuffs = [];
-  for (let i = game.events.length - 1; i >= 0 && game.events[i].type !== "round"; i--) {
-    const e = game.events[i];
-    if (e.type === "debuff") debuffs[e.seat] ??= e.card;
-  }
 
   const seat = (index, position) => {
     const p = players[index];
@@ -839,11 +823,7 @@ function MuushigTable({ initial, aiDifficulty = "MEDIUM", online = null, message
         tag={index === game.dealer && !introducing && !drawing ? { label: "DEAL", bg: "#5fd4d6", fg: "#0a3a3a" } : null}
         detail={<SeatDetail eaten={p.eaten} folded={folded} layout={seats} />}
         layout={seats}
-        callout={
-          debuffs[index]
-            ? { id: `${roundKey}-debuff-${debuffs[index].id}`, ...DEBUFF_CALLOUT }
-            : p.status && { id: `${roundKey}-${p.status}`, ...DECISION[p.status] }
-        }
+        callout={p.status && { id: `${roundKey}-${p.status}`, ...DECISION[p.status] }}
       />
     );
   };

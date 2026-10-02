@@ -164,7 +164,7 @@ function TrickStack({ stack, cw, ch, D }) {
           >
             <div ref={(el) => (el ? itemRefs.current.set(s.key, el) : itemRefs.current.delete(s.key))}>
               <div style={{ boxShadow: isTop ? "0 0 0 3px #f4c430, 0 0 0 6px #0a0712, 0 0 18px rgba(244,196,48,0.45)" : "none" }}>
-                <PixelCard rank={s.card.rank} suit={s.card.suit} width={cw} debuffed={s.card.debuffed} />
+                <PixelCard rank={s.card.rank} suit={s.card.suit} width={cw} />
               </div>
             </div>
           </div>

@@ -5,7 +5,7 @@
 // engine. Every level only picks moves the engine allows.
 //
 //   EASY    plays loosely: folds or plays on a whim, swaps little, throws a
-//           random allowed card and sometimes breaks a trump rule.
+//           random allowed card.
 //   MEDIUM  judges its hand, swaps weak cards, eats with the cheapest card
 //           that wins, otherwise throws its weakest card.
 //   HARD    like MEDIUM, but counts cards: it knows when a trump can't be
@@ -28,7 +28,6 @@ import {
   makeCard,
   maxDiscard,
   maxDrawDepth,
-  penaltyFor,
   playCard,
   swap,
   takeTrump,
@@ -40,7 +39,6 @@ const PLAIN_WORTH = [0, 0, 0, 0, 0.05, 0.1, 0.3, 0.55];
 
 /** Rough chance (0–1) that a card eats a pile. */
 export function cardWorth(card, trumpSuit) {
-  if (card.debuffed) return 0;
   return (card.suit === trumpSuit ? TRUMP_WORTH : PLAIN_WORTH)[card.rankValue];
 }
 
@@ -140,15 +138,11 @@ function isSure(state, seat, card) {
 function choosePlay(state, seat, level, rng) {
   const allowed = allowedPlays(state, seat);
   if (allowed.length === 1) return allowed[0].id;
-  const safe = allowed.filter((c) => !penaltyFor(state, seat, c));
   const trump = state.trumpSuit;
 
-  if (level === "EASY") {
-    const pool = rng() < 0.15 || !safe.length ? allowed : safe;
-    return pick(pool, rng).id;
-  }
+  if (level === "EASY") return pick(allowed, rng).id;
 
-  const pool = safe.length ? safe : allowed;
+  const pool = allowed;
   const byPower = [...pool].sort((a, b) => powerNow(state, a) - powerNow(state, b));
   const weakest = weakestFirst(pool, trump)[0];
   const strongest = byPower[byPower.length - 1];
