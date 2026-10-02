@@ -24,6 +24,8 @@ const EDITABLE_PROFILE_FIELDS = ["username", "tag", "avatar", "custom_avatar", "
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const PRESET_AVATARS = new Set(["1", "2", "3", "4", "5"]);
+
 export function signToken(user) {
   return jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, { expiresIn: TOKEN_TTL });
 }
@@ -67,6 +69,38 @@ function profileError(err) {
     return "Invalid profile data";
   }
   return null;
+}
+
+/**
+ * Who a socket is, from its handshake { token, name, tag, avatar }: returns
+ * { userId, name, tag, avatar } with avatar as { variant, custom }.
+ * A signed-in player is named and drawn from their profile: the browser may
+ * connect before its profile has loaded, still sending its stand-in guest
+ * name. The handshake's name only counts for guests, and for signed-in players
+ * who haven't picked a name yet.
+ */
+export async function socketIdentity({ token, name, tag, avatar } = {}) {
+  const user = verifyToken(token);
+  let row = null;
+  if (user && pool) {
+    try {
+      ({
+        rows: [row],
+      } = await pool.query("select username, tag, avatar, custom_avatar from profiles where id = $1", [user.id]));
+    } catch (err) {
+      console.error("[auth] profile lookup failed:", err.message);
+    }
+  }
+  const custom = row?.avatar === "custom" ? row.custom_avatar : null;
+  const preset = String(avatar ?? "");
+  return {
+    userId: user?.id || null,
+    name: String(row?.username || name || "PLAYER").slice(0, 12),
+    tag: String((row?.username && row.tag) || tag || "0000").slice(0, 4),
+    avatar: row
+      ? { variant: custom ? "custom" : row.avatar, custom }
+      : { variant: PRESET_AVATARS.has(preset) ? preset : "1", custom: null },
+  };
 }
 
 export const authRouter = express.Router();

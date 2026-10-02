@@ -12,7 +12,7 @@ import { ThirteenGame, redactState, DEFAULT_DELAYS } from "./game/engine.js";
 import { MuushigGame, muushigView, DEFAULT_MUUSHIG_DELAYS } from "./game/muushigGame.js";
 import { BOT_NAMES } from "./game/constants.js";
 import { createSession, finishSession, closeOrphanedSessions } from "./persistence.js";
-import { authRouter, verifyToken } from "./auth.js";
+import { authRouter, socketIdentity } from "./auth.js";
 import { oauthRouter } from "./oauth.js";
 import { migrate, pool } from "./db/index.js";
 
@@ -99,45 +99,17 @@ const lobbies = new Map();
 // Signed-in players pass their JWT from /api/auth; guests pass name + tag.
 // Identity (playerKey) is what survives refreshes and reconnects.
 io.use(async (socket, next) => {
-  const { token, name, tag, avatar } = socket.handshake.auth || {};
-  const user = verifyToken(token);
-
-  const safeName = String(name || "PLAYER").slice(0, 12);
-  const safeTag = String(tag || "0000").slice(0, 4);
-
-  socket.data.userId = user?.id || null;
-  socket.data.name = safeName;
-  socket.data.tag = safeTag;
-  socket.data.displayName = `${safeName} #${safeTag}`;
-  socket.data.playerKey = user?.id || `guest:${safeName}#${safeTag}`;
-  socket.data.avatar = await loadAvatar(user, avatar);
+  const { userId, name, tag, avatar } = await socketIdentity(socket.handshake.auth);
+  socket.data.userId = userId;
+  socket.data.name = name;
+  socket.data.tag = tag;
+  socket.data.displayName = `${name} #${tag}`;
+  socket.data.playerKey = userId || `guest:${name}#${tag}`;
+  socket.data.avatar = avatar;
   next();
 });
 
 // ---------- HELPERS ----------
-
-const PRESET_AVATARS = new Set(["1", "2", "3", "4", "5"]);
-
-/**
- * The avatar other players see at the table: { variant, custom }.
- * Signed-in players get what their profile says (painted avatars were already
- * shape-checked by the profiles constraint); guests may only pick a preset.
- */
-async function loadAvatar(user, requested) {
-  if (user && pool) {
-    try {
-      const { rows } = await pool.query("select avatar, custom_avatar from profiles where id = $1", [user.id]);
-      if (rows[0]) {
-        const custom = rows[0].avatar === "custom" ? rows[0].custom_avatar : null;
-        return { variant: custom ? "custom" : rows[0].avatar, custom };
-      }
-    } catch (err) {
-      console.error("[auth] avatar lookup failed:", err.message);
-    }
-  }
-  const preset = String(requested ?? "");
-  return { variant: PRESET_AVATARS.has(preset) ? preset : "1", custom: null };
-}
 
 // Codes and ids come from crypto, never Math.random: its outputs would let a
 // player work out the generator's state and predict the next shuffle.

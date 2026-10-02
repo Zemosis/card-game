@@ -128,6 +128,33 @@ describe.skipIf(!TEST_DATABASE_URL)("accounts API (Postgres)", () => {
     });
   });
 
+  describe("socket identity", () => {
+    it("a signed-in player is named by their profile, not by what the browser sends", async () => {
+      // The browser may connect before the profile loads, still holding its
+      // stand-in guest name: the table must still show the real one.
+      const { body } = await signup();
+      await request(app).patch("/api/auth/profile").set(bearer(body.token)).send({ username: "ZEHTA", tag: "Z123", avatar: "4" });
+      const who = await m.socketIdentity({ token: body.token, name: "FLINT", tag: "AB12", avatar: "2" });
+      expect(who).toEqual({ userId: body.user.id, name: "ZEHTA", tag: "Z123", avatar: { variant: "4", custom: null } });
+    });
+
+    it("before profile setup, a signed-in player keeps the name they sent", async () => {
+      const { body } = await signup();
+      const who = await m.socketIdentity({ token: body.token, name: "FLINT", tag: "AB12" });
+      expect(who).toMatchObject({ userId: body.user.id, name: "FLINT", tag: "AB12" });
+    });
+
+    it("a guest is named by what they send, trimmed to size", async () => {
+      expect(await m.socketIdentity({ name: "WAYTOOLONGNAME", tag: "123456", avatar: "3" })).toEqual({
+        userId: null,
+        name: "WAYTOOLONGNA",
+        tag: "1234",
+        avatar: { variant: "3", custom: null },
+      });
+      expect(await m.socketIdentity({ token: "garbage" })).toMatchObject({ userId: null, name: "PLAYER", tag: "0000" });
+    });
+  });
+
   it("verifyToken rejects missing, garbage and foreign-signed tokens", async () => {
     const jwt = (await import("jsonwebtoken")).default;
     expect(m.verifyToken(undefined)).toBeNull();
