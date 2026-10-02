@@ -400,13 +400,13 @@ const AvatarPaint = () => {
                     onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#2a8a8c")}
                     title="Load saved avatar"
                   >
-                    <CustomAvatarCanvas avatarData={identity.customAvatar} size={64} />
+                    <CustomAvatarCanvas avatarData={identity.customAvatar} size={68} />
                   </button>
                 ) : (
                   <div
                     style={{
-                      width: 64,
-                      height: 64,
+                      width: 68,
+                      height: 68,
                       border: "2px dashed #463a78",
                       display: "flex",
                       alignItems: "center",
@@ -419,8 +419,8 @@ const AvatarPaint = () => {
                 {/* Future slots (locked) */}
                 <div
                   style={{
-                    width: 64,
-                    height: 64,
+                    width: 68,
+                    height: 68,
                     border: "2px dashed #1f1a3d",
                     display: "flex",
                     alignItems: "center",
@@ -433,8 +433,8 @@ const AvatarPaint = () => {
                 </div>
                 <div
                   style={{
-                    width: 64,
-                    height: 64,
+                    width: 68,
+                    height: 68,
                     border: "2px dashed #1f1a3d",
                     display: "flex",
                     alignItems: "center",
@@ -458,7 +458,7 @@ const AvatarPaint = () => {
           <PixelPanel accent="gold" title="PREVIEW">
             <div className="p-3 flex flex-col items-center gap-3">
               <div className="flex items-end gap-4">
-                {[64, 48, 32].map((px) => (
+                {[68, 51, 34].map((px) => (
                   <div key={px} className="flex flex-col items-center gap-2">
                     <CustomAvatarCanvas avatarData={previewData} size={px} />
                     <div className="font-pixel-body text-[18px] text-bone/70">{px}px</div>

@@ -109,14 +109,41 @@ describe.skipIf(!TEST_DATABASE_URL)("accounts API (Postgres)", () => {
     });
 
     it.each([
-      [{ username: "TOOLONGNAME" }, "Name must be 1–6 characters"],
-      [{ tag: "ab!" }, "Tag must be 4 letters or digits"],
-      [{ custom_colors: Array(9).fill("#fff") }, "Too many saved colors"],
-      [{ custom_avatar: { v: "1" } }, "Invalid profile data"],
-    ])("PATCH /profile rejects %j", async (body, error) => {
+      ["a long name", { username: "TOOLONGNAME" }, "Name must be 1–6 characters"],
+      ["a bad tag", { tag: "ab!" }, "Tag must be 4 letters or digits"],
+      ["9 saved colors", { custom_colors: Array(9).fill("#fff") }, "Too many saved colors"],
+      ["a malformed avatar", { custom_avatar: { v: "1" } }, "Invalid profile data"],
+      ["an old 16×16 avatar", { custom_avatar: { v: 2, pixels: Array(256).fill(null) } }, "Invalid profile data"],
+      ["a v3 avatar of the wrong size", { custom_avatar: { v: 3, pixels: Array(256).fill(null) } }, "Invalid profile data"],
+    ])("PATCH /profile rejects %s", async (_, body, error) => {
       const res = await request(app).patch("/api/auth/profile").set(bearer(token)).send(body);
       expect(res.status).toBe(400);
       expect(res.body.error).toBe(error);
+    });
+
+    it("PATCH /profile saves a 17×17 painted avatar", async () => {
+      const custom_avatar = { v: 3, pixels: Array.from({ length: 289 }, (_, i) => (i === 8 ? "#ff0000" : null)) };
+      const res = await request(app).patch("/api/auth/profile").set(bearer(token)).send({ avatar: "custom", custom_avatar });
+      expect(res.status).toBe(200);
+      expect(res.body.profile.custom_avatar).toEqual(custom_avatar);
+    });
+
+    it("migration 006 turns saved 16×16 avatars into 17×17, blank-padded right and bottom", async () => {
+      const fs = await import("node:fs/promises");
+      const sql = await fs.readFile(new URL("../../db/migrations/006_avatar_17x17.sql", import.meta.url), "utf8");
+      const me = (await request(app).get("/api/auth/me").set(bearer(token))).body.user.id;
+      // A row as it was saved before: let it in under the old rule, then migrate.
+      await m.pool.query("alter table profiles drop constraint profiles_custom_avatar_shape");
+      const old = Array.from({ length: 256 }, (_, i) => (i % 16 === 15 ? "#00ff00" : "#0000ff"));
+      await m.pool.query("update profiles set custom_avatar = $1 where id = $2", [JSON.stringify({ v: 2, pixels: old }), me]);
+      await m.pool.query(sql);
+      const {
+        rows: [{ custom_avatar }],
+      } = await m.pool.query("select custom_avatar from profiles where id = $1", [me]);
+      expect(custom_avatar.v).toBe(3);
+      expect(custom_avatar.pixels).toHaveLength(289);
+      expect(custom_avatar.pixels.slice(0, 17)).toEqual([...Array(15).fill("#0000ff"), "#00ff00", null]);
+      expect(custom_avatar.pixels.slice(16 * 17)).toEqual(Array(17).fill(null));
     });
 
     it("name#tag must be unique", async () => {

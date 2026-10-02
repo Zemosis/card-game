@@ -68,7 +68,7 @@ const ScoreBoard = ({ players = [], currentPlayerIndex = 0, roundNumber = 1, mat
               <PixelAvatar
                 variant={faceFor ? faceFor(index).variant : ((player.id ?? index) % 5) + 1}
                 customAvatarData={faceFor?.(index).customAvatarData}
-                size={32}
+                size={34}
                 eliminated={player.isEliminated}
               />
               <div className="flex-1 min-w-0">

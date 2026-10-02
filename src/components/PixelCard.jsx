@@ -115,7 +115,7 @@ export function CardFan({ count = 5, size = "small", spread = 14 }) {
 
 export function PixelAvatar({
   variant = 1,
-  size = 48,
+  size = 51,
   active = false,
   eliminated = false,
   customAvatarData = null,

@@ -84,7 +84,7 @@ function SeatSlot({ seat, index, isHost, onAddCpu, onRemoveCpu, face, small = fa
           <PixelIcon name="close" size={10} />
         </button>
       )}
-      <PixelAvatar variant={avatar.variant} customAvatarData={avatar.customAvatarData} size={44} />
+      <PixelAvatar variant={avatar.variant} customAvatarData={avatar.customAvatarData} size={51} />
       <div className="font-pixel-display text-[10px] text-parchment truncate max-w-full">
         {isCpu ? seat.name : shortName(seat.name)}
       </div>

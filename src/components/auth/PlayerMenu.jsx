@@ -55,7 +55,7 @@ export default function PlayerMenu({ identity, isGuest, onSelectAvatar, onPaint,
           boxShadow: "inset 0 2px 0 0 rgba(255,255,255,0.06)",
         }}
       >
-        <PixelAvatar variant={identity.avatar} size={24} customAvatarData={current === "custom" ? identity.customAvatar : null} />
+        <PixelAvatar variant={identity.avatar} size={34} customAvatarData={current === "custom" ? identity.customAvatar : null} />
         <span>
           <span className="block font-pixel-display text-[8px] text-bone uppercase">{isGuest ? "Guest" : "Player"}</span>
           <span className="block font-pixel-body text-xs text-parchment leading-none">
@@ -100,7 +100,7 @@ export default function PlayerMenu({ identity, isGuest, onSelectAvatar, onPaint,
                     className="pixel-pick"
                     style={pickStyle(current === v)}
                   >
-                    <PixelAvatar variant={v} size={36} />
+                    <PixelAvatar variant={v} size={34} />
                   </button>
                 ))}
               </div>
@@ -114,7 +114,7 @@ export default function PlayerMenu({ identity, isGuest, onSelectAvatar, onPaint,
                     className="pixel-pick"
                     style={pickStyle(current === "custom")}
                   >
-                    <PixelAvatar variant="custom" size={36} customAvatarData={identity.customAvatar} />
+                    <PixelAvatar variant="custom" size={34} customAvatarData={identity.customAvatar} />
                   </button>
                 )}
                 <button

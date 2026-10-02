@@ -71,7 +71,7 @@ function EditProfile() {
           <div style={{ boxShadow: `0 0 0 4px ${INK}` }}>
             <PixelAvatar
               variant={avatar === "custom" ? "custom" : Number(avatar)}
-              size={88}
+              size={102}
               customAvatarData={identity.customAvatar}
             />
           </div>
@@ -116,7 +116,7 @@ function EditProfile() {
                 >
                   <PixelAvatar
                     variant={v === "custom" ? "custom" : Number(v)}
-                    size={44}
+                    size={51}
                     customAvatarData={identity.customAvatar}
                   />
                 </button>

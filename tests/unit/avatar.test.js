@@ -1,0 +1,67 @@
+// Avatars: a 17×17 grid (odd, so a drawing has a true centre column), how
+// it's saved, how older 16×16 avatars load, and the pixel-exact sizing.
+
+import { describe, it, expect } from "vitest";
+import {
+  GRID_SIZE,
+  createEmptyGrid,
+  deserializeAvatar,
+  presetAvatar,
+  serializeAvatar,
+  snapAvatarSize,
+} from "../../src/utils/avatarConstants.js";
+
+const grid = (n, fill) => Array.from({ length: n }, (_, r) => Array.from({ length: n }, (_, c) => fill(r, c)));
+
+describe("avatar grid", () => {
+  it("is 17×17", () => {
+    expect(GRID_SIZE).toBe(17);
+    const empty = createEmptyGrid();
+    expect(empty).toHaveLength(17);
+    expect(empty.every((row) => row.length === 17 && row.every((p) => p === null))).toBe(true);
+  });
+
+  it("saves as v3, 289 pixels row by row, and loads back the same", () => {
+    const pixels = grid(17, (r, c) => (r === c ? "#ff0000" : null));
+    const saved = serializeAvatar(pixels);
+    expect(saved.v).toBe(3);
+    expect(saved.pixels).toHaveLength(289);
+    expect(saved.pixels[18]).toBe("#ff0000"); // row 1, column 1
+    expect(deserializeAvatar(saved).pixels).toEqual(pixels);
+  });
+
+  it("loads an older 16×16 (v2) avatar with a blank column on the right and row at the bottom", () => {
+    const old = grid(16, () => "#00ff00");
+    const { pixels } = deserializeAvatar({ v: 2, pixels: old.flat() });
+    expect(pixels).toHaveLength(17);
+    expect(pixels.every((row) => row.length === 17)).toBe(true);
+    expect(pixels[15][15]).toBe("#00ff00");
+    expect(pixels[15][16]).toBeNull();
+    expect(pixels[16].every((p) => p === null)).toBe(true);
+  });
+
+  it("loads a legacy v1 (palette string, 16×16) avatar the same way", () => {
+    const { pixels } = deserializeAvatar({ palette: [null, "#123456"], pixels: "1".repeat(256) });
+    expect(pixels[0][0]).toBe("#123456");
+    expect(pixels[0][16]).toBeNull();
+    expect(pixels[16][0]).toBeNull();
+  });
+
+  it("every built-in face is 17×17 and mirror-symmetric left to right", () => {
+    for (const variant of [1, 2, 3, 4, 5, "me"]) {
+      const { pixels } = presetAvatar(variant);
+      expect(pixels).toHaveLength(17);
+      for (const row of pixels) {
+        expect(row).toHaveLength(17);
+        expect(row).toEqual([...row].reverse());
+      }
+    }
+  });
+
+  it("draws at whole multiples of 17 device pixels", () => {
+    expect(snapAvatarSize(68)).toEqual({ device: 68, css: 68 });
+    expect(snapAvatarSize(51)).toEqual({ device: 51, css: 51 });
+    expect(snapAvatarSize(34, 2)).toEqual({ device: 68, css: 34 });
+    expect(snapAvatarSize(64).device % 17).toBe(0);
+  });
+});

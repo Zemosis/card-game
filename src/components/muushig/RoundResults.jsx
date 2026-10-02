@@ -16,7 +16,7 @@ function Row({ place, r, player, face }) {
       <span className="font-pixel-display text-[10px] w-6" style={{ color: place === 1 ? "#f4c430" : "#8a7fb0" }}>
         #{place}
       </span>
-      <PixelAvatar variant={face.variant} customAvatarData={face.customAvatarData} size={32} eliminated={r.folded} />
+      <PixelAvatar variant={face.variant} customAvatarData={face.customAvatarData} size={34} eliminated={r.folded} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-pixel-display text-[11px] text-parchment truncate">{baseName(player.name)}</span>

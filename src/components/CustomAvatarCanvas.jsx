@@ -1,8 +1,8 @@
-// AVATAR CANVAS — draws any 16x16 avatar (built-in or painted) pixel-exact.
+// AVATAR CANVAS — draws any 17x17 avatar (built-in or painted) pixel-exact.
 //
-// The requested size is snapped so the canvas covers a whole multiple of 16
+// The requested size is snapped so the canvas covers a whole multiple of 17
 // DEVICE pixels. With 1 CSS px = 1.25 device px (a Windows laptop at 125%
-// scaling), a 48px avatar would otherwise be 60 device px — 3.75 per avatar
+// scaling), a 51px avatar would otherwise be 63.75 device px — 3.75 per avatar
 // pixel — and the browser would draw some pixels 3 wide and some 4. Snapping
 // trades a pixel or two of layout size for every avatar pixel being the same
 // size. The border sits outside the art so it never crops the edge pixels.
@@ -22,7 +22,7 @@ function useDevicePixelRatio() {
   return dpr;
 }
 
-export default function CustomAvatarCanvas({ avatarData, size = 48, border = true }) {
+export default function CustomAvatarCanvas({ avatarData, size = 51, border = true }) {
   const canvasRef = useRef(null);
   const dpr = useDevicePixelRatio();
   const { device, css } = snapAvatarSize(size, dpr);

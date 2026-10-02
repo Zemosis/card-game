@@ -67,7 +67,7 @@ const MuushigScoreBoard = ({ players = [], currentPlayerIndex = -1, dealerIndex 
               <span className="font-pixel-display text-[10px] shrink-0" style={{ width: 22, color: PLACE_COLOR[rankIdx] }}>
                 #{rankIdx + 1}
               </span>
-              <PixelAvatar variant={face.variant} customAvatarData={face.customAvatarData} size={32} eliminated={player.folded} />
+              <PixelAvatar variant={face.variant} customAvatarData={face.customAvatarData} size={34} eliminated={player.folded} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="font-pixel-display text-[10px] text-parchment truncate">{baseName(player.name)}</span>

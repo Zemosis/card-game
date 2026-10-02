@@ -32,7 +32,7 @@ const DealerIntro = ({ round, dealerName, face, isMe = false, drawnCard = null, 
       >
         <div className="font-pixel-display text-[10px] tracking-widest text-bone/70">ROUND {round}</div>
         <div className="flex items-center gap-3">
-          <PixelAvatar variant={face.variant} customAvatarData={face.customAvatarData} size={40} />
+          <PixelAvatar variant={face.variant} customAvatarData={face.customAvatarData} size={51} />
           {drawnCard && <PixelCard rank={drawnCard.rank} suit={drawnCard.suit} width={34} />}
         </div>
         <div className="font-pixel-display text-[13px] text-glow-cyan whitespace-nowrap">

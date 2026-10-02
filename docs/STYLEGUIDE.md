@@ -90,9 +90,12 @@ Defined in `index.css` via `@theme`:
 - Uppercase where thematic (codes, names)
 
 ### Avatars (`PixelAvatar`)
-- Every avatar — the five built-ins and painted ones — is a 16×16 pixel grid
-  drawn by `CustomAvatarCanvas`. Built-ins come from `presetAvatar()` in
+- Every avatar — the five built-ins and painted ones — is a 17×17 pixel grid
+  drawn by `CustomAvatarCanvas`. The grid is odd so a drawing has a true centre
+  column to mirror around. Built-ins come from `presetAvatar()` in
   `utils/avatarConstants.js`.
+- Ask for sizes that are multiples of 17 (34, 51, 68, 102) so the layout gets
+  exactly the size it asked for.
 - The drawn size is snapped so each avatar pixel is a whole number of
   **device** pixels (this accounts for Windows display scaling). Ask for any
   size; expect it rounded to the nearest clean multiple. Never scale an avatar

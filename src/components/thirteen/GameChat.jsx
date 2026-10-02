@@ -234,7 +234,7 @@ function LogLine({ msg, color = "#ead8b1" }) {
 function ChatMessage({ msg, avatar }) {
   return (
     <div className={`flex gap-2 items-start ${msg.isMe ? "flex-row-reverse" : ""}`}>
-      <PixelAvatar variant={avatar?.variant ?? 2} customAvatarData={avatar?.customAvatarData} size={28} />
+      <PixelAvatar variant={avatar?.variant ?? 2} customAvatarData={avatar?.customAvatarData} size={34} />
       <div className={`min-w-0 max-w-[80%] flex flex-col ${msg.isMe ? "items-end" : "items-start"}`}>
         <div className="flex items-baseline gap-1.5">
           <span className="font-pixel-display text-[10px]" style={{ color: msg.isMe ? "#5fd4d6" : "#f4c430" }}>

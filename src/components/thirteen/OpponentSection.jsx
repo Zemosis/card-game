@@ -190,7 +190,7 @@ const OpponentSection = ({ player, isActive = false, hasPassed = false, position
         <PixelAvatar
           variant={face?.variant ?? ((player.id || 0) % 5) + 1}
           customAvatarData={face?.customAvatarData}
-          size={strip ? 32 : compact ? 28 : vertical ? 56 : 44}
+          size={strip || compact ? 34 : vertical ? 68 : 51}
           active={isActive}
           eliminated={isEliminated && !announcing}
         />

@@ -27,7 +27,7 @@ export default function AvatarPicker({ selected, onSelect, disabled }) {
             transition: "border-color 120ms ease, box-shadow 120ms ease",
           }}
         >
-          <PixelAvatar variant={v} size={40} />
+          <PixelAvatar variant={v} size={51} />
         </button>
       ))}
     </div>

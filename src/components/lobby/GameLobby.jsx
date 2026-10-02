@@ -60,7 +60,7 @@ function AdventurerCard({ game, onSignIn }) {
     <Panel title="Adventurer" icon="user" deep={game.accent.deep} right={action}>
       <div className="flex items-center gap-3" style={{ padding: "var(--pad) 12px" }}>
         <div style={{ boxShadow: `0 0 0 3px ${INK}` }}>
-          <PixelAvatar variant={identity.avatar} size={52} customAvatarData={identity.customAvatar} />
+          <PixelAvatar variant={identity.avatar} size={51} customAvatarData={identity.customAvatar} />
         </div>
 
         <div className="flex-1 min-w-0">

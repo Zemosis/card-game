@@ -1,4 +1,7 @@
-export const GRID_SIZE = 16;
+// Odd, so a drawing has a true centre column and row to mirror around.
+export const GRID_SIZE = 17;
+// Avatars saved before the grid grew (v1 and v2) are 16×16.
+const OLD_GRID_SIZE = 16;
 
 export const BASIC_COLORS = [
   "#ff6b6b", "#ee5a24", "#f39c12", "#f1c40f",
@@ -11,10 +14,10 @@ export const BASIC_COLORS = [
   "#ffffff", "#f4c430", "#5fd4d6", "#e85a7a",
 ];
 
-// The five built-in avatars as 16x16 pixel maps, so they render through the
+// The five built-in avatars as 17x17 pixel maps, so they render through the
 // same crisp path as painted ones. Each is a three-stop vertical gradient
-// quantized to one color per row, with two 2x2 eyes and a one-row mouth — the
-// same face the old CSS version drew with fractional em offsets.
+// quantized to one color per row, with two 2x2 eyes and a one-row mouth,
+// mirrored around the centre column.
 const PRESET_STOPS = {
   1: ["#f4c430", "#c89820", "#6b3a1f"],
   2: ["#5fd4d6", "#2a8a8c", "#1a3a4a"],
@@ -38,7 +41,7 @@ function mix(a, b, t) {
 
 const presetCache = new Map();
 
-/** Pixel data ({ pixels: 16x16 }) for a built-in avatar variant. */
+/** Pixel data ({ pixels: 17x17 }) for a built-in avatar variant. */
 export function presetAvatar(variant) {
   const key = PRESET_STOPS[variant] ? variant : 1;
   if (presetCache.has(key)) return presetCache.get(key);
@@ -49,8 +52,8 @@ export function presetAvatar(variant) {
     const t = r / (GRID_SIZE - 1);
     const color = t < 0.5 ? mix(top, mid, t * 2) : mix(mid, bottom, (t - 0.5) * 2);
     const row = Array(GRID_SIZE).fill(color);
-    if (r === 7 || r === 8) row[4] = row[5] = row[10] = row[11] = FACE;
-    if (r === 11) for (let c = 3; c <= 12; c++) row[c] = FACE;
+    if (r === 7 || r === 8) row[4] = row[5] = row[11] = row[12] = FACE;
+    if (r === 11) for (let c = 3; c <= 13; c++) row[c] = FACE;
     pixels.push(row);
   }
   const data = { pixels };
@@ -58,7 +61,6 @@ export function presetAvatar(variant) {
   return data;
 }
 
-/** Device-pixel side (a multiple of 16) and CSS side for a requested size. */
 /**
  * The face shown for a seat at the table: a player's own avatar when the
  * server sent one ({ variant, custom }), else a stock face for CPUs.
@@ -73,6 +75,7 @@ export function seatAvatar(player, index = 0) {
   return { variant: ((player?.id ?? index) % 5) + 1, customAvatarData: null };
 }
 
+/** Device-pixel side (a multiple of 17) and CSS side for a requested size. */
 export function snapAvatarSize(size, dpr = 1) {
   const cells = Math.max(1, Math.round((size * dpr) / GRID_SIZE));
   const device = cells * GRID_SIZE;
@@ -84,38 +87,37 @@ export function createEmptyGrid() {
 }
 
 export function serializeAvatar(pixels) {
-  return { v: 2, pixels: pixels.flat() };
+  return { v: 3, pixels: pixels.flat() };
+}
+
+/** A flat row-by-row list of `size`×`size` pixels → a 17×17 grid, blank-padded right and bottom. */
+function toGrid(flat, size) {
+  return Array.from({ length: GRID_SIZE }, (_, r) =>
+    Array.from({ length: GRID_SIZE }, (_, c) => (r < size && c < size ? (flat[r * size + c] ?? null) : null)),
+  );
 }
 
 export function deserializeAvatar(data) {
   if (!data) return null;
 
-  // v2: flat array of hex strings
-  if (data.v === 2 && Array.isArray(data.pixels)) {
-    const pixels = [];
-    for (let r = 0; r < GRID_SIZE; r++) {
-      pixels.push(data.pixels.slice(r * GRID_SIZE, (r + 1) * GRID_SIZE));
-    }
-    return { pixels };
-  }
+  // v3: flat array of hex strings, 17×17
+  if (data.v === 3 && Array.isArray(data.pixels)) return { pixels: toGrid(data.pixels, GRID_SIZE) };
 
-  // v1 legacy: palette index string
+  // v2: flat array of hex strings, 16×16
+  if (data.v === 2 && Array.isArray(data.pixels)) return { pixels: toGrid(data.pixels, OLD_GRID_SIZE) };
+
+  // v1 legacy: palette index string, 16×16
   if (data.pixels && typeof data.pixels === "string") {
     const palette = data.palette || [];
-    const flat = data.pixels.split("").map((c) => parseInt(c, 36));
-    const pixels = [];
-    for (let r = 0; r < GRID_SIZE; r++) {
-      const row = flat.slice(r * GRID_SIZE, (r + 1) * GRID_SIZE);
-      pixels.push(row.map((idx) => palette[idx] || null));
-    }
-    return { pixels };
+    const flat = data.pixels.split("").map((c) => palette[parseInt(c, 36)] || null);
+    return { pixels: toGrid(flat, OLD_GRID_SIZE) };
   }
 
   return null;
 }
 
 /**
- * Draws a 16x16 avatar onto a canvas whose side is a multiple of 16, so every
+ * Draws a 17x17 avatar onto a canvas whose side is a multiple of 17, so every
  * avatar pixel is a whole number of canvas pixels — no seams, no uneven cells.
  */
 export function renderAvatarToCanvas(ctx, avatarData, canvasSize) {
