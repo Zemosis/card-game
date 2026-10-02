@@ -9,7 +9,7 @@ const MUUSHIG = {
   id: "muushig",
   title: "Muushig",
   route: "/game-muushig",
-  defaultTableName: "Ger of the Steppe",
+  defaultTableName: "CR7 GOAT",
   accent: { main: "#e85a7a", deep: "#a83a5a" },
   events: {
     list: "get_public_lobbies",

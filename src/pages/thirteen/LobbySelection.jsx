@@ -9,7 +9,7 @@ const THIRTEEN = {
   id: "thirteen",
   title: "Thirteen",
   route: "/game-13",
-  defaultTableName: "Khuzur's Hideout",
+  defaultTableName: "CR7 GOAT",
   accent: { main: "#f4c430", deep: "#c89820" },
   events: {
     list: "get_public_lobbies",
